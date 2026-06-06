@@ -1,0 +1,4 @@
+databaseChangeLog:
+  - include:
+      file: 001-init-identity-schema.sql
+      relativeToChangelogFile: true

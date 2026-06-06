@@ -1,0 +1,9 @@
+# IDE / AI Rules
+.clinerules
+.cursorrules
+.windsurfrules
+
+# Kiro Specs
+.kiro/
+
+.env
