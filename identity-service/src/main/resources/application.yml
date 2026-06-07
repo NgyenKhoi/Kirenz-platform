@@ -1,7 +1,9 @@
 server:
-  port: 8080
+  port: 8081
 
 spring:
+  application:
+    name: identity-service
 
   datasource:
     url: ${DATABASE_URL}
@@ -10,12 +12,14 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       auto-commit: false
+
   liquibase:
     enabled: false
+    change-log: classpath:db/changelog/db.changelog-master.yml
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     show-sql: true
@@ -29,6 +33,10 @@ spring:
       mode: never
 
 jwt:
-  secret: ${JWT_SECRET:kirenz-platform-super-secret-key-minimum-512-bits-for-hs512-algorithm-secure}
+  secret: ${JWT_SECRET}
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
+
+logging:
+  level:
+    com.kirenz.identity_service: INFO
