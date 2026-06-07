@@ -1,0 +1,6 @@
+{
+  "name": "Moments",
+  "description": "Digital Hygge authentication screen designed for a sun-lit, heartwarming community connection.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
