@@ -1,0 +1,155 @@
+import React, { useState } from 'react';
+import { Star, Eye, EyeOff, Check, Apple } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+export default function Login() {
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    navigate('/settings');
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-40px)] flex items-center justify-center p-4 md:p-8 bg-surface">
+      <main className="w-full max-w-[1100px] grid grid-cols-1 md:grid-cols-2 bg-surface-container-lowest rounded-[2rem] overflow-hidden shadow-[0_4px_24px_-4px_rgba(139,78,62,0.08)] border border-surface-variant/50">
+        
+        {/* Left Side: Visual / Brand */}
+        <section className="relative hidden md:block overflow-hidden">
+          <img 
+            className="absolute inset-0 w-full h-full object-cover" 
+            alt="Friends laughing in a meadow" 
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4r_OYC5YowbJvkrbbQYkQhex-tTjKOLXHbxQimanar8PPlEapmQWFiWB1pKt0jYxcduIYi4-7zUX4IaUbzviU6SfPfgW2fZLX2ohO_gGzyP8fuHsfEzVg-jCXTh-iktNfY7FSJPpOuXIhX6np7IOBiiePkwrLwM_zper-5Bt30E_EP1e1nsVhrNyaCkIALHHHDKpVeNKh5gXn51Qv07emDhShdVGhbN-qZifTP_oqBu-CTBP5hPlx9e5CXaGPvIUd8WQgmu9x3z8" 
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent"></div>
+          <div className="absolute bottom-12 left-12 right-12 text-white">
+            <div className="flex items-center gap-2 mb-4">
+              <Star fill="currentColor" size={32} />
+              <h1 className="text-3xl font-bold tracking-tight">Moments</h1>
+            </div>
+            <p className="text-lg font-medium opacity-90 leading-relaxed">
+              Designed for the heartbeat of human connection. Find your kindred spirits in a space that feels like home.
+            </p>
+          </div>
+        </section>
+
+        {/* Right Side: Login Form */}
+        <section className="flex flex-col justify-center p-8 md:p-16 bg-surface-container-lowest">
+          
+          {/* Mobile Brand Header */}
+          <div className="md:hidden flex items-center justify-center gap-2 mb-8 text-primary">
+            <Star fill="currentColor" size={28} />
+            <span className="text-2xl font-bold tracking-tight">Moments</span>
+          </div>
+
+          <div className="max-w-md mx-auto w-full">
+            <header className="mb-10 text-center md:text-left">
+              <h2 className="text-3xl font-bold text-on-surface mb-2">Welcome Back</h2>
+              <p className="text-base font-medium text-on-surface-variant">Log in to see what your kindred spirits have been up to.</p>
+            </header>
+
+            {/* Login Form */}
+            <form className="space-y-6" onSubmit={handleLogin}>
+              <div className="space-y-4">
+                
+                {/* Email Input */}
+                <div className="group">
+                  <label className="block text-sm font-bold text-on-surface-variant mb-2 ml-1" htmlFor="email">Email or Username</label>
+                  <div className="relative focus-within:ring-4 focus-within:ring-tertiary/10 rounded-full transition-all duration-300">
+                    <input 
+                      id="email" 
+                      placeholder="Enter your email" 
+                      type="text" 
+                      className="w-full px-6 py-4 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none" 
+                    />
+                  </div>
+                </div>
+
+                {/* Password Input */}
+                <div className="group">
+                  <label className="block text-sm font-bold text-on-surface-variant mb-2 ml-1" htmlFor="password">Password</label>
+                  <div className="relative focus-within:ring-4 focus-within:ring-tertiary/10 rounded-full transition-all duration-300">
+                    <input 
+                      id="password" 
+                      placeholder="••••••••" 
+                      type={showPassword ? 'text' : 'password'} 
+                      className="w-full px-6 py-4 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none" 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowPassword(!showPassword)} 
+                      className="absolute right-6 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Options */}
+              <div className="flex items-center justify-between px-1">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex items-center justify-center">
+                    <input 
+                      type="checkbox" 
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="peer appearance-none w-5 h-5 border-2 border-outline-variant rounded bg-surface-container checked:bg-primary checked:border-primary transition-all cursor-pointer" 
+                    />
+                    <Check className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none stroke-[3]" />
+                  </div>
+                  <span className="text-sm font-bold text-on-surface-variant group-hover:text-on-surface transition-colors">Remember me</span>
+                </label>
+                <a href="#" className="text-sm font-bold text-primary hover:text-primary-container transition-colors">Forgot password?</a>
+              </div>
+
+              {/* CTA */}
+              <button 
+                type="submit"
+                className="w-full py-4 bg-primary text-on-primary rounded-full text-xl font-bold shadow-sm hover:shadow-[inset_0_0_12px_rgba(255,255,255,0.4),0_8px_16px_-4px_rgba(139,78,62,0.15)] active:scale-[0.98] transition-all duration-300"
+              >
+                Login
+              </button>
+            </form>
+
+            {/* Divider */}
+            <div className="relative my-10">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-outline-variant/30"></div>
+              </div>
+              <div className="relative flex justify-center text-xs font-bold uppercase tracking-widest">
+                <span className="bg-surface-container-lowest px-4 text-on-surface-variant/60">or connect with</span>
+              </div>
+            </div>
+
+            {/* Social Logins */}
+            <div className="grid grid-cols-2 gap-4">
+              <button className="flex items-center justify-center gap-3 py-3 border-2 border-outline-variant/30 rounded-full text-sm font-bold text-on-surface hover:bg-surface-container-low active:scale-[0.98] transition-all duration-200">
+                <img 
+                  alt="Google" 
+                  className="w-5 h-5" 
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmUf-RzL4W3z8u7CVuNBerUjRvUPz5nn-OTGuoPydC2w0AvVznBJZvrDnJumonKSsnypEApqqRInaPl_IZSv629iMQIYcWxZsFxrlsJ2KhHiV8n2QdqkUOFeeRCxQ5o6a2GVCtB9-p2S34ztSt0gK-pSzEWxC39d2sVQ4lTGfgHAfMcQB80T5M14eDQO2S5w_GTy0SCkK5aPDtQs_b93kIQMQCmXw6BAWrNHPKdkF3IW-G3d6HsMtLetzMXY-ahDoK5-GwDJKXp-o"
+                  referrerPolicy="no-referrer"
+                />
+                Google
+              </button>
+              <button className="flex items-center justify-center gap-3 py-3 border-2 border-outline-variant/30 rounded-full text-sm font-bold text-on-surface hover:bg-surface-container-low active:scale-[0.98] transition-all duration-200">
+                <Apple size={20} className="text-on-surface" />
+                Apple
+              </button>
+            </div>
+
+            {/* Footer Link */}
+            <p className="mt-10 text-center text-base font-medium text-on-surface-variant">
+              New to Moments?{' '}
+              <a href="#" className="text-primary font-bold hover:underline ml-1">Join now</a>
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
