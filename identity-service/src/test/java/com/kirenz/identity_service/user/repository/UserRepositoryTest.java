@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
@@ -17,10 +18,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Integration tests for UserRepository.
  * Tests custom query methods and database operations.
- * 
- * Requirements tested: 2.10, 2.11, 2.12, 2.13, 2.14, 2.15
  */
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @DisplayName("UserRepository Tests")
 class UserRepositoryTest {
 
