@@ -18,6 +18,8 @@ import com.kirenz.identity_service.user.model.AccountStatus;
 import com.kirenz.identity_service.user.model.User;
 import com.kirenz.identity_service.user.model.UserRole;
 import com.kirenz.identity_service.user.repository.UserRepository;
+import com.kirenz.identity_service.verification.exception.EmailSendingException;
+import com.kirenz.identity_service.verification.service.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -38,13 +41,30 @@ public class AuthService {
     private final JWTService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserMapper userMapper;
+    private final VerificationService verificationService;
 
     @Transactional
     public RegisterResponseDTO register(RegisterRequestDTO request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new EmailAlreadyExistsException("Email already registered");
+        // Check if a user with this email already exists
+        Optional<User> existingUser = userRepository.findByEmail(request.getEmail());
+        
+        if (existingUser.isPresent()) {
+            User user = existingUser.get();
+            if (Boolean.TRUE.equals(user.getEmailVerified())) {
+                throw new EmailAlreadyExistsException("Email already registered");
+            } else {
+                // If email is not verified, we allow "overwriting" or re-registration.
+                // We delete the existing unverified user to avoid constraints and start fresh.
+                log.info("Found unverified user with email: {}. Deleting to allow re-registration.", request.getEmail());
+                userRepository.delete(user);
+                // Flush to ensure the deletion is synchronized with the database 
+                // before checking other consistency constraints like username
+                userRepository.flush();
+            }
         }
 
+        // Now check if username is taken (it might have been cleared by the deletion above, 
+        // or it might be taken by a different verified/unverified user)
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new UsernameAlreadyExistsException("Username already taken");
         }
@@ -57,7 +77,25 @@ public class AuthService {
 
         User savedUser = userRepository.save(user);
 
-        return userMapper.toRegisterResponseDTO(savedUser);
+        // Attempt to send OTP automatically after registration
+        boolean otpSent = false;
+        try {
+            verificationService.sendOTP(savedUser.getEmail());
+            otpSent = true;
+            log.info("OTP sent automatically after registration for email: {}", savedUser.getEmail());
+        } catch (EmailSendingException e) {
+            log.warn("Failed to send OTP after registration for email: {}. Error: {}", 
+                savedUser.getEmail(), e.getMessage());
+            // Continue with registration - OTP failure should not block registration
+        } catch (Exception e) {
+            log.warn("Unexpected error sending OTP after registration for email: {}. Error: {}", 
+                savedUser.getEmail(), e.getMessage());
+            // Continue with registration - OTP failure should not block registration
+        }
+
+        RegisterResponseDTO response = userMapper.toRegisterResponseDTO(savedUser);
+        response.setOtpSent(otpSent);
+        return response;
     }
 
     @Transactional

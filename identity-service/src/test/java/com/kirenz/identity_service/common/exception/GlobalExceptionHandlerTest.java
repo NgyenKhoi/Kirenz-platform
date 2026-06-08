@@ -2,6 +2,10 @@ package com.kirenz.identity_service.common.exception;
 
 import com.kirenz.identity_service.common.dto.ApiResponse;
 import com.kirenz.identity_service.common.dto.ErrorResponse;
+import com.kirenz.identity_service.verification.exception.EmailAlreadyVerifiedException;
+import com.kirenz.identity_service.verification.exception.EmailSendingException;
+import com.kirenz.identity_service.verification.exception.InvalidOTPException;
+import com.kirenz.identity_service.verification.exception.RateLimitExceededException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -170,5 +174,62 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getMessage()).isEqualTo("Internal server error");
         assertThat(response.getBody().getData()).isNotNull();
         assertThat(response.getBody().getData().getMessage()).isEqualTo("Internal server error");
+    }
+
+    @Test
+    void handleEmailAlreadyVerified_shouldReturn400WithErrorMessage() {
+        EmailAlreadyVerifiedException exception = new EmailAlreadyVerifiedException("test message");
+
+        ResponseEntity<ApiResponse<ErrorResponse>> response = exceptionHandler.handleEmailAlreadyVerified(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Email is already verified");
+        assertThat(response.getBody().getData()).isNotNull();
+        assertThat(response.getBody().getData().getMessage()).isEqualTo("Email is already verified");
+    }
+
+    @Test
+    void handleInvalidOTP_shouldReturn400WithExceptionMessage() {
+        InvalidOTPException exception = new InvalidOTPException("Invalid or expired OTP");
+
+        ResponseEntity<ApiResponse<ErrorResponse>> response = exceptionHandler.handleInvalidOTP(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Invalid or expired OTP");
+        assertThat(response.getBody().getData()).isNotNull();
+        assertThat(response.getBody().getData().getMessage()).isEqualTo("Invalid or expired OTP");
+    }
+
+    @Test
+    void handleRateLimitExceeded_shouldReturn429WithRetryAfterHeader() {
+        RateLimitExceededException exception = new RateLimitExceededException("test message");
+
+        ResponseEntity<ApiResponse<ErrorResponse>> response = exceptionHandler.handleRateLimitExceeded(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("60");
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Please wait 60 seconds before requesting another OTP");
+        assertThat(response.getBody().getData()).isNotNull();
+        assertThat(response.getBody().getData().getMessage()).isEqualTo("Please wait 60 seconds before requesting another OTP");
+    }
+
+    @Test
+    void handleEmailSendingException_shouldReturn500WithErrorMessage() {
+        EmailSendingException exception = new EmailSendingException("test message");
+
+        ResponseEntity<ApiResponse<ErrorResponse>> response = exceptionHandler.handleEmailSendingException(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Failed to send OTP email. Please try again later");
+        assertThat(response.getBody().getData()).isNotNull();
+        assertThat(response.getBody().getData().getMessage()).isEqualTo("Failed to send OTP email. Please try again later");
     }
 }

@@ -2,6 +2,10 @@ package com.kirenz.identity_service.common.exception;
 
 import com.kirenz.identity_service.common.dto.ApiResponse;
 import com.kirenz.identity_service.common.dto.ErrorResponse;
+import com.kirenz.identity_service.verification.exception.EmailAlreadyVerifiedException;
+import com.kirenz.identity_service.verification.exception.EmailSendingException;
+import com.kirenz.identity_service.verification.exception.InvalidOTPException;
+import com.kirenz.identity_service.verification.exception.RateLimitExceededException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -76,6 +80,39 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.error("Invalid token", errorResponse));
+    }
+
+    @ExceptionHandler(EmailAlreadyVerifiedException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleEmailAlreadyVerified(EmailAlreadyVerifiedException ex) {
+        ErrorResponse errorResponse = ErrorResponse.of("Email is already verified");
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Email is already verified", errorResponse));
+    }
+
+    @ExceptionHandler(InvalidOTPException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleInvalidOTP(InvalidOTPException ex) {
+        ErrorResponse errorResponse = ErrorResponse.of(ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage(), errorResponse));
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleRateLimitExceeded(RateLimitExceededException ex) {
+        ErrorResponse errorResponse = ErrorResponse.of("Please wait 60 seconds before requesting another OTP");
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", "60")
+                .body(ApiResponse.error("Please wait 60 seconds before requesting another OTP", errorResponse));
+    }
+
+    @ExceptionHandler(EmailSendingException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleEmailSendingException(EmailSendingException ex) {
+        ErrorResponse errorResponse = ErrorResponse.of("Failed to send OTP email. Please try again later");
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Failed to send OTP email. Please try again later", errorResponse));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

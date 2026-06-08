@@ -1,16 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, Eye, EyeOff, Check, Apple } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from './hooks/useAuth';
+import { useAuthStore } from './store/authStore';
+import OTPVerification from './components/OTPVerification';
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showOTP, setShowOTP] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const navigate = useNavigate();
+  const { loginAsync, isLoggingIn, loginError, refetchUser } = useAuth();
+  const { isAuthenticated, user } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      if (user && !user.emailVerified) {
+        setUnverifiedEmail(user.email);
+        setShowOTP(true);
+      } else {
+        navigate('/home');
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/settings');
+    try {
+      const loggedInUser = await loginAsync({ email, password });
+      if (loggedInUser && !loggedInUser.emailVerified) {
+        setUnverifiedEmail(loggedInUser.email);
+        setShowOTP(true);
+      } else {
+        navigate('/home');
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
   };
+
+  const handleOTPVerified = async () => {
+    await refetchUser();
+    setShowOTP(false);
+    navigate('/home');
+  };
+
+  if (showOTP) {
+    return (
+      <OTPVerification 
+        email={unverifiedEmail}
+        onVerified={handleOTPVerified}
+        onBack={() => setShowOTP(false)}
+        autoSent={false} // We don't automatically send OTP on login, unless we want to
+      />
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-40px)] flex items-center justify-center p-4 md:p-8 bg-surface">
@@ -53,6 +101,14 @@ export default function Login() {
 
             {/* Login Form */}
             <form className="space-y-6" onSubmit={handleLogin}>
+              {loginError && (
+                <div className="p-4 bg-error-container rounded-2xl border border-error">
+                  <p className="text-sm font-medium text-on-error-container">
+                    {(loginError as any)?.response?.data?.message || 'Login failed. Please try again.'}
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-4">
                 
                 {/* Email Input */}
@@ -62,8 +118,12 @@ export default function Login() {
                     <input 
                       id="email" 
                       placeholder="Enter your email" 
-                      type="text" 
-                      className="w-full px-6 py-4 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none" 
+                      type="text"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={isLoggingIn}
+                      required
+                      className="w-full px-6 py-4 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50" 
                     />
                   </div>
                 </div>
@@ -75,13 +135,18 @@ export default function Login() {
                     <input 
                       id="password" 
                       placeholder="••••••••" 
-                      type={showPassword ? 'text' : 'password'} 
-                      className="w-full px-6 py-4 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none" 
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={isLoggingIn}
+                      required
+                      className="w-full px-6 py-4 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50" 
                     />
                     <button 
                       type="button" 
                       onClick={() => setShowPassword(!showPassword)} 
-                      className="absolute right-6 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none"
+                      disabled={isLoggingIn}
+                      className="absolute right-6 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none disabled:opacity-50"
                     >
                       {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
                     </button>
@@ -109,9 +174,17 @@ export default function Login() {
               {/* CTA */}
               <button 
                 type="submit"
-                className="w-full py-4 bg-primary text-on-primary rounded-full text-xl font-bold shadow-sm hover:shadow-[inset_0_0_12px_rgba(255,255,255,0.4),0_8px_16px_-4px_rgba(139,78,62,0.15)] active:scale-[0.98] transition-all duration-300"
+                disabled={isLoggingIn}
+                className="w-full py-4 bg-primary text-on-primary rounded-full text-xl font-bold shadow-sm hover:shadow-[inset_0_0_12px_rgba(255,255,255,0.4),0_8px_16px_-4px_rgba(139,78,62,0.15)] active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
               >
-                Login
+                {isLoggingIn ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                    Logging in...
+                  </>
+                ) : (
+                  'Login'
+                )}
               </button>
             </form>
 
@@ -145,7 +218,7 @@ export default function Login() {
             {/* Footer Link */}
             <p className="mt-10 text-center text-base font-medium text-on-surface-variant">
               New to Moments?{' '}
-              <a href="#" className="text-primary font-bold hover:underline ml-1">Join now</a>
+              <Link to="/register" className="text-primary font-bold hover:underline ml-1">Join now</Link>
             </p>
           </div>
         </section>

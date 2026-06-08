@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Verify Your Email - Kirenz Platform</title>
+    <style>
+        /* Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Quicksand', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #fdf9f3;
+            color: #1c1c18;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        /* Container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(139, 78, 62, 0.1);
+        }
+
+        /* Header */
+        .email-header {
+            background: linear-gradient(135deg, #8b4e3e 0%, #7a4032 100%);
+            color: #ffffff;
+            padding: 32px 24px;
+            text-align: center;
+        }
+
+        .email-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: 0.5px;
+        }
+
+        /* Content */
+        .email-content {
+            padding: 40px 32px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            font-weight: 500;
+            color: #1c1c18;
+            margin-bottom: 24px;
+        }
+
+        .message {
+            font-size: 16px;
+            color: #534340;
+            margin-bottom: 32px;
+            line-height: 1.8;
+        }
+
+        /* OTP Code Box */
+        .otp-container {
+            text-align: center;
+            margin: 32px 0;
+        }
+
+        .otp-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #85736f;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        .otp-code {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffb09c 0%, #ffd97d 100%);
+            color: #7a4032;
+            font-size: 42px;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 24px 48px;
+            border-radius: 12px;
+            letter-spacing: 8px;
+            box-shadow: 0 4px 16px rgba(139, 78, 62, 0.15);
+            margin: 16px 0;
+        }
+
+        /* Warning Boxes */
+        .warning-box {
+            background-color: #f7f3ed;
+            border-left: 4px solid #765b06;
+            padding: 16px 20px;
+            margin: 24px 0;
+            border-radius: 8px;
+        }
+
+        .warning-box p {
+            margin: 0;
+            font-size: 14px;
+            color: #534340;
+        }
+
+        .warning-box.error {
+            background-color: #ffdad6;
+            border-left-color: #ba1a1a;
+        }
+
+        .warning-box.error p {
+            color: #93000a;
+        }
+
+        .expiry-warning {
+            text-align: center;
+            color: #765b06;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 24px;
+        }
+
+        .security-notice {
+            text-align: center;
+            color: #ba1a1a;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 16px;
+            padding: 12px;
+            background-color: #ffdad6;
+            border-radius: 8px;
+        }
+
+        /* Footer */
+        .email-footer {
+            background-color: #f1ede7;
+            padding: 24px 32px;
+            text-align: center;
+            border-top: 2px solid #e6e2dc;
+        }
+
+        .email-footer p {
+            font-size: 13px;
+            color: #85736f;
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        .footer-notice {
+            font-style: italic;
+            color: #534340;
+            margin-top: 16px;
+        }
+
+        /* Dark Mode Support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1c1c18;
+            }
+
+            .email-container {
+                background-color: #31302d;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            }
+
+            .email-content {
+                background-color: #31302d;
+            }
+
+            .greeting {
+                color: #f4f0ea;
+            }
+
+            .message {
+                color: #d8c2bd;
+            }
+
+            .otp-label {
+                color: #d8c2bd;
+            }
+
+            .otp-code {
+                background: linear-gradient(135deg, #8b4e3e 0%, #765b06 100%);
+                color: #ffffff;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            }
+
+            .warning-box {
+                background-color: #3d3a35;
+                border-left-color: #ffd97d;
+            }
+
+            .warning-box p {
+                color: #d8c2bd;
+            }
+
+            .warning-box.error {
+                background-color: #4a2e2e;
+                border-left-color: #ffdad6;
+            }
+
+            .warning-box.error p {
+                color: #ffdad6;
+            }
+
+            .expiry-warning {
+                color: #ffd97d;
+            }
+
+            .security-notice {
+                background-color: #4a2e2e;
+                color: #ffdad6;
+            }
+
+            .email-footer {
+                background-color: #252422;
+                border-top-color: #3d3a35;
+            }
+
+            .email-footer p {
+                color: #d8c2bd;
+            }
+
+            .footer-notice {
+                color: #d8c2bd;
+            }
+        }
+
+        /* Responsive Design */
+        @media only screen and (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .email-header {
+                padding: 24px 16px;
+            }
+
+            .email-header h1 {
+                font-size: 24px;
+            }
+
+            .email-content {
+                padding: 24px 20px;
+            }
+
+            .otp-code {
+                font-size: 36px;
+                padding: 20px 32px;
+                letter-spacing: 6px;
+            }
+
+            .email-footer {
+                padding: 20px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container" role="article" aria-label="Email verification code">
+        <!-- Header -->
+        <div class="email-header">
+            <h1>Kirenz Platform</h1>
+        </div>
+
+        <!-- Main Content -->
+        <div class="email-content">
+            <p class="greeting">Hello <span th:text="${name}">User</span>,</p>
+
+            <p class="message">
+                Thank you for registering with Kirenz Platform. To complete your email verification, 
+                please use the code below:
+            </p>
+
+            <!-- OTP Code -->
+            <div class="otp-container">
+                <div class="otp-label">Your Verification Code</div>
+                <div class="otp-code" th:text="${otp}" role="heading" aria-level="2" aria-label="Verification code">
+                    123456
+                </div>
+            </div>
+
+            <!-- Expiry Warning -->
+            <p class="expiry-warning">
+                ⏱️ This code will expire in 5 minutes
+            </p>
+
+            <!-- Security Notice -->
+            <p class="security-notice">
+                🔒 Do not share this code with anyone
+            </p>
+
+            <!-- Additional Info -->
+            <div class="warning-box" role="note">
+                <p>
+                    <strong>Important:</strong> If the code doesn't work, you can request a new one 
+                    after 60 seconds.
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="email-footer">
+            <p class="footer-notice">
+                If you did not request this code, please ignore this email. 
+                Your account security is important to us.
+            </p>
+            <p>
+                &copy; 2026 Kirenz Platform. All rights reserved.
+            </p>
+            <p>
+                This is an automated message, please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
