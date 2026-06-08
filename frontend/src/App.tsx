@@ -5,6 +5,7 @@
 
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import Login from './Login';
+import Register from './Register';
 import ProfileSettings from './ProfileSettings';
 import PrivacySettings from './PrivacySettings';
 import UserProfile from './UserProfile';
@@ -14,13 +15,15 @@ import Stories from './Stories';
 import StoryViewer from './StoryViewer';
 import Chat from './Chat';
 import EditCover from './EditCover';
+import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
   return (
     <BrowserRouter>
-      {/* Temporary navigation banner for easy access between screens during development */}
       <div className="fixed top-0 left-0 right-0 bg-surface-container border-b border-outline-variant p-2 flex justify-center gap-4 z-[100] text-sm hidden">
         <Link to="/" className="text-primary font-bold hover:underline">Login</Link>
+        <span className="text-on-surface-variant">|</span>
+        <Link to="/register" className="text-primary font-bold hover:underline">Register</Link>
         <span className="text-on-surface-variant">|</span>
         <Link to="/home" className="text-primary font-bold hover:underline">Home Feed</Link>
         <span className="text-on-surface-variant">|</span>
@@ -39,15 +42,16 @@ export default function App() {
       <div>
         <Routes>
           <Route path="/" element={<Login />} />
-          <Route path="/home" element={<HomeFeed />} />
-          <Route path="/stories" element={<Stories />} />
-          <Route path="/story/:id" element={<StoryViewer />} />
-          <Route path="/profile" element={<UserProfile />} />
-          <Route path="/edit-cover" element={<EditCover />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/friends" element={<Friends />} />
-          <Route path="/settings" element={<ProfileSettings />} />
-          <Route path="/privacy" element={<PrivacySettings />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/home" element={<ProtectedRoute><HomeFeed /></ProtectedRoute>} />
+          <Route path="/stories" element={<ProtectedRoute><Stories /></ProtectedRoute>} />
+          <Route path="/story/:id" element={<ProtectedRoute><StoryViewer /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+          <Route path="/edit-cover" element={<ProtectedRoute><EditCover /></ProtectedRoute>} />
+          <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+          <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
+          <Route path="/privacy" element={<ProtectedRoute><PrivacySettings /></ProtectedRoute>} />
         </Routes>
       </div>
     </BrowserRouter>

@@ -1,10 +1,20 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Home, Users, Sparkles, User, UserCircle, Bell, Menu, Plus, Settings, MessageSquare } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Users, Sparkles, User, UserCircle, Bell, Menu, Plus, Settings, MessageSquare, LogOut } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../store/authStore';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const path = location.pathname;
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const { user } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <div className="bg-surface-bright text-on-surface min-h-screen font-body-md">
@@ -18,14 +28,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary-container shrink-0">
             <img 
               alt="User avatar" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDn9I6Bn8A1s6Gv_kblRDw5crnta6Vb7W0KyrBjRdHoUu3nEM5p1A7ODn_isaa7M80w2yF_GqrvezNIIz11PYt7KqMNO5ISVUrgUKCJZ3FvNZkhQeNhkwYyW_jdHb2Qja9CR9u9BVzj_6IFkVhiHPLeS6JXKmIBmfaC71-cnJodIWg_zqMW4RUF73sKvLv8IZWTXErCay6A4e6Xaho8Q6Y-8TCyc4_rZbQGrTBGVqYllUj1ftVmkK9I2EnSe5Ph9NHEg-y1kcqoQHI"
+              src={user?.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuDn9I6Bn8A1s6Gv_kblRDw5crnta6Vb7W0KyrBjRdHoUu3nEM5p1A7ODn_isaa7M80w2yF_GqrvezNIIz11PYt7KqMNO5ISVUrgUKCJZ3FvNZkhQeNhkwYyW_jdHb2Qja9CR9u9BVzj_6IFkVhiHPLeS6JXKmIBmfaC71-cnJodIWg_zqMW4RUF73sKvLv8IZWTXErCay6A4e6Xaho8Q6Y-8TCyc4_rZbQGrTBGVqYllUj1ftVmkK9I2EnSe5Ph9NHEg-y1kcqoQHI"}
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
             />
           </div>
           <div>
             <p className="text-sm font-bold text-primary">Welcome back</p>
-            <p className="text-on-surface-variant text-sm">Your daily moments</p>
+            <p className="text-on-surface-variant text-sm truncate">{user?.displayName || user?.username || 'User'}</p>
           </div>
         </div>
         
@@ -78,7 +88,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </Link>
         </nav>
         
-        <div className="mt-auto">
+        <div className="mt-auto space-y-3">
+          <button 
+            onClick={handleLogout}
+            className="w-full py-3 flex items-center justify-center gap-3 bg-error-container text-on-error-container font-bold rounded-full hover:scale-[1.02] active:scale-[0.98] transition-all"
+          >
+            <LogOut size={20} />
+            Logout
+          </button>
           <button className="w-full py-4 bg-primary text-on-primary font-bold rounded-full shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all">
             Share a Moment
           </button>

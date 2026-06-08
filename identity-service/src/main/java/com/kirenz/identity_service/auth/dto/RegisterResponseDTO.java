@@ -16,4 +16,5 @@ public class RegisterResponseDTO {
     private String username;
     private String displayName;
     private Instant createdAt;
+    private Boolean otpSent;
 }
