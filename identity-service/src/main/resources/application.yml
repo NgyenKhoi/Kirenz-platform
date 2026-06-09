@@ -47,7 +47,7 @@ brevo:
   api-key: ${BREVO_API_KEY}
   base-url: https://api.brevo.com/v3/smtp/email
   sender-email: ${BREVO_SENDER_EMAIL}
-  sender-name: Kirenz Platform
+  sender-name: ${BREVO_SENDER_NAME}
 
 logging:
   level:

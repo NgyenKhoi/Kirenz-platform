@@ -24,7 +24,7 @@ public class PrivacySetting {
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "user_id", nullable = false)
-    private User users;
+    private User user;
 
     @Size(max = 20)
     @NotNull

@@ -11,7 +11,9 @@ import {
   SendOTPResponse,
   VerifyOTPRequest,
   VerifyOTPResponse,
+  UpdateProfileRequest,
 } from '../types/auth.types';
+
 
 export const authService = {
   register: async (data: RegisterRequest): Promise<RegisterResponse> => {
@@ -58,6 +60,19 @@ export const authService = {
 
     return userData;
   },
+
+  updateProfile: async (data: UpdateProfileRequest): Promise<UserProfile> => {
+    const response = await apiClient.patch<ApiResponse<UserProfile>>(
+      API_ENDPOINTS.USER.ME,
+      data
+    );
+    const userData = response.data.data;
+
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
+
+    return userData;
+  },
+
 
   logout: () => {
     localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);

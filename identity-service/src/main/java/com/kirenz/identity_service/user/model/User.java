@@ -91,6 +91,13 @@ public class User implements UserDetails {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private PrivacySetting privacySetting;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private NotificationSetting notificationSetting;
+
+
     // UserDetails interface implementation
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

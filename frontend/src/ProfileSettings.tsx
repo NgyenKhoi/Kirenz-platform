@@ -1,25 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, MessageSquare, UsersRound, BookOpen, Sparkles, 
-  Settings, Bell, Camera, User, Mail, Sun, Moon, Palette,
+  Settings, Bell, Camera, User as UserIcon, Mail, Sun, Moon, Palette,
   CheckCircle, Loader2, Menu
 } from 'lucide-react';
 import Layout from './components/Layout';
+import { useAuth } from './hooks/useAuth';
 
 export default function ProfileSettings() {
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  const { user, updateProfile, isUpdatingProfile, updateProfileSuccess } = useAuth();
   const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('light');
+  
+  const avatarUrl = user?.avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCs8AQ1VyctgRMqOBqcr3PDc7VEE9fQ2Finhj3ZftNZfaFDrOEUoeQ19iPtUyTrCijbr6p9xNxzWw8p_x6kxMmKvn_dfE1apfaKVZ5nrCzUzLb2VGanYhffU2Wdg7mSFxI-4RIzUGYB7Uk0_E39bQoOqSMovV-mxAlZYmeNfP-9PMJno1uQB10MAUfCdpRAiHr2bQBE50OhVtqM_M-N8ruZ6NeEIZZupVjU5N-EdjthGlfNpVJRVgG-wsao1aT-a-SG0AnWKaaw-5E';
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    displayName: '',
+    username: '',
+    bio: '',
+    location: '',
+    website: '',
+    email: '',
+  });
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        displayName: user.displayName || '',
+        username: user.username || '',
+        bio: user.bio || '',
+        location: user.location || '',
+        website: user.website || '',
+        email: user.email || '',
+      });
+    }
+  }, [user]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleSave = () => {
-    setIsSaving(true);
-    setIsSaved(false);
-    setTimeout(() => {
-      setIsSaving(false);
-      setIsSaved(true);
-      setTimeout(() => setIsSaved(false), 2000);
-    }, 1200);
+    updateProfile({
+      displayName: formData.displayName,
+      bio: formData.bio,
+      location: formData.location,
+      website: formData.website,
+    });
   };
+
 
   return (
     <Layout>
@@ -42,7 +72,7 @@ export default function ProfileSettings() {
               <img 
                 alt="User Profile" 
                 className="w-full h-full object-cover" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCs8AQ1VyctgRMqOBqcr3PDc7VEE9fQ2Finhj3ZftNZfaFDrOEUoeQ19iPtUyTrCijbr6p9xNxzWw8p_x6kxMmKvn_dfE1apfaKVZ5nrCzUzLb2VGanYhffU2Wdg7mSFxI-4RIzUGYB7Uk0_E39bQoOqSMovV-mxAlZYmeNfP-9PMJno1uQB10MAUfCdpRAiHr2bQBE50OhVtqM_M-N8ruZ6NeEIZZupVjU5N-EdjthGlfNpVJRVgG-wsao1aT-a-SG0AnWKaaw-5E"
+                src={avatarUrl}
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -60,7 +90,7 @@ export default function ProfileSettings() {
                   <img 
                     alt="Large Avatar" 
                     className="w-full h-full object-cover" 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbEq7g60TGMD5i60z_kHY5TDOCv8mUbQyJkvnDtjuih47vfctXS59p5fZKRVI7-8vACfbnztXHfi6g6DyeB6BiDSaJ98oJhYPZOFq8F3PwsVLwwvyYWc4Ee_kF-AuenZn9HVCw1QJ-xi-Y02uI151nm30RmnViWAtPPcxo17XfWhxDDv3Xt33Vmd4z-HLyuph2Ajr3m1tddy4WMFg5fnxK8HimQ-N0TNT25ODV4xINfVi13yOSI1-5eTBHw3FSDc1VgbZZI28nq9A"
+                    src={avatarUrl}
                     referrerPolicy="no-referrer"
                   />
                 </div>
@@ -80,7 +110,7 @@ export default function ProfileSettings() {
             {/* Section 2: Personal Info */}
             <section className="bg-surface-container-lowest p-8 rounded-[2rem] shadow-[0_10px_30px_-5px_rgba(255,176,156,0.15)] border border-outline-variant/10">
               <div className="flex items-center gap-2 mb-8 text-primary">
-                <User size={24} />
+                <UserIcon size={24} />
                 <h3 className="text-xl font-bold">Personal Information</h3>
               </div>
               
@@ -89,7 +119,9 @@ export default function ProfileSettings() {
                   <label className="text-sm font-bold text-on-surface-variant ml-2">Full Name</label>
                   <input 
                     type="text" 
-                    defaultValue="Elena Richardson"
+                    name="displayName"
+                    value={formData.displayName}
+                    onChange={handleChange}
                     className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-tertiary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
                   />
                 </div>
@@ -100,8 +132,11 @@ export default function ProfileSettings() {
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">@</span>
                     <input 
                       type="text" 
-                      defaultValue="elena_m"
-                      className="bg-surface p-4 pl-10 rounded-full w-full border-2 border-outline-variant/30 focus:border-tertiary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
+                      name="username"
+                      value={formData.username}
+                      onChange={handleChange}
+                      disabled
+                      className="bg-surface p-4 pl-10 rounded-full w-full border-2 border-outline-variant/30 focus:border-tertiary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none opacity-70 cursor-not-allowed" 
                     />
                   </div>
                 </div>
@@ -110,7 +145,9 @@ export default function ProfileSettings() {
                   <label className="text-sm font-bold text-on-surface-variant ml-2">Bio</label>
                   <textarea 
                     rows={3}
-                    defaultValue="Capturing quiet moments and golden hours. Exploring the beauty in the everyday. ✨"
+                    name="bio"
+                    value={formData.bio}
+                    onChange={handleChange}
                     className="bg-surface p-4 rounded-2xl border-2 border-outline-variant/30 focus:border-tertiary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none resize-none" 
                   />
                 </div>
@@ -123,11 +160,14 @@ export default function ProfileSettings() {
                     </div>
                     <input 
                       type="text" 
-                      defaultValue="San Francisco, CA"
+                      name="location"
+                      value={formData.location}
+                      onChange={handleChange}
                       className="bg-surface p-4 pl-12 rounded-full w-full border-2 border-outline-variant/30 focus:border-tertiary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
                     />
                   </div>
                 </div>
+
               </div>
             </section>
 
@@ -143,19 +183,25 @@ export default function ProfileSettings() {
                   <label className="text-sm font-bold text-on-surface-variant ml-2">Email Address</label>
                   <input 
                     type="email" 
-                    defaultValue="elena.richardson@example.com"
-                    className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-tertiary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
+                    name="email"
+                    value={formData.email}
+                    readOnly
+                    className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-tertiary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none opacity-70 cursor-not-allowed" 
                   />
                 </div>
                 
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-bold text-on-surface-variant ml-2">Phone Number</label>
+                  <label className="text-sm font-bold text-on-surface-variant ml-2">Website</label>
                   <input 
-                    type="tel" 
-                    defaultValue="+1 (555) 012-3456"
+                    type="url" 
+                    name="website"
+                    value={formData.website}
+                    onChange={handleChange}
+                    placeholder="https://example.com"
                     className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-tertiary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
                   />
                 </div>
+
               </div>
             </section>
 
@@ -225,21 +271,21 @@ export default function ProfileSettings() {
               
               <button 
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isUpdatingProfile}
                 className={`px-8 sm:px-10 py-3 rounded-full text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2 min-w-[160px] ${
-                  isSaved 
+                  updateProfileSuccess 
                     ? 'bg-tertiary-container text-on-tertiary-container shadow-[0_4px_12px_rgba(161,197,255,0.4)]' 
-                    : isSaving
+                    : isUpdatingProfile
                       ? 'bg-primary-container text-on-primary-container opacity-80 cursor-not-allowed'
                       : 'bg-primary-container text-on-primary-container shadow-[0_4px_12px_rgba(255,176,156,0.3)] hover:shadow-[0_8px_16px_rgba(255,176,156,0.4)] hover:-translate-y-0.5 active:scale-[0.98]'
                 }`}
               >
-                {isSaving ? (
+                {isUpdatingProfile ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
                     <span>Saving...</span>
                   </>
-                ) : isSaved ? (
+                ) : updateProfileSuccess ? (
                   <>
                     <span>Saved!</span>
                     <CheckCircle size={20} />
@@ -251,6 +297,7 @@ export default function ProfileSettings() {
                   </>
                 )}
               </button>
+
             </footer>
           </div>
         </div>
