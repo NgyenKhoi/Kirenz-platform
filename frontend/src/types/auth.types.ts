@@ -80,3 +80,13 @@ export interface VerifyOTPResponse {
   message: string;
   emailVerifiedAt: string;
 }
+
+export interface UpdateProfileRequest {
+  displayName?: string;
+  bio?: string;
+  birthDate?: string | null;
+  gender?: string | null;
+  location?: string | null;
+  website?: string | null;
+}
+

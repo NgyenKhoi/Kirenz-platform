@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/auth.service';
-import { LoginRequest, RegisterRequest } from '../types/auth.types';
+import { LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth.types';
 import { AxiosError } from 'axios';
 
 export const useAuth = () => {
-  const { user, isAuthenticated, login, logout, setError, initializeAuth } = useAuthStore();
+  const { user, isAuthenticated, login, logout, setError, initializeAuth, setUser } = useAuthStore();
+
 
   const registerMutation = useMutation({
     mutationFn: (data: RegisterRequest) => authService.register(data),
@@ -54,6 +55,16 @@ export const useAuth = () => {
     },
   });
 
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: UpdateProfileRequest) => authService.updateProfile(data),
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser);
+    },
+    onError: (error: AxiosError<{ message: string }>) => {
+      setError(error.response?.data?.message || 'Failed to update profile');
+    },
+  });
+
   return {
     user,
     isAuthenticated,
@@ -72,7 +83,12 @@ export const useAuth = () => {
     verifyOTP: verifyOTPMutation.mutate,
     verifyOTPAsync: verifyOTPMutation.mutateAsync,
     isVerifyingOTP: verifyOTPMutation.isPending,
+    updateProfile: updateProfileMutation.mutate,
+    updateProfileAsync: updateProfileMutation.mutateAsync,
+    isUpdatingProfile: updateProfileMutation.isPending,
+    updateProfileSuccess: updateProfileMutation.isSuccess,
     refetchUser,
     initializeAuth,
   };
+
 };

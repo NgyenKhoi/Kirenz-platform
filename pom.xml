@@ -30,6 +30,7 @@
         <java.version>21</java.version>
         <mapstruct.version>1.6.0</mapstruct.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <cloudinary.version>1.33.0</cloudinary.version>
     </properties>
 
     <dependencyManagement>
@@ -59,6 +60,12 @@
                 <groupId>io.jsonwebtoken</groupId>
                 <artifactId>jjwt-jackson</artifactId>
                 <version>${jjwt.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.cloudinary</groupId>
+                <artifactId>cloudinary-http44</artifactId>
+                <version>${cloudinary.version}</version>
             </dependency>
 
         </dependencies>

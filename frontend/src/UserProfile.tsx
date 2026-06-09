@@ -6,8 +6,17 @@ import {
   Image as ImageIcon, Smile, MoreHorizontal, MessageSquare, Share2, ThumbsUp
 } from 'lucide-react';
 import Layout from './components/Layout';
+import { useAuth } from './hooks/useAuth';
 
 export default function UserProfile() {
+  const { user } = useAuth();
+
+  const displayName = user?.displayName || user?.username || 'User';
+  const bio = user?.bio || 'Capturing life\'s little joys. 🌻';
+  const location = user?.location || 'Portland, Oregon';
+  const website = user?.website || 'kirenz.com';
+  const avatarUrl = user?.avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBbY_GUlw34tnkyFIMOl2BKettMEaotAsjvlMn6C_uAYu2C3nM_ijw2rr7U9XDlyBU_0LlidZUITe7OACoMYLzy0O5RdjRo0fH9NEmNkLOhjpaIoRogweGdwOQ-QcP4_RepAyayI6_jVKYnJjekbEf07QzVchgO3G2gcSWct_pYdY99tJYJchT_3k1kNmpev6u7x_QcQx94o5RYQ1tq5OVrkvJSM5IlD4Q11oyMhGIqiJ2ENgSg_Qv24OaSlAfI-ypwo4U6jlVrwoA';
+  const joinedDate = user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'September 2021';
   return (
     <Layout>
       <div className="bg-surface text-on-surface min-h-screen pb-20 md:pb-0">
@@ -53,8 +62,8 @@ export default function UserProfile() {
                 <div className="flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
                   <div className="relative group">
                     <img 
-                      alt="Alex Rivera" 
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbY_GUlw34tnkyFIMOl2BKettMEaotAsjvlMn6C_uAYu2C3nM_ijw2rr7U9XDlyBU_0LlidZUITe7OACoMYLzy0O5RdjRo0fH9NEmNkLOhjpaIoRogweGdwOQ-QcP4_RepAyayI6_jVKYnJjekbEf07QzVchgO3G2gcSWct_pYdY99tJYJchT_3k1kNmpev6u7x_QcQx94o5RYQ1tq5OVrkvJSM5IlD4Q11oyMhGIqiJ2ENgSg_Qv24OaSlAfI-ypwo4U6jlVrwoA"
+                      alt={displayName} 
+                      src={avatarUrl}
                       className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface ring-4 ring-primary-container object-cover"
                       referrerPolicy="no-referrer"
                     />
@@ -64,8 +73,7 @@ export default function UserProfile() {
                   </div>
                   
                   <div className="pb-2">
-                    <h1 className="text-3xl font-bold text-on-surface">Alex Rivera</h1>
-                    <p className="text-lg font-medium text-primary italic mt-1">Capturing life's little joys. 🌻</p>
+                    <h1 className="text-3xl font-bold text-on-surface">{displayName}</h1>
                     <div className="flex gap-4 mt-2 justify-center md:justify-start text-on-surface-variant font-medium">
                       <span><strong className="text-on-surface">1.2k</strong> Followers</span>
                       <span><strong className="text-on-surface">840</strong> Following</span>
@@ -78,10 +86,13 @@ export default function UserProfile() {
                     <Plus size={20} />
                     Add Story
                   </button>
-                  <button className="bg-surface-container-high text-on-surface-variant px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 border-2 border-outline-variant hover:bg-surface-container-highest transition-all">
+                   <Link 
+                    to="/settings"
+                    className="bg-surface-container-high text-on-surface-variant px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 border-2 border-outline-variant hover:bg-surface-container-highest transition-all"
+                  >
                     <Edit2 size={20} />
                     Edit Profile
-                  </button>
+                  </Link>
                 </div>
               </div>
               
@@ -107,24 +118,27 @@ export default function UserProfile() {
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-3 text-on-surface-variant">
                     <MapPin size={24} className="text-primary shrink-0" />
-                    <span className="text-base font-medium">Lives in Portland, Oregon</span>
+                    <span className="text-base font-medium">Lives in {location}</span>
                   </div>
                   <div className="flex items-center gap-3 text-on-surface-variant">
                     <Calendar size={24} className="text-primary shrink-0" />
-                    <span className="text-base font-medium">Joined September 2021</span>
+                    <span className="text-base font-medium">Joined {joinedDate}</span>
                   </div>
                   <div className="flex items-center gap-3 text-on-surface-variant">
                     <LinkIcon size={24} className="text-primary shrink-0" />
-                    <a href="#" className="text-base font-bold text-tertiary hover:underline">alexrivera.joy</a>
+                    <a href={`https://${website}`} target="_blank" rel="noopener noreferrer" className="text-base font-bold text-tertiary hover:underline">{website}</a>
                   </div>
                   <div className="flex items-center gap-3 text-on-surface-variant">
                     <Heart size={24} className="text-primary shrink-0" />
-                    <span className="text-base font-medium">Loves coffee, gardening & puppies</span>
+                    <span className="text-base font-medium">{bio}</span>
                   </div>
                 </div>
-                <button className="w-full mt-6 py-3 bg-surface-container-high rounded-full font-bold text-on-surface-variant active:scale-95 hover:bg-surface-container-highest transition-all">
+                 <Link 
+                  to="/settings"
+                  className="w-full mt-6 py-3 bg-surface-container-high rounded-full font-bold text-on-surface-variant active:scale-95 hover:bg-surface-container-highest transition-all text-center flex items-center justify-center"
+                >
                   Edit Bio
-                </button>
+                </Link>
               </div>
 
               {/* Photos Preview Card */}
@@ -187,7 +201,7 @@ export default function UserProfile() {
                   referrerPolicy="no-referrer"
                 />
                 <button className="flex-grow text-left px-6 py-3 bg-surface-container-low rounded-full text-on-surface-variant text-sm font-medium hover:bg-surface-container-high transition-colors outline-none border-none">
-                  What's on your mind, Alex?
+                  What's on your mind, {user?.displayName || user?.username || 'Alex'}?
                 </button>
                 <div className="flex gap-1 shrink-0">
                   <button className="p-2 text-primary hover:bg-primary-fixed rounded-full transition-colors hidden sm:block">
