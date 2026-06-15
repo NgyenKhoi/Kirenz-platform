@@ -16,7 +16,7 @@ import {
 import Layout from './components/Layout';
 import { friendService } from './services/friend.service';
 import { ErrorResponse } from './types/auth.types';
-import { FriendRequestResponse, FriendResponse } from './types/friend.types';
+import { FriendRequestResponse, FriendResponse, MutualFriendResponse } from './types/friend.types';
 import { useAuthStore } from './store/authStore';
 
 type FriendsTab = 'friends' | 'incoming' | 'outgoing';
@@ -48,6 +48,8 @@ export default function Friends() {
   const [receiverId, setReceiverId] = useState('');
   const [statusTargetId, setStatusTargetId] = useState('');
   const [statusResult, setStatusResult] = useState<string | null>(null);
+  const [mutualTargetId, setMutualTargetId] = useState('');
+  const [mutualFriends, setMutualFriends] = useState<MutualFriendResponse[]>([]);
   const [friends, setFriends] = useState<FriendResponse[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestResponse[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestResponse[]>([]);
@@ -148,6 +150,29 @@ export default function Friends() {
       setStatusResult(result.status);
     } catch (statusError) {
       setError(getErrorMessage(statusError));
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleLoadMutualFriends = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedTargetId = mutualTargetId.trim();
+
+    if (!uuidPattern.test(trimmedTargetId)) {
+      setError('Enter a valid target user UUID to load mutual friends.');
+      return;
+    }
+
+    setActionId(`mutual-${trimmedTargetId}`);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await friendService.getMutualFriends(trimmedTargetId);
+      setMutualFriends(result);
+      setMessage(`${result.length} mutual friend${result.length === 1 ? '' : 's'} found.`);
+    } catch (mutualError) {
+      setError(getErrorMessage(mutualError));
     } finally {
       setActionId(null);
     }
@@ -259,6 +284,66 @@ export default function Friends() {
                 )}
               </div>
             </form>
+          </section>
+
+          <section className="bg-surface-container-lowest rounded-3xl p-6 border border-primary-container/30 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]">
+            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+              <form onSubmit={handleLoadMutualFriends} className="lg:w-[360px] shrink-0">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-11 h-11 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center">
+                    <Users size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-on-surface">Mutual friends</h3>
+                    <p className="text-sm text-on-surface-variant">Compare your friend list with a target user.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <input
+                    value={mutualTargetId}
+                    onChange={(event) => setMutualTargetId(event.target.value)}
+                    placeholder="Target user UUID"
+                    className="w-full bg-surface-container border border-outline-variant rounded-2xl py-3 px-4 font-mono text-sm text-on-surface focus:outline-none focus:border-primary"
+                  />
+                  <button
+                    type="submit"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-secondary text-on-secondary px-5 py-3 font-bold hover:brightness-95 active:scale-95 transition-all"
+                  >
+                    {actionId?.startsWith('mutual-') ? <Loader2 size={18} className="animate-spin" /> : <Users size={18} />}
+                    Load mutual friends
+                  </button>
+                </div>
+              </form>
+
+              <div className="flex-1 min-w-0">
+                {mutualFriends.length === 0 ? (
+                  <div className="min-h-[172px] rounded-2xl border border-dashed border-outline-variant bg-surface-container-low flex items-center justify-center text-center px-6">
+                    <p className="text-sm text-on-surface-variant">Mutual friends will appear here after you load a target user.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {mutualFriends.map((friend) => (
+                      <div key={friend.id} className="rounded-2xl bg-surface-container-low border border-outline-variant p-4 flex gap-4">
+                        <div className="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0 overflow-hidden">
+                          {friend.avatarUrl ? (
+                            <img src={friend.avatarUrl} alt={friend.displayName || friend.username} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            (friend.displayName || friend.username || '?').slice(0, 1).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-on-surface truncate">{friend.displayName || friend.username}</p>
+                          <p className="text-xs text-primary font-bold">@{friend.username}</p>
+                          <p className="text-xs text-on-surface-variant font-mono truncate mt-2">{friend.id}</p>
+                          {friend.bio && <p className="text-sm text-on-surface-variant line-clamp-2 mt-2">{friend.bio}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
 
           <section className="bg-surface-container-lowest rounded-3xl border border-primary-container/30 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)] overflow-hidden">

@@ -27,6 +27,7 @@ export const API_ENDPOINTS = {
     CANCEL: (requestId: string) => `/friends/requests/${requestId}`,
     REMOVE: (friendId: string) => `/friends/${friendId}`,
     STATUS: (targetUserId: string) => `/friends/status/${targetUserId}`,
+    MUTUAL: (targetUserId: string) => `/users/${targetUserId}/mutual-friends`,
   },
 };
 
