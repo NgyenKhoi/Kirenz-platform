@@ -26,8 +26,6 @@ public interface UserMapper {
     @Mapping(target = "role", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "emailVerified", ignore = true)
-    @Mapping(target = "privacySetting", ignore = true)
-    @Mapping(target = "notificationSetting", ignore = true)
     @org.mapstruct.BeanMapping(nullValuePropertyMappingStrategy = org.mapstruct.NullValuePropertyMappingStrategy.IGNORE)
     void updateEntity(UpdateUserProfileRequest dto, @org.mapstruct.MappingTarget User user);
 
@@ -46,8 +44,6 @@ public interface UserMapper {
     @Mapping(target = "role", constant = "USER")
     @Mapping(target = "status", constant = "ACTIVE")
     @Mapping(target = "emailVerified", constant = "false")
-    @Mapping(target = "privacySetting", ignore = true)
-    @Mapping(target = "notificationSetting", ignore = true)
     User toEntity(RegisterRequestDTO dto);
 }
 

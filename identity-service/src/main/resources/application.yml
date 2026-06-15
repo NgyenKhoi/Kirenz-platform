@@ -6,7 +6,7 @@ spring:
     name: identity-service
 
   datasource:
-    url: ${DATABASE_URL}
+    url: ${IDENTITY_DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
