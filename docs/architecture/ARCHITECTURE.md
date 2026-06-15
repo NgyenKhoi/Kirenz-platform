@@ -1,613 +1,692 @@
-# Kirenz Platform - System Architecture
+# Kirenz Platform - Microservices Architecture
 
-## 1. Project Overview
+## 1. Overview
 
-Kirenz là một nền tảng mạng xã hội được xây dựng theo kiến trúc Microservices, hỗ trợ:
+Kirenz is a social networking platform designed as a Microservices system. The architecture separates identity, user relationships, social content, real-time chat, and notifications into independently deployable services.
 
-* User Authentication & Authorization
-* User Profile Management
-* Friend System
-* Social Posts
-* Comments
-* Likes
-* Notifications
-* Real-time Messaging
-* Group Conversations
-* Media Uploads
-* Content Discovery
+The platform demonstrates:
 
-Hệ thống sử dụng Hybrid Database Architecture:
+* Microservices architecture with Spring Boot 3 and Java 21
+* Service discovery with Eureka
+* Gateway-based request routing and JWT validation
+* Polyglot persistence with PostgreSQL, MongoDB, and Redis
+* Event-driven communication with Apache Kafka
+* Real-time communication with WebSocket
+* Synchronous service calls with OpenFeign
+* Fault tolerance with Resilience4j
+* Containerized local development with Docker Compose
 
-* PostgreSQL cho dữ liệu quan hệ và định danh người dùng
-* MongoDB cho dữ liệu mạng xã hội và dữ liệu có tần suất ghi cao
+RabbitMQ is not used. All asynchronous event-driven communication must use Apache Kafka.
 
 ---
 
-# 2. System Architecture
+## 2. High-Level Architecture
 
 ```text
-Client (ReactJS)
-        |
-        |
-        v
-+-------------------+
-|    API Gateway    |
-|      :8080        |
-+-------------------+
-        |
-        |
-  +-----+-----+
-  |           |
-  v           v
+ReactJS Client
+      |
+      | HTTP / WebSocket
+      v
++-----------------------------+
+| API Gateway                 |
+| Port: 8080                  |
+| JWT validation, routing     |
++-------------+---------------+
+              |
+              | routes via Eureka service discovery
+              v
++-----------------------------+
+| Discovery Service           |
+| Port: 8761                  |
+| Eureka Server               |
++-----------------------------+
+              |
+              v
++----------------+  +--------------+  +----------------+  +--------------+  +----------------------+
+| Identity       |  | User         |  | Social         |  | Chat         |  | Notification         |
+| Service        |  | Service      |  | Service        |  | Service      |  | Service              |
+| Port: 8081     |  | Port: 8082   |  | Port: 8083     |  | Port: 8084   |  | Port: 8085           |
+| PostgreSQL     |  | PostgreSQL   |  | MongoDB        |  | MongoDB      |  | PostgreSQL           |
++----------------+  +--------------+  +----------------+  +--------------+  +----------------------+
+        |                  |                 |                   |                    |
+        +------------------+-----------------+-------------------+--------------------+
+                           |
+                           v
+                    +-------------+
+                    | Apache      |
+                    | Kafka       |
+                    +-------------+
 
-+-------------------+        +-------------------+
-| Identity Service  |        |  Social Service   |
-|      :8081        |        |      :8082        |
-+-------------------+        +-------------------+
-| PostgreSQL        |        | MongoDB           |
-+-------------------+        +-------------------+
-
-        |
-        |
-        v
-
-+-------------------+
-|    RabbitMQ       |
-+-------------------+
-
+Redis is used by Chat Service for online users, presence tracking, and typing indicators.
 ```
 
 ---
 
-# 3. Microservices
+## 3. Infrastructure Services
 
-## 3.1 Identity Service
+## 3.1 API Gateway
 
-Port:
+Port: `8080`
 
-```text
-8081
-```
+Technology:
 
-Database:
-
-```text
-PostgreSQL
-```
+* Spring Cloud Gateway
+* Spring Security
+* JWT
+* Eureka Client
 
 Responsibilities:
 
-* User Registration
-* Login
-* JWT Generation
-* User Profile Management
-* Friend Requests
-* Friend Management
-* User Settings
-* User Statistics
-* Authorization
+* Single entry point for the web client
+* Validate JWT access tokens before forwarding protected requests
+* Route requests through Eureka service discovery
+* Apply request filtering and security headers
+* Provide a future extension point for rate limiting
 
-Owned Database:
+Database ownership: none.
+
+Routing rule:
 
 ```text
-PostgreSQL
+The gateway must route by service name discovered from Eureka.
+Hardcoded service URLs must not be used for service routing.
 ```
-
-No MongoDB access allowed.
 
 ---
 
-## 3.2 Social Service
+## 3.2 Discovery Service
 
-Port:
+Port: `8761`
 
-```text
-8082
-```
+Technology:
 
-Database:
+* Spring Cloud Netflix Eureka Server
 
-```text
-MongoDB
-```
+Responsibilities:
+
+* Service registration
+* Service discovery
+* Runtime service location for Gateway and Feign clients
+
+Database ownership: none.
+
+---
+
+## 4. Business Services
+
+## 4.1 Identity Service
+
+Port: `8081`
+
+Database: PostgreSQL
+
+Responsibilities:
+
+* User registration
+* Login
+* Google OAuth2 login
+* OTP verification
+* JWT access token issuing
+* Refresh token issuing and rotation
+* Role management
+* Authorization data ownership
+* Lightweight account profile fields used by the web UI
+
+Owned tables:
+
+* `users`
+
+Current implementation note:
+
+* Refresh tokens are stateless JWTs.
+* OTP values are stored in Redis.
+* Role is currently stored on `users.role`.
+* Dedicated `roles`, `user_roles`, `refresh_tokens`, and `otp_verifications` tables can be added later if the implementation moves to persisted roles, persisted refresh tokens, or persisted OTP audit records.
+
+Integration:
+
+* Publishes `user-created` events to Kafka
+* Exposes internal identity and authorization endpoints for trusted services
+
+Data boundary:
+
+* Must not access MongoDB
+* Must not own friendship, privacy policy, blocking, post, chat, or notification data
+
+---
+
+## 4.2 User Service
+
+Port: `8082`
+
+Database: PostgreSQL
+
+Responsibilities:
+
+* Friend request lifecycle
+* Friendship management
+* User blocking
+* Privacy settings
+* User relationship queries used by other services
+
+Owned tables:
+
+* `friendships`
+* `friend_requests`
+* `blocks`
+* `privacy_settings`
+
+Integration:
+
+* Consumes `user-created` events from Kafka to initialize relationship and privacy defaults when needed
+* Publishes `friend-accepted` events to Kafka
+* Calls Identity Service by OpenFeign when identity or role information is required
+
+Data boundary:
+
+* Must not access MongoDB
+* Must not own authentication tokens, lightweight account profile fields, posts, comments, messages, or notifications
+
+---
+
+## 4.3 Social Service
+
+Port: `8083`
+
+Database: MongoDB
 
 Responsibilities:
 
 * Posts
 * Comments
-* Likes
-* Notifications
-* Conversations
-* Messages
+* Emoji reactions
 * Bookmarks
 * Hashtags
-* WebSocket Messaging
+* Social feed data
 
-Owned Database:
+Owned collections:
 
-```text
-MongoDB
-```
+* `posts`
+* `comments`
+* `reactions`
+* `bookmarks`
+* `hashtags`
 
-No PostgreSQL access allowed.
+Integration:
+
+* Consumes `user-created` events from Kafka if social read models are needed
+* Consumes `friend-accepted` events from Kafka for feed and graph read models
+* Publishes `post-created`, `comment-created`, and `reaction-created` events to Kafka
+* Calls Identity Service by OpenFeign for lightweight account display data when needed
+* Calls User Service by OpenFeign for friendship, privacy, and block checks
+
+Data boundary:
+
+* Must not access PostgreSQL directly
+* Must not own chat messages or notification delivery state
 
 ---
 
-## 3.3 API Gateway
+## 4.4 Chat Service
 
-Port:
+Port: `8084`
 
-```text
-8080
-```
+Database: MongoDB
+
+Additional infrastructure: Redis
 
 Responsibilities:
 
-* Single Entry Point
-* JWT Validation
-* Routing
-* Request Filtering
-* Rate Limiting (future)
-* Security Headers
+* Conversations
+* Messages
+* Group chat
+* Typing status
+* Presence tracking
+* WebSocket communication
 
-Database:
+Owned collections:
 
-```text
-None
-```
+* `conversations`
+* `messages`
 
----
+Redis usage:
 
-# 4. Inter-Service Communication
+* Online users
+* Presence tracking
+* Typing indicators
+* Short-lived real-time state
 
-## OpenFeign
+Integration:
 
-Service-to-Service communication is performed using OpenFeign.
+* Publishes `message-sent` events to Kafka
+* Calls User Service by OpenFeign for participant, block, and privacy checks
 
-Example:
+Data boundary:
 
-```text
-Social Service
-      |
-      |
-      v
-Identity Service
-```
-
-Use cases:
-
-* Get user information
-* Validate user existence
-* Retrieve friend information
-* Retrieve user privacy settings
+* Must not access PostgreSQL directly
+* Must not own profile, friendship, post, comment, or notification preference data
 
 ---
 
-## Feign Client Naming
+## 4.5 Notification Service
+
+Port: `8085`
+
+Database: PostgreSQL
+
+Responsibilities:
+
+* In-app notifications
+* Email notifications
+* Push notifications as a future capability
+* Notification preferences
+* Notification read/unread state
+
+Owned tables:
+
+* `notifications`
+* `notification_preferences`
+
+Integration:
+
+* Consumes Kafka events from User, Social, and Chat services
+* Uses notification preferences to decide delivery channels
+
+Data boundary:
+
+* Must not own user identity, profile, friendship, post, comment, or message data
+
+---
+
+## 5. Inter-Service Communication
+
+## 5.1 Synchronous Communication
+
+Technology: OpenFeign
+
+Synchronous communication is used when a service needs data immediately to complete the current request.
+
+Examples:
+
+```text
+Social Service -> User Service
+Chat Service   -> User Service
+User Service   -> Identity Service
+```
+
+Feign clients must use Eureka discovery:
 
 ```java
-@FeignClient(
-    name = "identity-service",
-    url = "${services.identity.url}"
-)
+@FeignClient(name = "user-service")
 ```
 
-Example:
+Hardcoded service URLs must not be used:
 
-```text
-Social Service
-  -> Identity Service
-
-GET /internal/users/{id}
+```java
+@FeignClient(name = "user-service", url = "http://localhost:8082")
 ```
 
 ---
 
-# 5. Fault Tolerance
+## 5.2 Asynchronous Communication
 
-## Circuit Breaker
+Technology: Apache Kafka
 
-Technology:
+Kafka is used for:
 
-```text
-Resilience4j
-```
+* Event propagation
+* Loose coupling between services
+* Asynchronous notification workflows
+* Social graph and feed read model updates
+* Cross-service side effects that do not need to block the user request
+
+---
+
+## 6. Kafka Event Catalog
+
+## 6.1 `user-created`
+
+Producer:
+
+* Identity Service
+
+Consumers:
+
+* User Service
+* Social Service
+
+Purpose:
+
+* Initialize relationship and privacy defaults when needed
+* Initialize social read models when required
+
+---
+
+## 6.2 `friend-accepted`
+
+Producer:
+
+* User Service
+
+Consumers:
+
+* Notification Service
+* Social Service
+
+Purpose:
+
+* Notify users about accepted friendships
+* Update social graph and feed read models
+
+---
+
+## 6.3 `post-created`
+
+Producer:
+
+* Social Service
+
+Consumers:
+
+* Notification Service
+
+Purpose:
+
+* Notify eligible followers or friends about new posts
+
+---
+
+## 6.4 `comment-created`
+
+Producer:
+
+* Social Service
+
+Consumers:
+
+* Notification Service
+
+Purpose:
+
+* Notify post owners or participants about new comments
+
+---
+
+## 6.5 `reaction-created`
+
+Producer:
+
+* Social Service
+
+Consumers:
+
+* Notification Service
+
+Purpose:
+
+* Notify content owners about reactions
+
+---
+
+## 6.6 `message-sent`
+
+Producer:
+
+* Chat Service
+
+Consumers:
+
+* Notification Service
+
+Purpose:
+
+* Notify offline users about new messages
+
+---
+
+## 7. Database Architecture
+
+## 7.1 PostgreSQL
+
+PostgreSQL stores relational, transactional, and authorization-oriented data.
+
+Owned by:
+
+* Identity Service
+* User Service
+* Notification Service
+
+Ownership rules:
+
+* Each service owns its own schema or database.
+* Services must not read or write another service's tables directly.
+* Cross-service data access must happen through APIs or Kafka events.
+
+---
+
+## 7.2 MongoDB
+
+MongoDB stores document-oriented and high-write social data.
+
+Owned by:
+
+* Social Service
+* Chat Service
+
+Ownership rules:
+
+* Social Service owns social content collections.
+* Chat Service owns conversation and message collections.
+* PostgreSQL-based services must not access MongoDB directly.
+
+---
+
+## 7.3 Redis
+
+Redis stores short-lived real-time state.
+
+Used by:
+
+* Chat Service
+
+Responsibilities:
+
+* Online user state
+* Presence tracking
+* Typing indicators
+* Short-lived cache entries
+
+Redis is not the source of truth for permanent business data.
+
+---
+
+## 8. Security Architecture
+
+Authentication:
+
+* JWT access token
+* Refresh token
+* Google OAuth2 login
+* OTP verification
+
+Authorization:
+
+* Spring Security
+* Role-based access control
+
+Gateway responsibility:
+
+* Validate JWT before forwarding protected requests
+* Forward authenticated user context to downstream services
+
+Service responsibility:
+
+* Enforce business-level authorization
+* Reject requests that violate ownership, privacy, friendship, or blocking rules
+
+Future security improvement:
+
+* mTLS between services
+
+---
+
+## 9. Fault Tolerance
+
+Technology: Resilience4j
+
+Applied to:
+
+* OpenFeign calls
+* Remote service dependencies
+
+Patterns:
+
+* Circuit breaker
+* Retry
+* Rate limiter
+* Fallback methods
 
 Purpose:
 
 * Prevent cascading failures
-* Improve service availability
-* Fallback support
+* Keep service boundaries resilient
+* Return controlled fallback responses when dependencies are unavailable
 
-Example:
+---
+
+## 10. Repository Structure
+
+Target repository structure:
 
 ```text
-Social Service
-      |
-      X
-Identity Service Down
-      |
-Fallback Response
+kirenz-platform/
+|-- api-gateway/
+|-- discovery-service/
+|-- identity-service/
+|-- user-service/
+|-- social-service/
+|-- chat-service/
+|-- notification-service/
+|-- shared-lib/
+|-- frontend/
+|-- docs/
+|   |-- architecture/
+|   |-- database/
+|   |-- api/
+|   |-- diagrams/
+|   `-- uc/
+|-- docker-compose.yml
+|-- pom.xml
+`-- README.md
 ```
 
-Example Usage:
+Current repository status:
 
-```java
-@CircuitBreaker(
-    name = "identityService",
-    fallbackMethod = "fallbackGetUser"
-)
+```text
+Implemented or present:
+|-- frontend/
+|-- identity-service/
+|-- docs/
+|-- pom.xml
+`-- README.md
+
+Planned by target architecture:
+|-- api-gateway/
+|-- discovery-service/
+|-- user-service/
+|-- social-service/
+|-- chat-service/
+|-- notification-service/
+|-- shared-lib/
+`-- docker-compose.yml
 ```
 
 ---
 
-# 6. Event Driven Communication
+## 11. Development Roadmap
 
-Technology:
+## Phase 1 - Foundation
 
-```text
-RabbitMQ
-```
-
-Purpose:
-
-* Async communication
-* Decouple services
-* Event propagation
-
----
-
-## Planned Events
-
-### UserCreatedEvent
-
-Publisher:
-
-```text
-Identity Service
-```
-
-Consumers:
-
-```text
-Social Service
-```
-
----
-
-### FriendAcceptedEvent
-
-Publisher:
-
-```text
-Identity Service
-```
-
-Consumers:
-
-```text
-Social Service
-```
-
----
-
-### PostCreatedEvent
-
-Publisher:
-
-```text
-Social Service
-```
-
-Consumers:
-
-```text
-Notification Module
-```
-
----
-
-### MessageSentEvent
-
-Publisher:
-
-```text
-Social Service
-```
-
-Consumers:
-
-```text
-Notification Module
-```
-
----
-
-# 7. Database Architecture
-
-## PostgreSQL
-
-Managed by:
-
-```text
-Identity Service
-```
-
-Tables:
-
-* users
-* friends
-* user_stats
-* user_settings
-
----
-
-## MongoDB
-
-Managed by:
-
-```text
-Social Service
-```
-
-Collections:
-
-* posts
-* comments
-* likes
-* notifications
-* conversations
-* messages
-* bookmarks
-* hashtags
-
----
-
-# 8. Security
-
-Authentication:
-
-```text
-JWT Access Token
-```
-
-Authorization:
-
-```text
-Spring Security
-```
-
-Gateway validates JWT before forwarding requests.
-
-Service-to-Service communication uses:
-
-```text
-Internal API
-```
-
-Future:
-
-```text
-mTLS
-```
-
----
-
-# 9. Technology Stack
-
-Backend:
-
-```text
-Java 21
-Spring Boot 3
-```
-
-Database:
-
-```text
-PostgreSQL
-MongoDB
-```
-
-Messaging:
-
-```text
-RabbitMQ
-```
-
-Real-Time:
-
-```text
-WebSocket
-STOMP
-```
-
-Security:
-
-```text
-Spring Security
-JWT
-```
-
-Communication:
-
-```text
-OpenFeign
-```
-
-Fault Tolerance:
-
-```text
-Resilience4j
-```
-
-Migration:
-
-```text
-Liquibase
-```
-
-Containerization:
-
-```text
-Docker
-Docker Compose
-```
-
-CI/CD:
-
-```text
-GitHub Actions
-Docker Hub
-```
-
----
-
-# 10. Development Roadmap
-
-Phase 1
-
+* Discovery Service
+* API Gateway
 * Identity Service
-* Authentication
-* Users
-* Friends
-* PostgreSQL
-* Liquibase
+* JWT authentication
+* OTP verification
+* PostgreSQL identity schema
 
-Phase 2
+## Phase 2 - User Domain
+
+* User Service
+* Friend requests
+* Friendship management
+* Blocking
+* Privacy settings
+
+## Phase 3 - Social Domain
 
 * Social Service
 * Posts
 * Comments
-* MongoDB
+* Emoji reactions
+* Bookmarks
+* Hashtags
+* MongoDB social collections
 
-Phase 3
+## Phase 4 - Real-Time Chat
 
-* OpenFeign
-* API Gateway
-* JWT Propagation
-
-Phase 4
-
-* RabbitMQ
-* Notifications
-
-Phase 5
-
-* WebSocket
+* Chat Service
+* WebSocket communication
 * Conversations
 * Messages
+* Group chat
+* Redis presence and typing indicators
 
-Phase 6
+## Phase 5 - Kafka Integration
 
-* Circuit Breaker
-* Monitoring
-* Production Deployment
+* Kafka topics
+* Event publishing
+* Event consumers
+* Cross-service notification triggers
+* Event-driven read model updates
 
-````
+## Phase 6 - Notification Domain
 
----
+* Notification Service
+* In-app notifications
+* Email notifications
+* Notification preferences
+* Read/unread notification state
 
-# 11. Repository Structure
+## Phase 7 - Resilience and Deployment
 
-```text
-kirenz-platform/
-
-├── api-gateway
-├── identity-service
-├── social-service
-├── shared-lib
-
-├── docs
-│   ├── architecture
-│   ├── database
-│   ├── api
-│   └── diagrams
-
-├── docker-compose.yml
-├── pom.xml
-└── README.md
-````
+* Resilience4j circuit breakers
+* Retry and fallback policies
+* Docker Compose environment
+* GitHub Actions pipeline
+* Production deployment preparation
 
 ---
 
-# 12. Service Design Rules
+## 12. Design Rules
 
-Every service must follow:
+Service boundaries:
 
-### Domain-Based Package Structure
+* A service owns its database and business model.
+* A service must not directly access another service's database.
+* Cross-service communication must use OpenFeign or Kafka.
+* Kafka is the only event-driven messaging technology.
+* Eureka is required for service discovery.
+* Gateway routes through service discovery.
 
-```text
-user/
-friend/
-auth/
-```
+Code organization:
 
-instead of:
+* Use domain-based package structure.
+* Use clear naming and meaningful method names.
+* Keep API DTOs separate from persistence models.
+* Use mapper classes for DTO conversion when needed.
+* Use centralized exception handling for API errors.
 
-```text
-controller/
-service/
-repository/
-entity/
-```
-
----
-
-### Layering
-
-```text
-Controller
-    ↓
-Service
-    ↓
-Repository
-```
-
-Controller must never access Repository directly.
-
----
-
-### DTO Separation
-
-```text
-Request DTO
-Response DTO
-```
-
-Never expose Entity/Document directly.
-
----
-
-### Mapping
-
-Technology:
-
-```text
-MapStruct
-```
-
-Entity ↔ DTO conversion must use Mapper classes.
-
----
-
-### Exception Handling
-
-Every service must implement:
-
-```text
-GlobalExceptionHandler
-```
-
-using:
-
-```java
-@RestControllerAdvice
-```
-
----
-
-### API Response Standard
+API response standard:
 
 ```json
 {
@@ -616,5 +695,3 @@ using:
   "data": {}
 }
 ```
-
-All services must follow the same response format.

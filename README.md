@@ -1,92 +1,260 @@
-# 🚀 Kirenz-Platform: Microservices Social Media Demo
+# Kirenz Platform
 
-> A comprehensive full-stack social media platform reimagined as a modern microservices architecture. Designed as a learning project to demonstrate distributed systems, real-time communication, and polyglot persistence.
+Kirenz Platform is a social networking web application built to demonstrate a modern Microservices architecture. The system uses Java 21, Spring Boot 3, Spring Cloud, PostgreSQL, MongoDB, Redis, Apache Kafka, JWT security, WebSocket, Docker, and a ReactJS frontend.
 
----
+The current repository already contains the React frontend and Identity Service implementation. The target architecture separates the platform into dedicated services for identity, users, social content, chat, and notifications.
 
-## 🎯 Project Overview
+## Current Repository Status
 
-Kirenz-Platform is a scalable social networking system that mimicks real-world platforms. It transitions from a monolithic structure to a distributed architecture, leveraging Java 21, Spring Boot 3, and modern infrastructure.
+Implemented or present:
 
-### Core Architecture
-The system is divided into specialized microservices:
-- **Identity Service**: Owner of User identity, authentication (JWT), profiles, social graphs (friends), and privacy/blocking data.
-- **Social Service**: Manager of all content (posts, comments, shares, search, reporting), real-time chat (1-1 & groups), media assets, and notifications.
-- **API Gateway**: Secure entry point for request routing and edge security validation.
+* `frontend/` - ReactJS client built with Vite
+* `identity-service/` - Spring Boot service for registration, login, JWT, refresh token flow, OTP verification, and user profile endpoints
+* `docs/` - architecture, API, database, and use-case documentation
+* root `pom.xml` - Maven parent project
 
----
+Target services in the architecture:
 
-## ✨ Features
+* `api-gateway/`
+* `discovery-service/`
+* `identity-service/`
+* `user-service/`
+* `social-service/`
+* `chat-service/`
+* `notification-service/`
+* `shared-lib/`
 
-### 👤 Identity & Relationships (Identity Service)
-- **Secured Authentication**: JWT-based stateless login/register.
-- **Rich Profiles**: Customizable user data with activity stats and visibility settings.
-- **Friendship Lifecycle**: Request, accept, and manage connections; close friends support.
-- **Privacy Controls**: Granular settings for profile visibility and user blocking.
+## Architecture Summary
 
-### 📝 Social Discovery (Social Service)
-- **Content Sharing & Management**: Create, edit, delete, and share posts with original source tracking.
-- **Emoji Reactions & Comments**: Engage through reactions and nested discussion threads.
-- **Global Search**: Search across users, posts, and hashtags.
-- **Reporting System**: User-driven reporting for posts, comments, and profiles.
-- **Media Optimization**: Integrated media management with Cloudinary for images and video.
+```text
+ReactJS Client
+      |
+      v
+API Gateway :8080
+      |
+      | routes by Eureka service discovery
+      v
+Discovery Service :8761
+      |
+      +--> Identity Service :8081       PostgreSQL
+      +--> User Service :8082           PostgreSQL
+      +--> Social Service :8083         MongoDB
+      +--> Chat Service :8084           MongoDB + Redis
+      `--> Notification Service :8085   PostgreSQL
 
-### 💬 Real-time Communication (Social Service)
-- **1-on-1 & Advanced Group Chats**: Real-time messaging with role-based group administration (Owner, Admin, Member).
-- **Presence & Delivery Status**: Live online status, typing indicators, and message status tracking.
-- **Multi-modal Messages**: Seamless sharing of text and media within chat.
-
-### 🛡️ Administration & Analytics (Admin Role)
-- **Advanced Dashboard**: Real-time health metrics and concurrent traffic monitoring.
-- **User Analytics**: Deep insights into DAU, registrations, and engagement levels.
-- **Moderation Hub**: Centralized processing of user reports and content governance.
-
----
-
-## 🏗️ Technical Architecture
-
-```mermaid
-graph TD
-    Client[Web Client - React]
-    Gateway[API Gateway - Spring Cloud Gateway]
-    
-    Identity[Identity Service - PostgreSQL]
-    Social[Social Service - MongoDB]
-    
-    RabbitMQ[RabbitMQ - STOMP Broker]
-    
-    Client -->|JWT Auth| Gateway
-    Gateway -->|Route| Identity
-    Gateway -->|Route| Social
-    
-    Identity <-->|OpenFeign| Social
-    
-    Social <-->|WebSockets| Client
-    Social <--> RabbitMQ
+Apache Kafka is used for event-driven communication between services.
 ```
 
-### Stack Components
-- **Framework**: Java 21+ & Spring Boot 3.x
-- **Persistence**: 
-  - **Relational**: PostgreSQL (Identity, Relationships, Privacy)
-  - **NoSQL**: MongoDB (Messages, Posts, Reports, Notifications)
-- **Messaging**:
-  - **Synchronous**: Spring Cloud OpenFeign
-  - **Asynchronous**: RabbitMQ (Real-time Messaging & Event Sync)
-- **Security**: Spring Security & JWT
-- **Resilience**: Resilience4j (Circuit Breaker)
-- **Documentation**: OpenAPI 3 / Swagger
+Important architecture rules:
 
----
+* RabbitMQ is not used.
+* Apache Kafka is the only event-driven messaging technology.
+* Eureka Service Discovery is used instead of hardcoded service URLs.
+* API Gateway routes through service discovery.
+* OpenFeign clients use service names such as `@FeignClient(name = "user-service")`.
+* Each service owns its own database tables or collections.
+* Identity Service keeps lightweight profile fields in `users`.
+* User Service owns friendship, blocking, and privacy policy data.
 
-## 📂 Project Structure
+Full architecture documentation: [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)
 
-- `identity-service/`: User identity, relationships, and auth.
-- `social-service/`: Content engine, real-time communication, and notifications.
-- `api-gateway/`: Security and routing layer.
-- `docs/`: 
-  - [Use Cases](./docs/use-cases.md) - Refined functional requirements and service ownership.
-  - [Architecture Specs](.kiro/specs/architecture-clarification/requirements.md) - Technical constraints.
+Use case catalog: [docs/uc/USE_CASE.md](docs/uc/USE_CASE.md)
 
----
-*Developed for learning purposes to explore high-scale system design.*
+## Prerequisites
+
+Install:
+
+* Java 21
+* Maven
+* Docker
+* Docker Compose
+* Node.js 20 or newer
+* npm
+
+## Infrastructure Startup
+
+The target local environment needs:
+
+* PostgreSQL
+* MongoDB
+* Redis
+* Kafka
+* Zookeeper, if the selected Kafka image requires it
+* Eureka Discovery Service
+* API Gateway
+
+When `docker-compose.yml` is available, start infrastructure from the repository root:
+
+```bash
+docker compose up -d
+```
+
+The current repository does not yet include the final Docker Compose file, so services can also be started manually while the platform is being implemented.
+
+## Backend Startup Order
+
+Start services in this order:
+
+1. Discovery Service
+2. API Gateway
+3. Identity Service
+4. User Service
+5. Social Service
+6. Chat Service
+7. Notification Service
+
+Current implemented backend service:
+
+```bash
+cd identity-service
+mvn spring-boot:run
+```
+
+Identity Service runs on:
+
+```text
+http://localhost:8081
+```
+
+Required Identity Service environment variables:
+
+```text
+DATABASE_URL
+DATABASE_USERNAME
+DATABASE_PASSWORD
+JWT_SECRET
+REDIS_HOST
+REDIS_PORT
+REDIS_PASSWORD
+BREVO_API_KEY
+BREVO_SENDER_EMAIL
+BREVO_SENDER_NAME
+```
+
+## Frontend Startup
+
+Start the ReactJS client:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend runs on:
+
+```text
+http://localhost:3000
+```
+
+The frontend API base URL can be configured with:
+
+```text
+VITE_API_BASE_URL=http://localhost:8081/api
+```
+
+After API Gateway is implemented, the frontend should point to the gateway:
+
+```text
+VITE_API_BASE_URL=http://localhost:8080/api
+```
+
+## Existing Web Use Cases
+
+The current React client contains screens and flows for:
+
+* Register
+* Login
+* OTP verification
+* Protected layout
+* Home feed screen
+* User profile screen
+* Profile settings
+* Privacy settings
+* Friends screen
+* Chat screen
+* Stories and story viewer screens
+
+The current Identity Service supports:
+
+* Register
+* Login
+* Refresh token
+* Current user profile
+* Update user profile
+* Send OTP
+* Verify OTP
+* JWT-based request authentication
+
+The current Identity Service database dependency is intentionally small:
+
+* `users`
+
+Refresh tokens are stateless JWTs, and OTP values are stored in Redis.
+
+Planned target use cases:
+
+* Google login
+* Send friend request
+* Accept friend request
+* Create post
+* Comment post
+* React to post
+* Create conversation
+* Send message
+* Receive notification
+
+## UI Black Box Test Scenarios
+
+The platform is intended to be evaluated through the web UI. A user should be able to verify the complete system without manually calling APIs.
+
+Recommended UI scenarios:
+
+1. Register a new account.
+2. Verify the account with OTP.
+3. Login with email and password.
+4. Login with Google after OAuth2 is implemented.
+5. Open the profile page and update profile information.
+6. Change privacy settings.
+7. Send a friend request.
+8. Accept a friend request from another account.
+9. Create a post.
+10. Comment on a post.
+11. React to a post with an emoji.
+12. Create a conversation.
+13. Send a real-time chat message.
+14. Receive an in-app notification.
+
+## Service Ports
+
+| Service | Port | Database |
+| --- | ---: | --- |
+| API Gateway | 8080 | None |
+| Discovery Service | 8761 | None |
+| Identity Service | 8081 | PostgreSQL |
+| User Service | 8082 | PostgreSQL |
+| Social Service | 8083 | MongoDB |
+| Chat Service | 8084 | MongoDB, Redis |
+| Notification Service | 8085 | PostgreSQL |
+| Frontend | 3000 | None |
+
+## Kafka Topics
+
+| Topic | Producer | Consumers |
+| --- | --- | --- |
+| `user-created` | Identity Service | User Service, Social Service |
+| `friend-accepted` | User Service | Notification Service, Social Service |
+| `post-created` | Social Service | Notification Service |
+| `comment-created` | Social Service | Notification Service |
+| `reaction-created` | Social Service | Notification Service |
+| `message-sent` | Chat Service | Notification Service |
+
+## Development Roadmap
+
+1. Discovery Service, API Gateway, and Identity Service
+2. User Service with friends, blocking, and privacy
+3. Social Service with posts, comments, reactions, bookmarks, and hashtags
+4. Chat Service with WebSocket, conversations, messages, and Redis presence
+5. Kafka event publishing and consumers
+6. Notification Service
+7. Resilience4j, Docker Compose, GitHub Actions, and deployment preparation
