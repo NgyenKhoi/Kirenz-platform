@@ -4,6 +4,7 @@ import {
   FriendRequestResponse,
   FriendResponse,
   FriendStatusResponse,
+  MutualFriendResponse,
   SendFriendRequest,
 } from '../types/friend.types';
 
@@ -67,6 +68,13 @@ export const friendService = {
   getStatus: async (targetUserId: string): Promise<FriendStatusResponse> => {
     const response = await userServiceClient.get<ApiResponse<FriendStatusResponse>>(
       API_ENDPOINTS.FRIENDS.STATUS(targetUserId)
+    );
+    return response.data.data;
+  },
+
+  getMutualFriends: async (targetUserId: string): Promise<MutualFriendResponse[]> => {
+    const response = await userServiceClient.get<ApiResponse<MutualFriendResponse[]>>(
+      API_ENDPOINTS.FRIENDS.MUTUAL(targetUserId)
     );
     return response.data.data;
   },

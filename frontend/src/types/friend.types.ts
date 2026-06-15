@@ -29,6 +29,14 @@ export interface FriendStatusResponse {
   status: RelationshipStatus;
 }
 
+export interface MutualFriendResponse {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatarUrl?: string;
+  bio?: string;
+}
+
 export interface SendFriendRequest {
   receiverId: string;
 }

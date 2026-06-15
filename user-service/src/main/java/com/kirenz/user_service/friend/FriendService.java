@@ -6,17 +6,22 @@ import com.kirenz.user_service.common.exception.NotFoundException;
 import com.kirenz.user_service.friend.dto.FriendRequestResponse;
 import com.kirenz.user_service.friend.dto.FriendResponse;
 import com.kirenz.user_service.friend.dto.FriendStatusResponse;
+import com.kirenz.user_service.friend.dto.MutualFriendResponse;
 import com.kirenz.user_service.friend.model.FriendRequest;
 import com.kirenz.user_service.friend.model.FriendRequestStatus;
 import com.kirenz.user_service.friend.model.Friendship;
 import com.kirenz.user_service.friend.repository.FriendRequestRepository;
 import com.kirenz.user_service.friend.repository.FriendshipRepository;
+import com.kirenz.user_service.identity.IdentityServiceClient;
+import com.kirenz.user_service.identity.IdentityUserProfileResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -25,6 +30,7 @@ public class FriendService {
 
     private final FriendRequestRepository friendRequestRepository;
     private final FriendshipRepository friendshipRepository;
+    private final IdentityServiceClient identityServiceClient;
 
     @Transactional
     public FriendRequestResponse sendRequest(UUID requesterId, UUID receiverId) {
@@ -165,6 +171,30 @@ public class FriendService {
         return new FriendStatusResponse(userId, targetUserId, "NONE");
     }
 
+    @Transactional(readOnly = true)
+    public List<MutualFriendResponse> mutualFriends(UUID viewerId, UUID targetUserId) {
+        if (viewerId.equals(targetUserId)) {
+            throw new BadRequestException("Cannot get mutual friends with yourself");
+        }
+
+        Set<UUID> viewerFriendIds = friendIdsOf(viewerId);
+        Set<UUID> targetFriendIds = friendIdsOf(targetUserId);
+
+        List<UUID> mutualFriendIds = viewerFriendIds.stream()
+            .filter(targetFriendIds::contains)
+            .toList();
+
+        if (mutualFriendIds.isEmpty()) {
+            return List.of();
+        }
+
+        return identityServiceClient.getProfilesByIds(mutualFriendIds)
+            .getData()
+            .stream()
+            .map(this::toMutualFriendResponse)
+            .toList();
+    }
+
     private FriendRequestResponse toResponse(FriendRequest request) {
         return new FriendRequestResponse(
             request.getId(),
@@ -182,6 +212,30 @@ public class FriendService {
             ? friendship.getUserId2()
             : friendship.getUserId1();
         return new FriendResponse(friendship.getId(), friendId, friendship.getCreatedAt());
+    }
+
+    private Set<UUID> friendIdsOf(UUID userId) {
+        List<Friendship> friendships = friendshipRepository.findByUserId1OrUserId2OrderByCreatedAtDesc(userId, userId);
+        Set<UUID> friendIds = new LinkedHashSet<>();
+
+        for (Friendship friendship : friendships) {
+            UUID friendId = friendship.getUserId1().equals(userId)
+                ? friendship.getUserId2()
+                : friendship.getUserId1();
+            friendIds.add(friendId);
+        }
+
+        return friendIds;
+    }
+
+    private MutualFriendResponse toMutualFriendResponse(IdentityUserProfileResponse profile) {
+        return new MutualFriendResponse(
+            profile.id(),
+            profile.username(),
+            profile.displayName(),
+            profile.avatarUrl(),
+            profile.bio()
+        );
     }
 
     private record UserPair(UUID userId1, UUID userId2) {

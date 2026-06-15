@@ -9,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -28,6 +31,12 @@ public class UserController {
     ) {
         UserProfileDTO profile = userService.updateUserProfile(request);
         return ResponseEntity.ok(ApiResponse.success("User profile updated successfully", profile));
+    }
+
+    @GetMapping("/internal/profiles")
+    public ResponseEntity<ApiResponse<List<UserProfileDTO>>> getProfilesByIds(@RequestParam List<UUID> ids) {
+        List<UserProfileDTO> profiles = userService.getProfilesByIds(ids);
+        return ResponseEntity.ok(ApiResponse.success("User profiles retrieved successfully", profiles));
     }
 }
 

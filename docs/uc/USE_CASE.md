@@ -19,14 +19,14 @@
 ### 🤝 2. USER RELATIONSHIP SERVICE (User Service)
 *Owner: User Service owns Friendship connectivity, Privacy, and Blocking data.*
 
-- **UC-ID-05: Friendship** 🤝
+- **UC-ID-04: Friendship** 🤝
   - Send, Accept, Decline, and cancel friend requests.
-- **UC-ID-06: Mutual Friends** 🔍
+- **UC-ID-05: Mutual Friends** 🔍
   - View "Mutual Friends" and receive "People You May Know" suggestions.
+- **UC-ID-06: Block** 🚫
+  - Block users to prevent visibility and interaction.
 - **UC-ID-07: Privacy** 👁️
   - Set profile/post visibility (Public, Friends-only, Private).
-- **UC-ID-08: Block** 🚫
-  - Block users to prevent visibility and interaction.
 
 ---
 

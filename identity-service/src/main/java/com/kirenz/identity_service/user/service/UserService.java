@@ -11,6 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -30,6 +31,17 @@ public class UserService {
         userMapper.updateEntity(request, user);
         user = userRepository.save(user);
         return userMapper.toUserProfileDTO(user);
+    }
+
+    public List<UserProfileDTO> getProfilesByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        return userRepository.findAllById(ids)
+            .stream()
+            .map(userMapper::toUserProfileDTO)
+            .toList();
     }
 
     public User getCurrentUser() {
