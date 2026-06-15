@@ -2,6 +2,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { ApiResponse, ErrorResponse, LoginResponse } from '../types/auth.types';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api';
+export const USER_SERVICE_BASE_URL = import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:8082/api';
 
 export const API_ENDPOINTS = {
   AUTH: {
@@ -16,6 +17,17 @@ export const API_ENDPOINTS = {
     SEND_OTP: '/verification/send-otp',
     VERIFY_OTP: '/verification/verify-otp',
   },
+  FRIENDS: {
+    BASE: '/friends',
+    REQUESTS: '/friends/requests',
+    INCOMING: '/friends/requests/incoming',
+    OUTGOING: '/friends/requests/outgoing',
+    ACCEPT: (requestId: string) => `/friends/requests/${requestId}/accept`,
+    DECLINE: (requestId: string) => `/friends/requests/${requestId}/decline`,
+    CANCEL: (requestId: string) => `/friends/requests/${requestId}`,
+    REMOVE: (friendId: string) => `/friends/${friendId}`,
+    STATUS: (targetUserId: string) => `/friends/status/${targetUserId}`,
+  },
 };
 
 export const STORAGE_KEYS = {
@@ -26,6 +38,13 @@ export const STORAGE_KEYS = {
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+export const userServiceClient = axios.create({
+  baseURL: USER_SERVICE_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -49,6 +68,17 @@ const processQueue = (error: Error | null) => {
 };
 
 apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+userServiceClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     if (token && config.headers) {

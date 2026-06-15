@@ -138,7 +138,7 @@
 				<configuration>
 					<!-- PostgreSQL migrations only -->
 					<changeLogFile>src/main/resources/db/changelog/db.changelog-master.yml</changeLogFile>
-					<url>${env.DATABASE_URL}</url>
+					<url>${env.IDENTITY_DATABASE_URL}</url>
 					<username>${env.DATABASE_USERNAME}</username>
 					<password>${env.DATABASE_PASSWORD}</password>
 					<driver>org.postgresql.Driver</driver>

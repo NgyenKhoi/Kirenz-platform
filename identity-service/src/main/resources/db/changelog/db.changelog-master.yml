@@ -2,6 +2,3 @@ databaseChangeLog:
   - include:
       file: 001-init-identity-schema.sql
       relativeToChangelogFile: true
-  - include:
-      file: 002-refactor-identity-schema.sql
-      relativeToChangelogFile: true

@@ -1,231 +1,511 @@
-import React from 'react';
-import { Search, Sparkles, Users } from 'lucide-react';
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { AxiosError } from 'axios';
+import {
+  Check,
+  Clock,
+  Copy,
+  Loader2,
+  Search,
+  Send,
+  Trash2,
+  UserMinus,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react';
 import Layout from './components/Layout';
+import { friendService } from './services/friend.service';
+import { ErrorResponse } from './types/auth.types';
+import { FriendRequestResponse, FriendResponse } from './types/friend.types';
+import { useAuthStore } from './store/authStore';
+
+type FriendsTab = 'friends' | 'incoming' | 'outgoing';
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function getErrorMessage(error: unknown): string {
+  const axiosError = error as AxiosError<ErrorResponse>;
+  return axiosError.response?.data?.message || 'Something went wrong. Please try again.';
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return 'Just now';
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function shortId(id: string): string {
+  return `${id.slice(0, 8)}...${id.slice(-6)}`;
+}
 
 export default function Friends() {
+  const { user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<FriendsTab>('friends');
+  const [receiverId, setReceiverId] = useState('');
+  const [statusTargetId, setStatusTargetId] = useState('');
+  const [statusResult, setStatusResult] = useState<string | null>(null);
+  const [friends, setFriends] = useState<FriendResponse[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequestResponse[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadFriendsData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [friendsData, incomingData, outgoingData] = await Promise.all([
+        friendService.getFriends(),
+        friendService.getIncomingRequests(),
+        friendService.getOutgoingRequests(),
+      ]);
+      setFriends(friendsData);
+      setIncomingRequests(incomingData);
+      setOutgoingRequests(outgoingData);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFriendsData();
+  }, [loadFriendsData]);
+
+  const totalPending = incomingRequests.length + outgoingRequests.length;
+
+  const tabCounts = useMemo(
+    () => ({
+      friends: friends.length,
+      incoming: incomingRequests.length,
+      outgoing: outgoingRequests.length,
+    }),
+    [friends.length, incomingRequests.length, outgoingRequests.length]
+  );
+
+  const copyMyId = async () => {
+    if (!user?.id) return;
+    await navigator.clipboard.writeText(user.id);
+    setMessage('Your user ID was copied.');
+  };
+
+  const runAction = async (id: string, action: () => Promise<void>, successMessage: string) => {
+    setActionId(id);
+    setError(null);
+    setMessage(null);
+    try {
+      await action();
+      setMessage(successMessage);
+      await loadFriendsData();
+    } catch (actionError) {
+      setError(getErrorMessage(actionError));
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleSendRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedReceiverId = receiverId.trim();
+
+    if (!uuidPattern.test(trimmedReceiverId)) {
+      setError('Enter a valid user UUID.');
+      return;
+    }
+
+    await runAction(
+      trimmedReceiverId,
+      async () => {
+        await friendService.sendRequest({ receiverId: trimmedReceiverId });
+        setReceiverId('');
+        setActiveTab('outgoing');
+      },
+      'Friend request sent.'
+    );
+  };
+
+  const handleCheckStatus = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedTargetId = statusTargetId.trim();
+
+    if (!uuidPattern.test(trimmedTargetId)) {
+      setError('Enter a valid user UUID to check relationship status.');
+      return;
+    }
+
+    setActionId(`status-${trimmedTargetId}`);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await friendService.getStatus(trimmedTargetId);
+      setStatusResult(result.status);
+    } catch (statusError) {
+      setError(getErrorMessage(statusError));
+    } finally {
+      setActionId(null);
+    }
+  };
+
   return (
     <Layout>
-      <main className="px-6 md:px-8 py-8 min-h-screen xl:mr-[320px]">
-        {/* Header & Search */}
-        <header className="max-w-[1000px] mx-auto mb-12 mt-12 md:mt-0">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-            <div>
-              <h2 className="text-[32px] leading-[40px] tracking-[-0.02em] font-bold text-primary mb-2">Kindred Spirits</h2>
-              <p className="text-on-surface-variant text-base font-medium">Connect with people who share your light.</p>
-            </div>
-          </div>
-          <div className="relative w-full max-w-2xl">
-            <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
-              <Search size={24} className="text-primary" />
-            </div>
-            <input 
-              type="text"
-              placeholder="Find friends by name or interest..."
-              className="w-full bg-surface-container-lowest border-2 border-primary-fixed-dim rounded-full py-4 pl-16 pr-8 text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary-container/20 transition-all text-base font-medium placeholder-on-surface-variant/50 shadow-sm" 
-            />
-          </div>
-        </header>
+      <main className="px-4 sm:px-6 md:px-8 py-8 min-h-screen xl:mr-[320px]">
+        <div className="max-w-[1040px] mx-auto space-y-8">
+          <header className="mt-10 md:mt-0">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+              <div>
+                <p className="text-sm font-bold text-primary uppercase tracking-[0.08em]">Relationship Center</p>
+                <h2 className="text-[32px] leading-[40px] font-bold text-on-surface mt-2">Friends</h2>
+                <p className="text-on-surface-variant text-base font-medium mt-2">
+                  Send requests, review invitations, and manage current friendships.
+                </p>
+              </div>
 
-        {/* Main Grid Area */}
-        <div className="max-w-[1000px] mx-auto">
-          {/* Recent Interactions Section */}
-          <section className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-                <Sparkles size={24} className="text-primary bg-surface-container-low rounded-full" />
-                Recent Interactions
-              </h3>
-              <button className="text-primary text-sm font-bold hover:underline decoration-2 underline-offset-4">View All</button>
+              <button
+                type="button"
+                onClick={copyMyId}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-surface-container-lowest border border-outline-variant px-5 py-3 text-sm font-bold text-primary hover:bg-surface-container-low active:scale-95 transition-all"
+              >
+                <Copy size={18} />
+                Copy my ID
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-              {/* Friend Card 1 */}
-              <div className="bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)] border border-primary-container/20 hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(255,176,156,0.3)] transition-all group">
-                <div className="flex items-start gap-5">
-                  <div className="relative shrink-0">
-                    <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-primary-fixed">
-                      <img 
-                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQ-7s6adsOiqYAPUsWELBel8cOaHj9a1Z6pkRvE9bZeILkXa4Uojddjqq-au7S_Q4l5jMVazDJmPaaUbJTXIs4IVQku6xO7i1fmlzLxfQaWnsagvGsnWfT3yUsyfakSrN-5Cu-qB0q0zUAg7zCj9htAQiGhC5N5lUES_uLmx00Q2W4Q1XNteMHgL8eXQ6ylkH8KM5ApYQa6FKPkUylo4eYrtNTMzcHD9W7VvKLIO414iXq8zz3gfffXni0zi_Uc0JDHgBV8B3yrV0" 
-                        alt="Clara Sterling"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                    <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-400 border-4 border-surface-container-lowest rounded-full"></div>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-xl font-bold text-on-surface">Clara Sterling</h4>
-                    <p className="text-on-surface-variant text-xs font-bold mb-2">12 mutual friends</p>
-                    <div className="bg-surface-container-low rounded-xl p-3 mb-4 italic text-on-surface-variant text-sm">
-                      "Baking sourdough and chasing sunsets today 🥖✨"
-                    </div>
-                    <div className="flex gap-3">
-                      <button className="flex-1 py-3 bg-primary-container text-on-primary-container rounded-full font-bold text-sm hover:brightness-95 active:scale-95 transition-all">
-                        Message
-                      </button>
-                      <button className="px-5 py-3 bg-secondary-fixed text-on-secondary-fixed-variant rounded-full font-bold text-sm hover:brightness-95 active:scale-95 transition-all">
-                        Profile
-                      </button>
-                    </div>
-                  </div>
+            {user?.id && (
+              <div className="mt-4 rounded-2xl bg-surface-container-lowest border border-outline-variant px-5 py-4">
+                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-[0.08em] mb-1">Current user ID</p>
+                <p className="font-mono text-sm text-on-surface break-all">{user.id}</p>
+              </div>
+            )}
+          </header>
+
+          {(message || error) && (
+            <div className={`rounded-2xl px-5 py-4 text-sm font-bold ${error ? 'bg-error-container text-on-error-container' : 'bg-primary-container text-on-primary-container'}`}>
+              {error || message}
+            </div>
+          )}
+
+          <section className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+            <form
+              onSubmit={handleSendRequest}
+              className="bg-surface-container-lowest rounded-3xl p-6 border border-primary-container/30 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]"
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-11 h-11 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
+                  <UserPlus size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-on-surface">Send friend request</h3>
+                  <p className="text-sm text-on-surface-variant">Use another account's UUID while search is not implemented yet.</p>
                 </div>
               </div>
 
-              {/* Friend Card 2 */}
-              <div className="bg-surface-container-lowest rounded-[2rem] p-6 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)] border border-primary-container/20 hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(255,176,156,0.3)] transition-all group">
-                <div className="flex items-start gap-5">
-                  <div className="relative shrink-0">
-                    <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-primary-fixed">
-                      <img 
-                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfA-7JrRR90czNiNKVYCmrwQ-kgyuxGMJ_T9NStnOy1T9lWSFEpocHGLxOMHrUVo0PTXBZhbv58vke2jf546IJN0V88E3dGBlvcr7xYqLqYjPNTuTD4M_55L-C6E2JIhDdVrGamEO8RgubOyyuyUYWpV7gsj_ip92D-FdVQ5uMs1jNEbBZlHfxDYICloalLhHZwmPte0QYkqyMKZraFDuvGGIxGhMEEcdMEG0Cq5X44fx6UOTavz8e0QhzJD5B2ZZewO2U3nu3x7w" 
-                        alt="Julian Rivers"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                    <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-400 border-4 border-surface-container-lowest rounded-full"></div>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-xl font-bold text-on-surface">Julian Rivers</h4>
-                    <p className="text-on-surface-variant text-xs font-bold mb-2">8 mutual friends</p>
-                    <div className="bg-surface-container-low rounded-xl p-3 mb-4 italic text-on-surface-variant text-sm">
-                      "Exploring the local library's hidden gems... 📚"
-                    </div>
-                    <div className="flex gap-3">
-                      <button className="flex-1 py-3 bg-primary-container text-on-primary-container rounded-full font-bold text-sm hover:brightness-95 active:scale-95 transition-all">
-                        Message
-                      </button>
-                      <button className="px-5 py-3 bg-secondary-fixed text-on-secondary-fixed-variant rounded-full font-bold text-sm hover:brightness-95 active:scale-95 transition-all">
-                        Profile
-                      </button>
-                    </div>
-                  </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  value={receiverId}
+                  onChange={(event) => setReceiverId(event.target.value)}
+                  placeholder="Receiver user UUID"
+                  className="min-w-0 flex-1 bg-surface-container border border-outline-variant rounded-2xl py-3 px-4 font-mono text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary-container/20"
+                />
+                <button
+                  type="submit"
+                  disabled={actionId === receiverId.trim()}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary text-on-primary px-5 py-3 font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                >
+                  {actionId === receiverId.trim() ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  Send
+                </button>
+              </div>
+            </form>
+
+            <form
+              onSubmit={handleCheckStatus}
+              className="bg-surface-container rounded-3xl p-6 border border-outline-variant"
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-11 h-11 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center">
+                  <Search size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-on-surface">Check status</h3>
+                  <p className="text-sm text-on-surface-variant">Inspect your relationship with a user ID.</p>
                 </div>
               </div>
-            </div>
+              <div className="space-y-3">
+                <input
+                  value={statusTargetId}
+                  onChange={(event) => setStatusTargetId(event.target.value)}
+                  placeholder="Target user UUID"
+                  className="w-full bg-surface-container-lowest border border-outline-variant rounded-2xl py-3 px-4 font-mono text-sm text-on-surface focus:outline-none focus:border-primary"
+                />
+                <button
+                  type="submit"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-tertiary text-on-tertiary px-5 py-3 font-bold hover:brightness-95 active:scale-95 transition-all"
+                >
+                  {actionId?.startsWith('status-') ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                  Check
+                </button>
+                {statusResult && (
+                  <div className="rounded-2xl bg-surface-container-lowest px-4 py-3 text-center">
+                    <p className="text-xs font-bold text-on-surface-variant uppercase tracking-[0.08em]">Status</p>
+                    <p className="text-lg font-bold text-primary">{statusResult.replaceAll('_', ' ')}</p>
+                  </div>
+                )}
+              </div>
+            </form>
           </section>
 
-          {/* People You May Know Section */}
-          <section className="pb-24 lg:pb-12">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-                <Users size={24} className="text-primary" />
-                People You May Know
-              </h3>
+          <section className="bg-surface-container-lowest rounded-3xl border border-primary-container/30 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)] overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 border-b border-outline-variant">
+              <div>
+                <h3 className="text-xl font-bold text-on-surface flex items-center gap-2">
+                  <Users size={22} className="text-primary" />
+                  Friend Network
+                </h3>
+                <p className="text-sm text-on-surface-variant">{friends.length} friends, {totalPending} pending requests</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 bg-surface-container p-1 rounded-2xl">
+                {(['friends', 'incoming', 'outgoing'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`rounded-xl px-4 py-2 text-sm font-bold capitalize transition-all ${activeTab === tab ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                  >
+                    {tab} {tabCounts[tab]}
+                  </button>
+                ))}
+              </div>
             </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {/* Suggestion Card 1 */}
-              <div className="bg-white rounded-[2rem] p-6 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)] flex flex-col items-center text-center border border-primary-container/10">
-                <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-4 border-tertiary-fixed shadow-inner shrink-0">
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAAarujfctw0GD8Axw7Tzoe5R0n_N42IYOi_LqP-hwdOeXhjlmGNiaWxGhoVkU2lDXMTMGNp8f-dcbsQzRQTe5NJNxU5PM_tmOYut5nb0kps26c9gjdr_eM5bWaRMXnXSorcdHgvTszAgGd0TtPquZ2e7B2hitZmsQDHpNn_Xv8pXPs-eyJc98el8BW1OlKt9W5-DAidETz-srz-EcoavoUDgBXq0_hbAvbB3YBoLAkoaYVGtKSiaL6rfn2BPsRm48KcryM8idVrJo" 
-                    alt="Mia Thornton"
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                <h5 className="text-xl font-bold text-on-surface">Mia Thornton</h5>
-                <p className="text-primary text-xs font-bold mb-3">Loves: Pottery & Jazz</p>
-                <p className="text-on-surface-variant text-sm mb-6 line-clamp-2 px-2">Always looking for new friends to visit local art markets with.</p>
-                <div className="flex flex-col w-full gap-2 mt-auto">
-                  <button className="w-full py-3 bg-primary-container text-on-primary-container rounded-full font-bold hover:brightness-95 active:scale-95 transition-all">
-                    Add Friend
-                  </button>
-                  <button className="w-full py-2 text-on-surface-variant font-medium hover:bg-surface-container-low rounded-full transition-all text-sm">
-                    Dismiss
-                  </button>
-                </div>
-              </div>
 
-              {/* Suggestion Card 2 */}
-              <div className="bg-white rounded-[2rem] p-6 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)] flex flex-col items-center text-center border border-primary-container/10">
-                <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-4 border-tertiary-fixed shadow-inner shrink-0">
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwjqExgM1NtXhvsb_SQvt4zNgl3q7b-l_fACaTd9mq9dlD1GNYzzEivfIgPmlA6OInIZajtsb_lUEBTXp8-AZ_wGXfsyj_c4JYK_dqEnwRDY5TyUNIxb-bIZWzD5eO_L-D-eUgCSEMIcjUUztDOLJmJII6rCaGcMv0r8jyNT1iS6N_0p_viswWignhbNtxLNnSRhH-PaZgMK6VrUIfffv48u02gxi198mMnZdGhiV_Addjn73vXpwNkuEScbTrZsMXQ8AoPZp3X6c" 
-                    alt="Samuel Lee"
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
+            <div className="p-5">
+              {isLoading ? (
+                <div className="min-h-[280px] flex items-center justify-center text-primary">
+                  <Loader2 size={32} className="animate-spin" />
                 </div>
-                <h5 className="text-xl font-bold text-on-surface">Samuel Lee</h5>
-                <p className="text-primary text-xs font-bold mb-3">Loves: Hiking & Coding</p>
-                <p className="text-on-surface-variant text-sm mb-6 line-clamp-2 px-2">Recently moved to the area. Let's explore some trails!</p>
-                <div className="flex flex-col w-full gap-2 mt-auto">
-                  <button className="w-full py-3 bg-primary-container text-on-primary-container rounded-full font-bold hover:brightness-95 active:scale-95 transition-all">
-                    Add Friend
-                  </button>
-                  <button className="w-full py-2 text-on-surface-variant font-medium hover:bg-surface-container-low rounded-full transition-all text-sm">
-                    Dismiss
-                  </button>
-                </div>
-              </div>
+              ) : (
+                <>
+                  {activeTab === 'friends' && (
+                    <FriendList
+                      friends={friends}
+                      actionId={actionId}
+                      onRemove={(friendId) =>
+                        runAction(
+                          friendId,
+                          () => friendService.removeFriend(friendId),
+                          'Friend removed.'
+                        )
+                      }
+                    />
+                  )}
 
-              {/* Suggestion Card 3 */}
-              <div className="bg-white rounded-[2rem] p-6 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)] flex flex-col items-center text-center border border-primary-container/10">
-                <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-4 border-tertiary-fixed shadow-inner shrink-0">
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBF_pZ_qGgmyYtbauMJb_PCo3SjF41yXQiTJcZtGTKKS_5dQsMTDkLO3POmyUcJXL-HnXlvugZaGEqZMJj2rm__pfWf2tFdoDvWVZoSu1YLFVztVUL9hBAP2oSlc7VE0P_kbqAMpRAm6nDQQKBPtXkOgxiiGVHwsIo2nh4vNo7GVXWl0X5dsrLg2rTAd1Hk9BUKamVkrnoe-8-gVKUCzpufuGSlwzcfTJ_YiegDnZitZ9XJYDmd9OF5aAaC396gmB8b77YMekwJ2O0" 
-                    alt="Elena Rossi"
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                <h5 className="text-xl font-bold text-on-surface">Elena Rossi</h5>
-                <p className="text-primary text-xs font-bold mb-3">Loves: Cats & Yoga</p>
-                <p className="text-on-surface-variant text-sm mb-6 line-clamp-2 px-2">Spreading positive vibes and morning stretches.</p>
-                <div className="flex flex-col w-full gap-2 mt-auto">
-                  <button className="w-full py-3 bg-primary-container text-on-primary-container rounded-full font-bold hover:brightness-95 active:scale-95 transition-all">
-                    Add Friend
-                  </button>
-                  <button className="w-full py-2 text-on-surface-variant font-medium hover:bg-surface-container-low rounded-full transition-all text-sm">
-                    Dismiss
-                  </button>
-                </div>
-              </div>
+                  {activeTab === 'incoming' && (
+                    <RequestList
+                      type="incoming"
+                      requests={incomingRequests}
+                      actionId={actionId}
+                      onAccept={(requestId) =>
+                        runAction(
+                          requestId,
+                          () => friendService.acceptRequest(requestId).then(() => undefined),
+                          'Friend request accepted.'
+                        )
+                      }
+                      onDecline={(requestId) =>
+                        runAction(
+                          requestId,
+                          () => friendService.declineRequest(requestId).then(() => undefined),
+                          'Friend request declined.'
+                        )
+                      }
+                    />
+                  )}
+
+                  {activeTab === 'outgoing' && (
+                    <RequestList
+                      type="outgoing"
+                      requests={outgoingRequests}
+                      actionId={actionId}
+                      onCancel={(requestId) =>
+                        runAction(
+                          requestId,
+                          () => friendService.cancelRequest(requestId).then(() => undefined),
+                          'Friend request cancelled.'
+                        )
+                      }
+                    />
+                  )}
+                </>
+              )}
             </div>
           </section>
         </div>
       </main>
 
-      {/* Right Sidebar Discovery */}
       <aside className="fixed right-0 top-0 h-screen w-[320px] p-8 hidden xl:block bg-surface z-40 overflow-y-auto">
-        <div className="bg-surface-container rounded-[2rem] p-6 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]">
-          <h4 className="text-xl font-bold text-primary mb-6">Trending Interests</h4>
-          <div className="flex flex-wrap gap-2 mb-8">
-            {['#SourdoughBaking', '#MorningYoga', '#CozyHomes', '#DigitalArt'].map(tag => (
-              <span key={tag} className="px-4 py-2 bg-tertiary-container text-on-tertiary-container rounded-full text-xs font-bold">
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          <h4 className="text-xl font-bold text-primary mb-6">Upcoming Hangouts</h4>
-          <div className="space-y-4">
-            <div className="flex gap-4 p-3 bg-surface-container-lowest rounded-xl border border-primary-container/20">
-              <div className="w-12 h-12 bg-primary-container rounded-xl flex flex-col items-center justify-center text-on-primary-container font-bold shrink-0">
-                <span className="text-[10px]">OCT</span>
-                <span className="text-lg leading-tight">12</span>
-              </div>
-              <div className="flex flex-col justify-center">
-                <p className="text-sm font-bold text-on-surface">Pottery Workshop</p>
-                <p className="text-xs text-on-surface-variant">3 friends attending</p>
-              </div>
-            </div>
-            
-            <div className="flex gap-4 p-3 bg-surface-container-lowest rounded-xl border border-primary-container/20">
-              <div className="w-12 h-12 bg-secondary-container rounded-xl flex flex-col items-center justify-center text-on-secondary-container font-bold shrink-0">
-                <span className="text-[10px]">OCT</span>
-                <span className="text-lg leading-tight">15</span>
-              </div>
-              <div className="flex flex-col justify-center">
-                <p className="text-sm font-bold text-on-surface">Book Club Night</p>
-                <p className="text-xs text-on-surface-variant">5 friends attending</p>
-              </div>
-            </div>
+        <div className="bg-surface-container rounded-3xl p-6 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]">
+          <h4 className="text-xl font-bold text-primary mb-4">Friend Flow</h4>
+          <div className="space-y-4 text-sm text-on-surface-variant">
+            <FlowStep icon={<Send size={18} />} title="Send" text="Copy another user's UUID and send a request." />
+            <FlowStep icon={<Check size={18} />} title="Accept" text="Login as the receiver to accept the incoming request." />
+            <FlowStep icon={<Users size={18} />} title="Manage" text="Both users will see the friendship after acceptance." />
           </div>
         </div>
       </aside>
     </Layout>
+  );
+}
+
+function FriendList({
+  friends,
+  actionId,
+  onRemove,
+}: {
+  friends: FriendResponse[];
+  actionId: string | null;
+  onRemove: (friendId: string) => void;
+}) {
+  if (friends.length === 0) {
+    return <EmptyState title="No friends yet" text="Send a request, then login as the receiver to accept it." />;
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {friends.map((friend) => (
+        <div key={friend.friendshipId} className="rounded-2xl border border-outline-variant bg-surface-container-low p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-[0.08em]">Friend ID</p>
+              <p className="font-mono text-sm text-on-surface break-all mt-1">{friend.friendId}</p>
+              <p className="text-xs text-on-surface-variant mt-3">Friends since {formatDate(friend.createdAt)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onRemove(friend.friendId)}
+              disabled={actionId === friend.friendId}
+              className="shrink-0 inline-flex items-center justify-center rounded-full w-11 h-11 bg-error-container text-on-error-container hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+              title="Remove friend"
+            >
+              {actionId === friend.friendId ? <Loader2 size={18} className="animate-spin" /> : <UserMinus size={18} />}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RequestList({
+  type,
+  requests,
+  actionId,
+  onAccept,
+  onDecline,
+  onCancel,
+}: {
+  type: 'incoming' | 'outgoing';
+  requests: FriendRequestResponse[];
+  actionId: string | null;
+  onAccept?: (requestId: string) => void;
+  onDecline?: (requestId: string) => void;
+  onCancel?: (requestId: string) => void;
+}) {
+  if (requests.length === 0) {
+    return (
+      <EmptyState
+        title={type === 'incoming' ? 'No incoming requests' : 'No outgoing requests'}
+        text={type === 'incoming' ? 'Incoming invitations will appear here.' : 'Requests you send will appear here until accepted or cancelled.'}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {requests.map((request) => {
+        const otherUserId = type === 'incoming' ? request.requesterId : request.receiverId;
+        return (
+          <div key={request.id} className="rounded-2xl border border-outline-variant bg-surface-container-low p-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock size={16} className="text-primary" />
+                  <p className="text-xs font-bold text-primary uppercase tracking-[0.08em]">
+                    {type === 'incoming' ? 'From' : 'To'} {shortId(otherUserId)}
+                  </p>
+                </div>
+                <p className="font-mono text-sm text-on-surface break-all">{otherUserId}</p>
+                <p className="text-xs text-on-surface-variant mt-3">Requested {formatDate(request.createdAt)}</p>
+              </div>
+
+              {type === 'incoming' ? (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onAccept?.(request.id)}
+                    disabled={actionId === request.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-primary text-on-primary px-4 py-3 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                  >
+                    {actionId === request.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDecline?.(request.id)}
+                    disabled={actionId === request.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-surface-container-high text-on-surface-variant px-4 py-3 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                  >
+                    <X size={16} />
+                    Decline
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onCancel?.(request.id)}
+                  disabled={actionId === request.id}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-error-container text-on-error-container px-4 py-3 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                >
+                  {actionId === request.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmptyState({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="min-h-[260px] rounded-2xl border border-dashed border-outline-variant bg-surface-container-low flex flex-col items-center justify-center text-center px-6">
+      <div className="w-14 h-14 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center mb-4">
+        <Users size={26} />
+      </div>
+      <h4 className="text-lg font-bold text-on-surface">{title}</h4>
+      <p className="text-sm text-on-surface-variant max-w-sm mt-2">{text}</p>
+    </div>
+  );
+}
+
+function FlowStep({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <div className="flex gap-3">
+      <div className="w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center shrink-0">
+        {icon}
+      </div>
+      <div>
+        <p className="font-bold text-on-surface">{title}</p>
+        <p>{text}</p>
+      </div>
+    </div>
   );
 }
