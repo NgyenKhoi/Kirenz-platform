@@ -5,5 +5,5 @@
 
 # Kiro Specs
 .kiro/
-
+.vscode
 .env
