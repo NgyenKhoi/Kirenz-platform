@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: social-service
+  data:
+    mongodb:
+      uri: ${MONGODB_URI}
+
+server:
+  port: 8083
+
+eureka:
+  client:
+    enabled: false

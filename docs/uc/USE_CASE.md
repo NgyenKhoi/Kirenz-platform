@@ -42,8 +42,8 @@
   - React to posts with a variety of emojis.
 - **UC-SO-05: Threaded Comments** 💬
   - Comment on posts with nested reply support.
-- **UC-SO-06: Content Bookmarking** 🔖
-  - Save posts to a personal "Read Later" collection.
+- **UC-SO-06: Saved Posts** 🔖
+  - Save posts from other users to a personal saved posts list for later viewing.
 - **UC-SO-07: Global Search** 🔍
   - Search across Users, Posts, and Hashtags.
 - **UC-SO-08: Content Reporting** 🚩

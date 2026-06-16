@@ -200,7 +200,7 @@ Responsibilities:
 * Posts
 * Comments
 * Emoji reactions
-* Bookmarks
+* Saved posts
 * Hashtags
 * Social feed data
 
@@ -209,7 +209,7 @@ Owned collections:
 * `posts`
 * `comments`
 * `reactions`
-* `bookmarks`
+* `bookmarks` - saved posts mapping users to posts they saved from other users for later viewing
 * `hashtags`
 
 Integration:
@@ -628,7 +628,7 @@ Planned by target architecture:
 * Posts
 * Comments
 * Emoji reactions
-* Bookmarks
+* Saved posts
 * Hashtags
 * MongoDB social collections
 
