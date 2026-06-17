@@ -38,6 +38,8 @@ export const API_ENDPOINTS = {
   POSTS: {
     BASE: '/posts',
     DETAIL: (postId: string) => `/posts/${postId}`,
+    COMMENTS: (postId: string) => `/posts/${postId}/comments`,
+    COMMENT_DETAIL: (postId: string, commentId: string) => `/posts/${postId}/comments/${commentId}`,
   },
 };
 
