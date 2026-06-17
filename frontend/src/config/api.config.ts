@@ -3,6 +3,7 @@ import { ApiResponse, ErrorResponse, LoginResponse } from '../types/auth.types';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api';
 export const USER_SERVICE_BASE_URL = import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:8082/api';
+export const SOCIAL_SERVICE_BASE_URL = import.meta.env.VITE_SOCIAL_SERVICE_BASE_URL || 'http://localhost:8083/api';
 
 export const API_ENDPOINTS = {
   AUTH: {
@@ -29,6 +30,10 @@ export const API_ENDPOINTS = {
     STATUS: (targetUserId: string) => `/friends/status/${targetUserId}`,
     MUTUAL: (targetUserId: string) => `/users/${targetUserId}/mutual-friends`,
   },
+  POSTS: {
+    BASE: '/posts',
+    DETAIL: (postId: string) => `/posts/${postId}`,
+  },
 };
 
 export const STORAGE_KEYS = {
@@ -46,6 +51,13 @@ const apiClient = axios.create({
 
 export const userServiceClient = axios.create({
   baseURL: USER_SERVICE_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+export const socialServiceClient = axios.create({
+  baseURL: SOCIAL_SERVICE_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -80,6 +92,17 @@ apiClient.interceptors.request.use(
 );
 
 userServiceClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+socialServiceClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     if (token && config.headers) {
