@@ -2,12 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Search, Bell, Bookmark, Calendar, Image as ImageIcon, Smile,
   Globe, MoreHorizontal, Heart, MessageSquare, Share2, ThumbsUp,
-  Gift, Video, Edit2, Save, Trash2, X
+  Gift, Video, Edit2, Save, Trash2, X, Send
 } from 'lucide-react';
 import { AxiosError } from 'axios';
 import Layout from './components/Layout';
+import { commentService } from './services/comment.service';
 import { postService } from './services/post.service';
 import { ErrorResponse } from './types/auth.types';
+import { CommentResponse } from './types/comment.types';
 import { PostResponse } from './types/post.types';
 import { useAuthStore } from './store/authStore';
 
@@ -48,19 +50,29 @@ function formatPostTime(value: string): string {
 function PostCard({
   post,
   currentUserId,
+  currentUserAvatarUrl,
   onUpdate,
   onDelete,
+  onCommentCountChange,
 }: {
   post: PostResponse;
   currentUserId?: string;
+  currentUserAvatarUrl?: string | null;
   onUpdate: (postId: string, content: string) => Promise<void>;
   onDelete: (postId: string) => Promise<void>;
+  onCommentCountChange: (postId: string, delta: number) => void;
 }) {
   const isOwner = post.author.id === currentUserId;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draftContent, setDraftContent] = useState(post.content);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<CommentResponse[]>([]);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   useEffect(() => {
     setDraftContent(post.content);
@@ -89,6 +101,75 @@ function PostCard({
       return;
     }
     await onDelete(post.id);
+  };
+
+  const loadComments = async () => {
+    setIsLoadingComments(true);
+    setCommentError(null);
+    try {
+      setComments(await commentService.listByPost(post.id));
+    } catch (err) {
+      setCommentError(getErrorMessage(err));
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
+
+  const toggleComments = async () => {
+    const nextOpen = !isCommentsOpen;
+    setIsCommentsOpen(nextOpen);
+    if (nextOpen && comments.length === 0) {
+      await loadComments();
+    }
+  };
+
+  const handleCreateComment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setCommentError(null);
+
+    if (!commentDraft.trim()) {
+      setCommentError('Comment content is required.');
+      return;
+    }
+
+    setIsSubmittingComment(true);
+    try {
+      const created = await commentService.create(post.id, { content: commentDraft });
+      setComments((current) => [...current, created]);
+      setCommentDraft('');
+      onCommentCountChange(post.id, 1);
+    } catch (err) {
+      setCommentError(getErrorMessage(err));
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  const handleUpdateComment = async (commentId: string, content: string) => {
+    setCommentError(null);
+    try {
+      const updated = await commentService.update(post.id, commentId, { content });
+      setComments((current) => current.map((comment) => (comment.id === commentId ? updated : comment)));
+    } catch (err) {
+      setCommentError(getErrorMessage(err));
+      throw err;
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    const confirmed = window.confirm('Delete this comment?');
+    if (!confirmed) {
+      return;
+    }
+
+    setCommentError(null);
+    try {
+      await commentService.remove(post.id, commentId);
+      setComments((current) => current.filter((comment) => comment.id !== commentId));
+      onCommentCountChange(post.id, -1);
+    } catch (err) {
+      setCommentError(getErrorMessage(err));
+    }
   };
 
   return (
@@ -210,15 +291,210 @@ function PostCard({
           <button className="flex items-center justify-center gap-2 py-2 hover:bg-primary-fixed rounded-full text-primary transition-all text-sm font-bold active:scale-95">
             <Heart size={20} /> <span className="hidden sm:inline">Love</span>
           </button>
-          <button className="flex items-center justify-center gap-2 py-2 hover:bg-secondary-fixed rounded-full text-secondary transition-all text-sm font-bold active:scale-95">
+          <button
+            type="button"
+            onClick={toggleComments}
+            className="flex items-center justify-center gap-2 py-2 hover:bg-secondary-fixed rounded-full text-secondary transition-all text-sm font-bold active:scale-95"
+          >
             <MessageSquare size={20} /> <span className="hidden sm:inline">Comment</span>
           </button>
           <button className="flex items-center justify-center gap-2 py-2 hover:bg-tertiary-fixed rounded-full text-tertiary transition-all text-sm font-bold active:scale-95">
             <Share2 size={20} /> <span className="hidden sm:inline">Share</span>
           </button>
         </div>
+
+        {isCommentsOpen && (
+          <div className="mt-5 border-t border-outline-variant/30 pt-5">
+            {commentError && (
+              <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
+                {commentError}
+              </div>
+            )}
+
+            {isLoadingComments ? (
+              <div className="rounded-2xl bg-surface-container-low px-4 py-4 text-center text-sm font-bold text-on-surface-variant">
+                Loading comments...
+              </div>
+            ) : comments.length === 0 ? (
+              <div className="rounded-2xl bg-surface-container-low px-4 py-4 text-center text-sm font-bold text-on-surface-variant">
+                No comments yet.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {comments.map((comment) => (
+                  <React.Fragment key={comment.id}>
+                    <CommentItem
+                      comment={comment}
+                      currentUserId={currentUserId}
+                      onUpdate={handleUpdateComment}
+                      onDelete={handleDeleteComment}
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateComment} className="mt-4 flex gap-3">
+              <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+                <img
+                  alt="Your avatar"
+                  src={currentUserAvatarUrl || fallbackAvatar}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="flex-1 flex gap-2 rounded-2xl bg-surface-container-low px-4 py-2">
+                <input
+                  value={commentDraft}
+                  onChange={(event) => setCommentDraft(event.target.value)}
+                  placeholder="Write a comment..."
+                  className="min-w-0 flex-1 bg-transparent text-sm font-medium text-on-surface outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isSubmittingComment || !commentDraft.trim()}
+                  className="shrink-0 text-secondary disabled:opacity-50 active:scale-95 transition-transform"
+                  aria-label="Send comment"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </article>
+  );
+}
+
+function CommentItem({
+  comment,
+  currentUserId,
+  onUpdate,
+  onDelete,
+}: {
+  comment: CommentResponse;
+  currentUserId?: string;
+  onUpdate: (commentId: string, content: string) => Promise<void>;
+  onDelete: (commentId: string) => Promise<void>;
+}) {
+  const isOwner = comment.author.id === currentUserId;
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftContent, setDraftContent] = useState(comment.content);
+  const [isSaving, setIsSaving] = useState(false);
+  const authorName = comment.author.displayName || comment.author.username || 'Kirenz User';
+
+  useEffect(() => {
+    setDraftContent(comment.content);
+  }, [comment.content]);
+
+  const handleSave = async () => {
+    if (!draftContent.trim()) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onUpdate(comment.id, draftContent);
+      setIsEditing(false);
+      setIsMenuOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-3">
+      <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+        <img
+          alt={authorName}
+          src={comment.author.avatarUrl || fallbackAvatar}
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="rounded-2xl bg-surface-container-low px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-on-surface">{authorName}</p>
+              {isEditing ? (
+                <textarea
+                  value={draftContent}
+                  onChange={(event) => setDraftContent(event.target.value)}
+                  rows={2}
+                  className="mt-2 w-full resize-none rounded-xl bg-surface-container-lowest px-3 py-2 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary-container"
+                />
+              ) : (
+                <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-on-surface">{comment.content}</p>
+              )}
+            </div>
+
+            {isOwner && (
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen((open) => !open)}
+                  className="p-1 text-outline hover:text-on-surface"
+                  aria-label="Comment actions"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+                {isMenuOpen && (
+                  <div className="absolute right-0 top-7 z-20 w-36 rounded-2xl bg-surface-container-lowest shadow-lg border border-outline-variant/40 p-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container-low"
+                    >
+                      <Edit2 size={15} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(comment.id)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-on-error-container hover:bg-error-container"
+                    >
+                      <Trash2 size={15} /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {isEditing && (
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftContent(comment.content);
+                  setIsEditing(false);
+                }}
+                className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high"
+              >
+                <X size={14} /> Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving || !draftContent.trim()}
+                className="inline-flex items-center gap-1 rounded-full bg-secondary-container text-on-secondary-container px-3 py-1 text-xs font-bold disabled:opacity-60 active:scale-95 transition-all"
+              >
+                <Save size={14} /> {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="mt-1 px-4 text-[11px] font-bold text-on-surface-variant">
+          {formatPostTime(comment.createdAt)}
+          {comment.updatedAt !== comment.createdAt ? ' · edited' : ''}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -301,6 +577,16 @@ export default function HomeFeed() {
     } catch (err) {
       setError(getErrorMessage(err));
     }
+  };
+
+  const handleCommentCountChange = (postId: string, delta: number) => {
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === postId
+          ? { ...post, commentsCount: Math.max(0, post.commentsCount + delta) }
+          : post
+      )
+    );
   };
 
   return (
@@ -391,8 +677,10 @@ export default function HomeFeed() {
                 <PostCard
                   post={post}
                   currentUserId={user?.id}
+                  currentUserAvatarUrl={user?.avatarUrl}
                   onUpdate={handleUpdate}
                   onDelete={handleDelete}
+                  onCommentCountChange={handleCommentCountChange}
                 />
               </React.Fragment>
             ))
