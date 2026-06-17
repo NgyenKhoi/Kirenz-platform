@@ -5,6 +5,8 @@ export type RelationshipStatus =
   | 'FRIENDS'
   | 'OUTGOING_REQUEST'
   | 'INCOMING_REQUEST'
+  | 'BLOCKED'
+  | 'BLOCKED_BY_TARGET'
   | 'NONE';
 
 export interface FriendRequestResponse {

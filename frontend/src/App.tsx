@@ -15,6 +15,7 @@ import Stories from './Stories';
 import StoryViewer from './StoryViewer';
 import Chat from './Chat';
 import EditCover from './EditCover';
+import BlockedUsers from './BlockedUsers';
 import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
@@ -38,6 +39,8 @@ export default function App() {
         <Link to="/settings" className="text-primary font-bold hover:underline">Settings</Link>
         <span className="text-on-surface-variant">|</span>
         <Link to="/privacy" className="text-primary font-bold hover:underline">Privacy</Link>
+        <span className="text-on-surface-variant">|</span>
+        <Link to="/blocked" className="text-primary font-bold hover:underline">Blocked</Link>
       </div>
       <div>
         <Routes>
@@ -52,6 +55,7 @@ export default function App() {
           <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
           <Route path="/privacy" element={<ProtectedRoute><PrivacySettings /></ProtectedRoute>} />
+          <Route path="/blocked" element={<ProtectedRoute><BlockedUsers /></ProtectedRoute>} />
         </Routes>
       </div>
     </BrowserRouter>

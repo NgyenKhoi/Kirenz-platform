@@ -6,6 +6,7 @@ import com.kirenz.identity_service.auth.security.JWTService;
 import com.kirenz.identity_service.common.exception.AccountBannedException;
 import com.kirenz.identity_service.common.exception.AccountDeactivatedException;
 import com.kirenz.identity_service.common.exception.InvalidCredentialsException;
+import com.kirenz.identity_service.common.exception.UserNotFoundException;
 import com.kirenz.identity_service.user.mapper.UserMapper;
 import com.kirenz.identity_service.user.model.AccountStatus;
 import com.kirenz.identity_service.user.model.User;
@@ -192,20 +193,18 @@ class AuthServiceLoginTest {
     }
 
     @Test
-    @DisplayName("should throw InvalidCredentialsException when user not found by email")
-    void login_WithNonexistentEmail_ShouldThrowInvalidCredentialsException() {
+    @DisplayName("should throw UserNotFoundException when user not found by email")
+    void login_WithNonexistentEmail_ShouldThrowUserNotFoundException() {
         // Arrange
-        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
-                .thenReturn(null);
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
 
         // Act & Assert
         assertThatThrownBy(() -> authService.login(validLoginRequest))
-                .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("Invalid email or password");
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User or email does not exist");
 
-        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(userRepository).findByEmail("test@example.com");
+        verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(passwordEncoder, never()).matches(anyString(), anyString());
     }
 

@@ -30,6 +30,11 @@ export const API_ENDPOINTS = {
     STATUS: (targetUserId: string) => `/friends/status/${targetUserId}`,
     MUTUAL: (targetUserId: string) => `/users/${targetUserId}/mutual-friends`,
   },
+  BLOCKS: {
+    BASE: '/blocks',
+    USER: (blockedUserId: string) => `/blocks/${blockedUserId}`,
+    STATUS: (targetUserId: string) => `/blocks/status/${targetUserId}`,
+  },
   POSTS: {
     BASE: '/posts',
     DETAIL: (postId: string) => `/posts/${postId}`,

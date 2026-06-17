@@ -108,9 +108,9 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().isSuccess()).isFalse();
-        assertThat(response.getBody().getMessage()).isEqualTo("User not found");
+        assertThat(response.getBody().getMessage()).isEqualTo("test message");
         assertThat(response.getBody().getData()).isNotNull();
-        assertThat(response.getBody().getData().getMessage()).isEqualTo("User not found");
+        assertThat(response.getBody().getData().getMessage()).isEqualTo("test message");
     }
 
     @Test

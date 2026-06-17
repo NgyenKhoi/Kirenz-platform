@@ -62,10 +62,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiResponse<ErrorResponse>> handleUserNotFound(UserNotFoundException ex) {
-        ErrorResponse errorResponse = ErrorResponse.of("User not found");
+        ErrorResponse errorResponse = ErrorResponse.of(ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error("User not found", errorResponse));
+                .body(ApiResponse.error(ex.getMessage(), errorResponse));
     }
 
     @ExceptionHandler(ExpiredTokenException.class)

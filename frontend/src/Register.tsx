@@ -4,6 +4,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/authStore';
 import OTPVerification from './components/OTPVerification';
+import { FieldErrors, extractErrorMessage, extractFieldErrors } from './utils/formErrors';
+
+type RegisterField = 'displayName' | 'username' | 'email' | 'password';
 
 export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
@@ -16,6 +19,8 @@ export default function Register() {
   const [showOTP, setShowOTP] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [isAutoSent, setIsAutoSent] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<RegisterField>>({});
+  const [formError, setFormError] = useState('');
 
   const navigate = useNavigate();
   const { registerAsync, isRegistering, registerError, loginAsync } = useAuth();
@@ -28,21 +33,78 @@ export default function Register() {
   }, [isAuthenticated, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
+    setFieldErrors((current) => ({ ...current, [name]: undefined }));
+    setFormError('');
+  };
+
+  const validateForm = () => {
+    const errors: FieldErrors<RegisterField> = {};
+    const email = formData.email.trim();
+    const username = formData.username.trim();
+    const password = formData.password;
+    const displayName = formData.displayName.trim();
+
+    if (!displayName) {
+      errors.displayName = 'Display name is required';
+    } else if (displayName.length > 100) {
+      errors.displayName = 'Display name must be 100 characters or fewer';
+    }
+
+    if (!username) {
+      errors.username = 'Username is required';
+    } else if (username.length < 3 || username.length > 50) {
+      errors.username = 'Username must be between 3 and 50 characters';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      errors.username = 'Username can only contain letters, numbers, and underscores';
+    }
+
+    if (!email) {
+      errors.email = 'Email is required';
+    } else if (email.length < 5 || email.length > 255) {
+      errors.email = 'Email must be between 5 and 255 characters';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Invalid email format';
+    }
+
+    if (!password) {
+      errors.password = 'Password is required';
+    } else if (password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+    if (!validateForm()) {
+      return;
+    }
+
     try {
-      const response = await registerAsync(formData);
-      setRegisteredEmail(formData.email);
+      const response = await registerAsync({
+        ...formData,
+        email: formData.email.trim(),
+        username: formData.username.trim(),
+        displayName: formData.displayName.trim(),
+      });
+      setRegisteredEmail(formData.email.trim());
       setIsAutoSent(!!response.otpSent);
       setShowOTP(true);
     } catch (error) {
       console.error('Registration failed:', error);
+      const errors = extractFieldErrors<RegisterField>(error);
+      setFieldErrors(errors);
+      if (Object.keys(errors).length === 0) {
+        setFormError(extractErrorMessage(error, 'Registration failed. Please try again.'));
+      }
     }
   };
 
@@ -106,11 +168,11 @@ export default function Register() {
               <p className="text-base font-medium text-on-surface-variant">Create your account and start connecting with kindred spirits.</p>
             </header>
 
-            <form className="space-y-5" onSubmit={handleRegister}>
-              {registerError && (
+            <form className="space-y-5" onSubmit={handleRegister} noValidate>
+              {(formError || (registerError && Object.keys(fieldErrors).length === 0)) && (
                 <div className="p-4 bg-error-container rounded-2xl border border-error">
                   <p className="text-sm font-medium text-on-error-container">
-                    {(registerError as any)?.response?.data?.message || 'Registration failed. Please try again.'}
+                    {formError || extractErrorMessage(registerError, 'Registration failed. Please try again.')}
                   </p>
                 </div>
               )}
@@ -125,9 +187,13 @@ export default function Register() {
                   value={formData.displayName}
                   onChange={handleChange}
                   disabled={isRegistering}
-                  required
-                  className="w-full px-6 py-3 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-4 focus:ring-tertiary/10 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50" 
+                  aria-invalid={Boolean(fieldErrors.displayName)}
+                  aria-describedby={fieldErrors.displayName ? 'displayName-error' : undefined}
+                  className={`w-full px-6 py-3 bg-surface-container rounded-full border-2 focus:ring-4 focus:ring-tertiary/10 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50 ${fieldErrors.displayName ? 'border-error focus:border-error' : 'border-transparent focus:border-tertiary'}`} 
                 />
+                {fieldErrors.displayName && (
+                  <p id="displayName-error" className="mt-2 ml-1 text-sm font-medium text-error">{fieldErrors.displayName}</p>
+                )}
               </div>
 
               <div className="group">
@@ -140,9 +206,13 @@ export default function Register() {
                   value={formData.username}
                   onChange={handleChange}
                   disabled={isRegistering}
-                  required
-                  className="w-full px-6 py-3 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-4 focus:ring-tertiary/10 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50" 
+                  aria-invalid={Boolean(fieldErrors.username)}
+                  aria-describedby={fieldErrors.username ? 'username-error' : undefined}
+                  className={`w-full px-6 py-3 bg-surface-container rounded-full border-2 focus:ring-4 focus:ring-tertiary/10 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50 ${fieldErrors.username ? 'border-error focus:border-error' : 'border-transparent focus:border-tertiary'}`} 
                 />
+                {fieldErrors.username && (
+                  <p id="username-error" className="mt-2 ml-1 text-sm font-medium text-error">{fieldErrors.username}</p>
+                )}
               </div>
 
               <div className="group">
@@ -155,9 +225,13 @@ export default function Register() {
                   value={formData.email}
                   onChange={handleChange}
                   disabled={isRegistering}
-                  required
-                  className="w-full px-6 py-3 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-4 focus:ring-tertiary/10 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50" 
+                  aria-invalid={Boolean(fieldErrors.email)}
+                  aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+                  className={`w-full px-6 py-3 bg-surface-container rounded-full border-2 focus:ring-4 focus:ring-tertiary/10 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50 ${fieldErrors.email ? 'border-error focus:border-error' : 'border-transparent focus:border-tertiary'}`} 
                 />
+                {fieldErrors.email && (
+                  <p id="email-error" className="mt-2 ml-1 text-sm font-medium text-error">{fieldErrors.email}</p>
+                )}
               </div>
 
               <div className="group">
@@ -171,9 +245,9 @@ export default function Register() {
                     value={formData.password}
                     onChange={handleChange}
                     disabled={isRegistering}
-                    required
-                    minLength={8}
-                    className="w-full px-6 py-3 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50" 
+                    aria-invalid={Boolean(fieldErrors.password)}
+                    aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                    className={`w-full px-6 py-3 bg-surface-container rounded-full border-2 focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50 ${fieldErrors.password ? 'border-error focus:border-error' : 'border-transparent focus:border-tertiary'}`} 
                   />
                   <button 
                     type="button" 
@@ -184,6 +258,9 @@ export default function Register() {
                     {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
                   </button>
                 </div>
+                {fieldErrors.password && (
+                  <p id="password-error" className="mt-2 ml-1 text-sm font-medium text-error">{fieldErrors.password}</p>
+                )}
               </div>
 
               <button 

@@ -1,7 +1,9 @@
 package com.kirenz.user_service.friend;
 
+import com.kirenz.user_service.block.repository.BlockRepository;
 import com.kirenz.user_service.common.exception.BadRequestException;
 import com.kirenz.user_service.common.exception.ConflictException;
+import com.kirenz.user_service.common.exception.ForbiddenException;
 import com.kirenz.user_service.common.exception.NotFoundException;
 import com.kirenz.user_service.friend.dto.FriendRequestResponse;
 import com.kirenz.user_service.friend.dto.FriendResponse;
@@ -30,6 +32,7 @@ public class FriendService {
 
     private final FriendRequestRepository friendRequestRepository;
     private final FriendshipRepository friendshipRepository;
+    private final BlockRepository blockRepository;
     private final IdentityServiceClient identityServiceClient;
 
     @Transactional
@@ -37,6 +40,8 @@ public class FriendService {
         if (requesterId.equals(receiverId)) {
             throw new BadRequestException("Cannot send a friend request to yourself");
         }
+
+        ensureNotBlocked(requesterId, receiverId, "Cannot send a friend request when either user has blocked the other");
 
         UserPair pair = UserPair.of(requesterId, receiverId);
         if (friendshipRepository.existsByUserId1AndUserId2(pair.userId1(), pair.userId2())) {
@@ -83,6 +88,8 @@ public class FriendService {
         FriendRequest request = friendRequestRepository
             .findByIdAndReceiverIdAndStatus(requestId, userId, FriendRequestStatus.PENDING)
             .orElseThrow(() -> new NotFoundException("Pending friend request not found"));
+
+        ensureNotBlocked(userId, request.getRequesterId(), "Cannot accept a friend request when either user has blocked the other");
 
         UserPair pair = UserPair.of(request.getRequesterId(), request.getReceiverId());
         if (friendshipRepository.existsByUserId1AndUserId2(pair.userId1(), pair.userId2())) {
@@ -155,6 +162,14 @@ public class FriendService {
             return new FriendStatusResponse(userId, targetUserId, "SELF");
         }
 
+        if (blockRepository.existsByBlockerIdAndBlockedId(userId, targetUserId)) {
+            return new FriendStatusResponse(userId, targetUserId, "BLOCKED");
+        }
+
+        if (blockRepository.existsByBlockerIdAndBlockedId(targetUserId, userId)) {
+            return new FriendStatusResponse(userId, targetUserId, "BLOCKED_BY_TARGET");
+        }
+
         UserPair pair = UserPair.of(userId, targetUserId);
         if (friendshipRepository.existsByUserId1AndUserId2(pair.userId1(), pair.userId2())) {
             return new FriendStatusResponse(userId, targetUserId, "FRIENDS");
@@ -176,6 +191,8 @@ public class FriendService {
         if (viewerId.equals(targetUserId)) {
             throw new BadRequestException("Cannot get mutual friends with yourself");
         }
+
+        ensureNotBlocked(viewerId, targetUserId, "Cannot get mutual friends when either user has blocked the other");
 
         Set<UUID> viewerFriendIds = friendIdsOf(viewerId);
         Set<UUID> targetFriendIds = friendIdsOf(targetUserId);
@@ -226,6 +243,13 @@ public class FriendService {
         }
 
         return friendIds;
+    }
+
+    private void ensureNotBlocked(UUID firstUserId, UUID secondUserId, String message) {
+        if (blockRepository.existsByBlockerIdAndBlockedId(firstUserId, secondUserId)
+            || blockRepository.existsByBlockerIdAndBlockedId(secondUserId, firstUserId)) {
+            throw new ForbiddenException(message);
+        }
     }
 
     private MutualFriendResponse toMutualFriendResponse(IdentityUserProfileResponse profile) {
