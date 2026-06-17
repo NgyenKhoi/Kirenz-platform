@@ -2,3 +2,6 @@ databaseChangeLog:
   - include:
       file: 001-init-user-friends-schema.sql
       relativeToChangelogFile: true
+  - include:
+      file: 002-add-blocks-schema.sql
+      relativeToChangelogFile: true

@@ -12,6 +12,7 @@ import com.kirenz.identity_service.common.exception.EmailAlreadyExistsException;
 import com.kirenz.identity_service.common.exception.ExpiredTokenException;
 import com.kirenz.identity_service.common.exception.InvalidCredentialsException;
 import com.kirenz.identity_service.common.exception.InvalidTokenException;
+import com.kirenz.identity_service.common.exception.UserNotFoundException;
 import com.kirenz.identity_service.common.exception.UsernameAlreadyExistsException;
 import com.kirenz.identity_service.user.mapper.UserMapper;
 import com.kirenz.identity_service.user.model.AccountStatus;
@@ -23,6 +24,7 @@ import com.kirenz.identity_service.verification.service.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -107,12 +109,16 @@ public class AuthService {
             throw new InvalidCredentialsException("Password is required");
         }
 
-        authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
-
         User user = userRepository.findByEmail(request.getEmail())
-            .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+            .orElseThrow(() -> new UserNotFoundException("User or email does not exist"));
+
+        try {
+            authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
+        } catch (BadCredentialsException e) {
+            throw new InvalidCredentialsException("Invalid email or password");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new InvalidCredentialsException("Invalid email or password");

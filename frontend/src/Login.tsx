@@ -4,6 +4,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/authStore';
 import OTPVerification from './components/OTPVerification';
+import { FieldErrors, extractErrorMessage, extractFieldErrors } from './utils/formErrors';
+
+type LoginField = 'email' | 'password';
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -12,6 +15,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showOTP, setShowOTP] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<LoginField>>({});
+  const [formError, setFormError] = useState('');
 
   const navigate = useNavigate();
   const { loginAsync, isLoggingIn, loginError, refetchUser } = useAuth();
@@ -30,8 +35,22 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+
+    const errors: FieldErrors<LoginField> = {};
+    if (!email.trim()) {
+      errors.email = 'Email is required';
+    }
+    if (!password.trim()) {
+      errors.password = 'Password is required';
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
     try {
-      const loggedInUser = await loginAsync({ email, password });
+      const loggedInUser = await loginAsync({ email: email.trim(), password });
       if (loggedInUser && !loggedInUser.emailVerified) {
         setUnverifiedEmail(loggedInUser.email);
         setShowOTP(true);
@@ -40,6 +59,19 @@ export default function Login() {
       }
     } catch (error) {
       console.error('Login failed:', error);
+      const errors = extractFieldErrors<LoginField>(error);
+      const message = extractErrorMessage(error, 'Login failed. Please try again.');
+      const status = (error as any)?.response?.status;
+
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+      } else if (status === 404 || message.toLowerCase().includes('email')) {
+        setFieldErrors({ email: message });
+      } else if (status === 401 || message.toLowerCase().includes('password')) {
+        setFieldErrors({ password: message });
+      } else {
+        setFormError(message);
+      }
     }
   };
 
@@ -100,11 +132,11 @@ export default function Login() {
             </header>
 
             {/* Login Form */}
-            <form className="space-y-6" onSubmit={handleLogin}>
-              {loginError && (
+            <form className="space-y-6" onSubmit={handleLogin} noValidate>
+              {(formError || (loginError && Object.keys(fieldErrors).length === 0)) && (
                 <div className="p-4 bg-error-container rounded-2xl border border-error">
                   <p className="text-sm font-medium text-on-error-container">
-                    {(loginError as any)?.response?.data?.message || 'Login failed. Please try again.'}
+                    {formError || extractErrorMessage(loginError, 'Login failed. Please try again.')}
                   </p>
                 </div>
               )}
@@ -120,12 +152,20 @@ export default function Login() {
                       placeholder="Enter your email" 
                       type="text"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setFieldErrors((current) => ({ ...current, email: undefined }));
+                        setFormError('');
+                      }}
                       disabled={isLoggingIn}
-                      required
-                      className="w-full px-6 py-4 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50" 
+                      aria-invalid={Boolean(fieldErrors.email)}
+                      aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
+                      className={`w-full px-6 py-4 bg-surface-container rounded-full border-2 focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50 ${fieldErrors.email ? 'border-error focus:border-error' : 'border-transparent focus:border-tertiary'}`} 
                     />
                   </div>
+                  {fieldErrors.email && (
+                    <p id="login-email-error" className="mt-2 ml-1 text-sm font-medium text-error">{fieldErrors.email}</p>
+                  )}
                 </div>
 
                 {/* Password Input */}
@@ -137,10 +177,15 @@ export default function Login() {
                       placeholder="••••••••" 
                       type={showPassword ? 'text' : 'password'}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setFieldErrors((current) => ({ ...current, password: undefined }));
+                        setFormError('');
+                      }}
                       disabled={isLoggingIn}
-                      required
-                      className="w-full px-6 py-4 bg-surface-container rounded-full border-2 border-transparent focus:border-tertiary focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50" 
+                      aria-invalid={Boolean(fieldErrors.password)}
+                      aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
+                      className={`w-full px-6 py-4 bg-surface-container rounded-full border-2 focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50 ${fieldErrors.password ? 'border-error focus:border-error' : 'border-transparent focus:border-tertiary'}`} 
                     />
                     <button 
                       type="button" 
@@ -151,6 +196,9 @@ export default function Login() {
                       {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
                     </button>
                   </div>
+                  {fieldErrors.password && (
+                    <p id="login-password-error" className="mt-2 ml-1 text-sm font-medium text-error">{fieldErrors.password}</p>
+                  )}
                 </div>
               </div>
 

@@ -1,14 +1,35 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
-  Eye, Globe, Users, Lock, Shield, UserPlus, 
-  MessageSquare, Menu, Bell
+  Eye, Globe, Users, Lock, Shield, UserPlus,
+  MessageSquare, Menu, Bell, Loader2, UserX
 } from 'lucide-react';
 import Layout from './components/Layout';
+import { useBlockedUsers, useUnblockUser } from './hooks/useBlocks';
+import { extractErrorMessage } from './utils/formErrors';
+
+function shortId(id: string): string {
+  return `${id.slice(0, 8)}...${id.slice(-6)}`;
+}
 
 export default function PrivacySettings() {
   const [profileVisibility, setProfileVisibility] = useState<'public' | 'friends' | 'private'>('public');
+  const [actionError, setActionError] = useState('');
+  const blockedUsersQuery = useBlockedUsers();
+  const unblockUserMutation = useUnblockUser();
 
-  return (
+  const blockedUsers = (blockedUsersQuery.data ?? []).slice(0, 2);
+
+  const handleUnblock = async (blockedUserId: string) => {
+    setActionError('');
+    try {
+      await unblockUserMutation.mutateAsync(blockedUserId);
+    } catch (error) {
+      setActionError(extractErrorMessage(error, 'Could not unblock this user. Please try again.'));
+    }
+  };
+
+  return (            
     <Layout>
       <div className="bg-surface text-on-surface min-h-screen selection:bg-primary-container selection:text-on-primary-container pb-20 md:pb-0">
         
@@ -97,9 +118,9 @@ export default function PrivacySettings() {
                 {/* Post Visibility */}
                 <div>
                   <label className="text-sm font-bold block mb-2 text-on-surface-variant">Default Post Visibility</label>
-                  <select className="w-full bg-surface-container rounded-full border-2 border-outline-variant/30 py-3 px-6 text-base font-medium text-on-surface focus:border-primary-container focus:ring-0 outline-none transition-all hover:border-outline-variant cursor-pointer appearance-none">
+                  <select defaultValue="Friends Only" className="w-full bg-surface-container rounded-full border-2 border-outline-variant/30 py-3 px-6 text-base font-medium text-on-surface focus:border-primary-container focus:ring-0 outline-none transition-all hover:border-outline-variant cursor-pointer appearance-none">
                     <option>Everyone</option>
-                    <option selected>Friends Only</option>
+                    <option>Friends Only</option>
                     <option>Specific Friends...</option>
                     <option>Only Me</option>
                   </select>
@@ -114,42 +135,56 @@ export default function PrivacySettings() {
                   <Shield className="text-primary" size={24} />
                   <h3 className="text-xl font-bold text-on-surface">Defensive Controls</h3>
                 </div>
-                <button className="bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full text-sm font-bold hover:scale-105 transition-transform flex items-center justify-center gap-2 w-full sm:w-auto">
+                <Link to="/blocked" className="bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full text-sm font-bold hover:scale-105 transition-transform flex items-center justify-center gap-2 w-full sm:w-auto">
                   <UserPlus size={18} />
                   Add to Block List
-                </button>
+                </Link>
               </div>
               
               <div className="space-y-4">
-                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider ml-1">Blocked Users</p>
-                
-                {/* Blocked User Item 1 */}
-                <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-[1.5rem] hover:bg-surface-container transition-colors">
-                  <div className="flex items-center gap-3">
-                    <img 
-                      alt="Marcus Thorne" 
-                      className="w-10 h-10 rounded-full object-cover" 
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMsH_jRJ0Qa4n8yxbU4UKQsidDK6IO41uUYnRmurLCUSMwuMGetrYFA8RXY6iTB_MDcG4e3s0SPHWJJvsFntpFrxri-BExANH-l6k17rLqi-LCvUBPH5XSL9FUXTgURYzMnxNPqwRHwCbTsMLJdvvStYzL_2jjzJWefQvC3WMCpWT5I7FjmqB2hYC6IBUIw8ChM6KMv9jt-icMeIKbWI23MF4I3vTfS1E2mXD93nAvzQQN9_UCLZ2Xyv_ZYzEiG2hT8cSlZdJR6jg"
-                      referrerPolicy="no-referrer"
-                    />
-                    <span className="text-base font-bold text-on-surface">Marcus Thorne</span>
-                  </div>
-                  <button className="text-primary text-sm font-bold hover:underline px-3 py-1">Unblock</button>
+                <div className="flex items-center justify-between ml-1 mb-2">
+                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Blocked Users</p>
+                  <Link to="/blocked" className="text-xs font-bold text-primary hover:underline">Manage All</Link>
                 </div>
 
-                {/* Blocked User Item 2 */}
-                <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-[1.5rem] hover:bg-surface-container transition-colors">
-                  <div className="flex items-center gap-3">
-                    <img 
-                      alt="Lila Vance" 
-                      className="w-10 h-10 rounded-full object-cover" 
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVvujLOBOMeBdUWT4ysi_QwkWJLUA2416ybfiAuUgF2t9iIV9xWf6oygjfLdmldZep9J95g2_4TiwR9KaCg2Xnwnklo-9GSmQWv0_lu6DhtKvTSRDHOSGDy9Ca7koAzgu08lx6UrD_FrRM8IRwIbHF9R-NEI3QvaBFf5tGS3S9br8kjL6eaN9Rf4dmGRjBcoij2jIDsGqo38WcRKKwH2sXbi1-8KUE-8jFSG0eDx_g1FW0dzpD0MibLDvu3a3IaXZwG4jc5C9RnkI"
-                      referrerPolicy="no-referrer"
-                    />
-                    <span className="text-base font-bold text-on-surface">Lila Vance</span>
+                {(actionError || blockedUsersQuery.error) && (
+                  <div className="rounded-2xl bg-error-container text-on-error-container px-4 py-3 text-sm font-bold">
+                    {actionError || extractErrorMessage(blockedUsersQuery.error, 'Could not load blocked users.')}
                   </div>
-                  <button className="text-primary text-sm font-bold hover:underline px-3 py-1">Unblock</button>
-                </div>
+                )}
+
+                {blockedUsersQuery.isLoading ? (
+                  <div className="flex items-center justify-center p-6 text-primary">
+                    <Loader2 size={24} className="animate-spin" />
+                  </div>
+                ) : blockedUsers.length > 0 ? (
+                  blockedUsers.map((user) => (
+                    <div key={user.id} className="flex items-center justify-between gap-3 p-3 bg-surface-container-low rounded-[1.5rem] hover:bg-surface-container transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0">
+                          <UserX size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-base font-bold text-on-surface">{shortId(user.blockedUserId)}</span>
+                          <span className="block text-xs font-mono text-on-surface-variant truncate">{user.blockedUserId}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleUnblock(user.blockedUserId)}
+                        disabled={unblockUserMutation.isPending}
+                        className="text-primary text-sm font-bold hover:underline px-3 py-1 disabled:opacity-60"
+                      >
+                        Unblock
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[1.5rem] border border-dashed border-outline-variant p-6 text-center">
+                    <p className="text-sm font-bold text-on-surface">No blocked users</p>
+                    <p className="text-xs text-on-surface-variant mt-1">People you block will appear here.</p>
+                  </div>
+                )}
               </div>
             </section>
 

@@ -54,7 +54,7 @@ export interface ApiResponse<T> {
 export interface ErrorResponse {
   success: boolean;
   message: string;
-  errors?: string[];
+  errors?: Record<string, string>;
   timestamp: string;
 }
 
