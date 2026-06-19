@@ -11,6 +11,9 @@ import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostStatus;
 import com.example.social_service.post.repository.PostRepository;
 import com.example.social_service.post.service.PostService;
+import com.example.social_service.reaction.dto.ReactionSummaryResponse;
+import com.example.social_service.reaction.model.ReactionTargetType;
+import com.example.social_service.reaction.service.ReactionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,12 +42,19 @@ class PostServiceTest {
     @Mock
     private IdentityServiceClient identityServiceClient;
 
+    @Mock
+    private ReactionService reactionService;
+
     private PostService postService;
 
     @BeforeEach
     void setUp() {
-        postService = new PostService(postRepository, identityServiceClient);
+        postService = new PostService(postRepository, identityServiceClient, reactionService);
         lenient().when(identityServiceClient.getProfilesByIds(any())).thenReturn(ApiResponse.success("ok", List.of()));
+        lenient().when(reactionService.getSummary(any(), any(), any()))
+            .thenReturn(new ReactionSummaryResponse(0, null, Map.of()));
+        lenient().when(reactionService.getSummaries(any(), any(), any()))
+            .thenReturn(Map.of());
     }
 
     @Test
@@ -78,9 +89,10 @@ class PostServiceTest {
         Post older = post("older", UUID.randomUUID(), "Old", Instant.parse("2026-06-15T10:00:00Z"));
         when(postRepository.findByStatusOrderByCreatedAtDesc(PostStatus.ACTIVE)).thenReturn(List.of(newest, older));
 
-        List<PostResponse> feed = postService.listFeed();
+        List<PostResponse> feed = postService.listFeed(UUID.randomUUID());
 
         assertThat(feed).extracting(PostResponse::id).containsExactly("newest", "older");
+        verify(reactionService).getSummaries(any(), org.mockito.ArgumentMatchers.eq(ReactionTargetType.POST), any());
     }
 
     @Test

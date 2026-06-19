@@ -43,7 +43,7 @@ public class PostController {
     public ResponseEntity<ApiResponse<List<PostResponse>>> feed() {
         return ResponseEntity.ok(ApiResponse.success(
             "Posts retrieved successfully",
-            postService.listFeed()
+            postService.listFeed(currentUser.id())
         ));
     }
 
@@ -51,7 +51,7 @@ public class PostController {
     public ResponseEntity<ApiResponse<PostResponse>> detail(@PathVariable String postId) {
         return ResponseEntity.ok(ApiResponse.success(
             "Post retrieved successfully",
-            postService.getPost(postId)
+            postService.getPost(currentUser.id(), postId)
         ));
     }
 

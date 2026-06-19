@@ -15,6 +15,9 @@ import com.example.social_service.identity.IdentityServiceClient;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostStatus;
 import com.example.social_service.post.repository.PostRepository;
+import com.example.social_service.reaction.dto.ReactionSummaryResponse;
+import com.example.social_service.reaction.model.ReactionTargetType;
+import com.example.social_service.reaction.service.ReactionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,12 +49,19 @@ class CommentServiceTest {
     @Mock
     private IdentityServiceClient identityServiceClient;
 
+    @Mock
+    private ReactionService reactionService;
+
     private CommentService commentService;
 
     @BeforeEach
     void setUp() {
-        commentService = new CommentService(commentRepository, postRepository, identityServiceClient);
+        commentService = new CommentService(commentRepository, postRepository, identityServiceClient, reactionService);
         lenient().when(identityServiceClient.getProfilesByIds(any())).thenReturn(ApiResponse.success("ok", List.of()));
+        lenient().when(reactionService.getSummary(any(), any(), any()))
+            .thenReturn(new ReactionSummaryResponse(0, null, Map.of()));
+        lenient().when(reactionService.getSummaries(any(), any(), any()))
+            .thenReturn(Map.of());
     }
 
     @Test
@@ -113,9 +124,10 @@ class CommentServiceTest {
         when(commentRepository.findByPostIdAndStatusOrderByCreatedAtAsc("post-1", CommentStatus.ACTIVE))
             .thenReturn(List.of(first, second));
 
-        List<CommentResponse> comments = commentService.listComments("post-1");
+        List<CommentResponse> comments = commentService.listComments(UUID.randomUUID(), "post-1");
 
         assertThat(comments).extracting(CommentResponse::id).containsExactly("comment-1", "comment-2");
+        verify(reactionService).getSummaries(any(), org.mockito.ArgumentMatchers.eq(ReactionTargetType.COMMENT), any());
     }
 
     @Test

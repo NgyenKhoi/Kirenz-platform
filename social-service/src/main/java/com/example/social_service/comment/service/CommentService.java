@@ -15,6 +15,9 @@ import com.example.social_service.identity.IdentityUserProfileResponse;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostStatus;
 import com.example.social_service.post.repository.PostRepository;
+import com.example.social_service.reaction.dto.ReactionSummaryResponse;
+import com.example.social_service.reaction.model.ReactionTargetType;
+import com.example.social_service.reaction.service.ReactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +35,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final IdentityServiceClient identityServiceClient;
+    private final ReactionService reactionService;
 
     public CommentResponse createComment(UUID userId, String postId, CreateCommentRequest request) {
         Post post = activePost(postId);
@@ -53,10 +57,10 @@ public class CommentService {
         post.setUpdatedAt(now);
         postRepository.save(post);
 
-        return toResponse(saved, fetchAuthors(List.of(userId)));
+        return toResponse(saved, fetchAuthors(List.of(userId)), emptyReactionSummary());
     }
 
-    public List<CommentResponse> listComments(String postId) {
+    public List<CommentResponse> listComments(UUID userId, String postId) {
         activePost(postId);
 
         List<Comment> comments = commentRepository.findByPostIdAndStatusOrderByCreatedAtAsc(
@@ -66,9 +70,18 @@ public class CommentService {
         Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(
             comments.stream().map(Comment::getUserId).distinct().toList()
         );
+        Map<String, ReactionSummaryResponse> reactionSummaries = reactionService.getSummaries(
+            userId,
+            ReactionTargetType.COMMENT,
+            comments.stream().map(Comment::getId).toList()
+        );
 
         return comments.stream()
-            .map(comment -> toResponse(comment, authors))
+            .map(comment -> toResponse(
+                comment,
+                authors,
+                reactionSummaries.getOrDefault(comment.getId(), emptyReactionSummary())
+            ))
             .toList();
     }
 
@@ -83,7 +96,12 @@ public class CommentService {
         comment.setContent(content);
         comment.setUpdatedAt(Instant.now());
 
-        return toResponse(commentRepository.save(comment), fetchAuthors(List.of(userId)));
+        Comment saved = commentRepository.save(comment);
+        return toResponse(
+            saved,
+            fetchAuthors(List.of(userId)),
+            reactionService.getSummary(userId, ReactionTargetType.COMMENT, commentId)
+        );
     }
 
     public void deleteComment(UUID userId, String postId, String commentId) {
@@ -143,7 +161,11 @@ public class CommentService {
         }
     }
 
-    private CommentResponse toResponse(Comment comment, Map<UUID, IdentityUserProfileResponse> authors) {
+    private CommentResponse toResponse(
+        Comment comment,
+        Map<UUID, IdentityUserProfileResponse> authors,
+        ReactionSummaryResponse reactionSummary
+    ) {
         IdentityUserProfileResponse profile = authors.get(comment.getUserId());
         CommentAuthorResponse author = profile == null
             ? new CommentAuthorResponse(comment.getUserId(), null, "Kirenz User", null)
@@ -154,9 +176,19 @@ public class CommentService {
             comment.getPostId(),
             author,
             comment.getContent(),
+            reactionsCount(comment.getReactionsCount()),
+            reactionSummary,
             comment.getStatus(),
             comment.getCreatedAt(),
             comment.getUpdatedAt()
         );
+    }
+
+    private ReactionSummaryResponse emptyReactionSummary() {
+        return new ReactionSummaryResponse(0, null, Map.of());
+    }
+
+    private int reactionsCount(Integer reactionsCount) {
+        return reactionsCount == null ? 0 : reactionsCount;
     }
 }

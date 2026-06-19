@@ -44,7 +44,7 @@ public class CommentController {
     public ResponseEntity<ApiResponse<List<CommentResponse>>> listComments(@PathVariable String postId) {
         return ResponseEntity.ok(ApiResponse.success(
             "Comments retrieved successfully",
-            commentService.listComments(postId)
+            commentService.listComments(currentUser.id(), postId)
         ));
     }
 

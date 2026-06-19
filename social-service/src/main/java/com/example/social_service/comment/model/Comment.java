@@ -33,6 +33,9 @@ public class Comment {
     private String content;
 
     @Builder.Default
+    private Integer reactionsCount = 0;
+
+    @Builder.Default
     private CommentStatus status = CommentStatus.ACTIVE;
 
     private Instant createdAt;

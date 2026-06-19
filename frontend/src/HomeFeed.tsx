@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, Bell, Bookmark, Calendar, Image as ImageIcon, Smile,
   Globe, MoreHorizontal, Heart, MessageSquare, Share2, ThumbsUp,
@@ -8,9 +8,11 @@ import { AxiosError } from 'axios';
 import Layout from './components/Layout';
 import { commentService } from './services/comment.service';
 import { postService } from './services/post.service';
+import { reactionService } from './services/reaction.service';
 import { ErrorResponse } from './types/auth.types';
 import { CommentResponse } from './types/comment.types';
 import { PostResponse } from './types/post.types';
+import { ReactionSummaryResponse, ReactionType } from './types/reaction.types';
 import { useAuthStore } from './store/authStore';
 
 const fallbackAvatar = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDn9I6Bn8A1s6Gv_kblRDw5crnta6Vb7W0KyrBjRdHoUu3nEM5p1A7ODn_isaa7M80w2yF_GqrvezNIIz11PYt7KqMNO5ISVUrgUKCJZ3FvNZkhQeNhkwYyW_jdHb2Qja9CR9u9BVzj_6IFkVhiHPLeS6JXKmIBmfaC71-cnJodIWg_zqMW4RUF73sKvLv8IZWTXErCay6A4e6Xaho8Q6Y-8TCyc4_rZbQGrTBGVqYllUj1ftVmkK9I2EnSe5Ph9NHEg-y1kcqoQHI';
@@ -47,6 +49,312 @@ function formatPostTime(value: string): string {
   });
 }
 
+const legacyReactionOptions: Array<{ type: ReactionType; label: string; icon: string }> = [
+  { type: 'LIKE', label: 'Like', icon: '👍' },
+  { type: 'LOVE', label: 'Love', icon: '❤️' },
+  { type: 'HAHA', label: 'Haha', icon: '😆' },
+  { type: 'WOW', label: 'Wow', icon: '😮' },
+  { type: 'SAD', label: 'Sad', icon: '😢' },
+  { type: 'ANGRY', label: 'Angry', icon: '😡' },
+];
+
+const reactionOptions: Array<{ type: ReactionType; label: string; icon: string }> = [
+  { type: 'LIKE', label: 'Like', icon: '\u{1F44D}' },
+  { type: 'LOVE', label: 'Love', icon: '\u{2764}\u{FE0F}' },
+  { type: 'HAHA', label: 'Haha', icon: '\u{1F606}' },
+  { type: 'WOW', label: 'Wow', icon: '\u{1F62E}' },
+  { type: 'SAD', label: 'Sad', icon: '\u{1F622}' },
+  { type: 'ANGRY', label: 'Angry', icon: '\u{1F621}' },
+];
+
+function getReactionOption(type?: ReactionType | null) {
+  return reactionOptions.find((option) => option.type === type);
+}
+
+function getReactionTotal(summary: ReactionSummaryResponse | undefined, fallback: number) {
+  return summary?.totalCount ?? fallback;
+}
+
+function formatCount(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function displayName(author: { username?: string | null; displayName?: string | null }) {
+  return author.displayName || author.username || 'Kirenz User';
+}
+
+function uniqueCommentAuthors(comments: CommentResponse[]) {
+  const authors = new Map<string, { name: string; avatarUrl?: string | null; count: number }>();
+  comments.forEach((comment) => {
+    const existing = authors.get(comment.author.id);
+    if (existing) {
+      existing.count += 1;
+      return;
+    }
+    authors.set(comment.author.id, {
+      name: displayName(comment.author),
+      avatarUrl: comment.author.avatarUrl,
+      count: 1,
+    });
+  });
+  return Array.from(authors.values());
+}
+
+function useHoverPopover() {
+  const [isOpen, setIsOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const open = () => {
+    clearCloseTimer();
+    setIsOpen(true);
+  };
+
+  const closeSoon = () => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => setIsOpen(false), 160);
+  };
+
+  useEffect(() => () => clearCloseTimer(), []);
+
+  return { isOpen, setIsOpen, open, closeSoon };
+}
+
+function ReactionBreakdown({
+  summary,
+  currentUserAvatarUrl,
+}: {
+  summary?: ReactionSummaryResponse;
+  currentUserAvatarUrl?: string | null;
+}) {
+  const total = summary?.totalCount ?? 0;
+  const currentReaction = getReactionOption(summary?.currentUserReaction);
+  const knownCurrentUser = currentReaction ? 1 : 0;
+  const remaining = Math.max(0, total - knownCurrentUser);
+
+  return (
+    <div className="w-64 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-3 shadow-lg">
+      <p className="mb-2 text-xs font-bold text-on-surface">Reactions</p>
+      {total === 0 ? (
+        <p className="text-xs font-bold text-on-surface-variant">No reactions yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {currentReaction && (
+            <div className="flex items-center gap-2">
+              <img
+                alt="You"
+                src={currentUserAvatarUrl || fallbackAvatar}
+                className="h-7 w-7 rounded-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-bold text-on-surface">You</p>
+                <p className="text-[11px] font-bold text-on-surface-variant">
+                  {currentReaction.icon} {currentReaction.label}
+                </p>
+              </div>
+            </div>
+          )}
+          {remaining > 0 && (
+            <p className="text-xs font-bold text-on-surface-variant">
+              {formatCount(remaining, 'other person', 'other people')} reacted.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {reactionOptions
+              .filter((option) => (summary?.breakdown?.[option.type] ?? 0) > 0)
+              .map((option) => (
+                <span
+                  key={option.type}
+                  className="inline-flex items-center gap-1 rounded-full bg-surface-container-low px-2 py-1 text-[11px] font-bold text-on-surface-variant"
+                >
+                  <span>{option.icon}</span>
+                  {summary?.breakdown?.[option.type]}
+                </span>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommentersPopover({
+  comments,
+  isLoading,
+  commentsCount,
+}: {
+  comments: CommentResponse[];
+  isLoading: boolean;
+  commentsCount: number;
+}) {
+  const authors = uniqueCommentAuthors(comments);
+  const listedCount = authors.reduce((total, author) => total + author.count, 0);
+  const remaining = Math.max(0, commentsCount - listedCount);
+
+  return (
+    <div className="w-64 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-3 shadow-lg">
+      <p className="mb-2 text-xs font-bold text-on-surface">Comments</p>
+      {isLoading ? (
+        <p className="text-xs font-bold text-on-surface-variant">Loading commenters...</p>
+      ) : authors.length === 0 ? (
+        <p className="text-xs font-bold text-on-surface-variant">No comments yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {authors.slice(0, 6).map((author) => (
+            <div key={author.name} className="flex items-center gap-2">
+              <img
+                alt={author.name}
+                src={author.avatarUrl || fallbackAvatar}
+                className="h-7 w-7 rounded-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <p className="min-w-0 flex-1 truncate text-xs font-bold text-on-surface">{author.name}</p>
+              {author.count > 1 && (
+                <span className="text-[11px] font-bold text-on-surface-variant">x{author.count}</span>
+              )}
+            </div>
+          ))}
+          {remaining > 0 && (
+            <p className="text-xs font-bold text-on-surface-variant">
+              {formatCount(remaining, 'more comment', 'more comments')}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CountPopover({
+  label,
+  children,
+  align = 'left',
+  onOpen,
+}: {
+  label: string;
+  children: React.ReactNode;
+  align?: 'left' | 'right';
+  onOpen?: () => void;
+}) {
+  const { isOpen, open, closeSoon } = useHoverPopover();
+
+  const handleOpen = () => {
+    onOpen?.();
+    open();
+  };
+
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={handleOpen}
+      onMouseLeave={closeSoon}
+      onFocus={handleOpen}
+      onBlur={closeSoon}
+    >
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="text-xs font-bold text-on-surface-variant underline-offset-2 hover:text-on-surface hover:underline"
+      >
+        {label}
+      </button>
+      {isOpen && (
+        <span
+          className={`absolute top-6 z-40 ${align === 'right' ? 'right-0' : 'left-0'}`}
+          onMouseEnter={open}
+          onMouseLeave={closeSoon}
+        >
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ReactionPicker({
+  currentReaction,
+  selectedReaction,
+  isReacting,
+  onSelect,
+  compact = false,
+}: {
+  currentReaction?: ReactionType | null;
+  selectedReaction?: { type: ReactionType; label: string; icon: string };
+  isReacting: boolean;
+  onSelect: (type: ReactionType) => void;
+  compact?: boolean;
+}) {
+  const { isOpen, setIsOpen, open, closeSoon } = useHoverPopover();
+
+  const handleMainClick = () => {
+    if (currentReaction) {
+      onSelect(currentReaction);
+      setIsOpen(false);
+      return;
+    }
+    setIsOpen((value) => !value);
+  };
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={open}
+      onMouseLeave={closeSoon}
+      onFocus={open}
+      onBlur={closeSoon}
+    >
+      <button
+        type="button"
+        onClick={handleMainClick}
+        disabled={isReacting}
+        className={compact
+          ? `text-[11px] font-bold active:scale-95 disabled:opacity-60 ${selectedReaction ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`
+          : `w-full flex items-center justify-center gap-2 py-2 hover:bg-primary-fixed rounded-full transition-all text-sm font-bold active:scale-95 disabled:opacity-60 ${selectedReaction ? 'text-primary' : 'text-on-surface-variant'}`
+        }
+      >
+        {selectedReaction ? (
+          compact ? `${selectedReaction.icon} ${selectedReaction.label}` : <span className="text-lg leading-none">{selectedReaction.icon}</span>
+        ) : compact ? (
+          'React'
+        ) : (
+          <Heart size={20} />
+        )}
+        {!compact && <span className="hidden sm:inline">{selectedReaction?.label || 'React'}</span>}
+      </button>
+      {isOpen && (
+        <div
+          className={`absolute z-40 flex gap-1 rounded-full border border-outline-variant/40 bg-surface-container-lowest px-2 py-2 shadow-lg ${compact ? 'bottom-6 left-0' : 'bottom-11 left-0'}`}
+          onMouseEnter={open}
+          onMouseLeave={closeSoon}
+        >
+          {reactionOptions.map((option) => (
+            <button
+              key={option.type}
+              type="button"
+              onClick={() => {
+                onSelect(option.type);
+                setIsOpen(false);
+              }}
+              className={`${compact ? 'h-9 w-9 text-lg' : 'h-10 w-10 text-xl'} rounded-full transition-transform hover:scale-125 ${currentReaction === option.type ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}
+              aria-label={option.label}
+              title={option.label}
+            >
+              {option.icon}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PostCard({
   post,
   currentUserId,
@@ -54,6 +362,7 @@ function PostCard({
   onUpdate,
   onDelete,
   onCommentCountChange,
+  onReactionSummaryChange,
 }: {
   post: PostResponse;
   currentUserId?: string;
@@ -61,6 +370,7 @@ function PostCard({
   onUpdate: (postId: string, content: string) => Promise<void>;
   onDelete: (postId: string) => Promise<void>;
   onCommentCountChange: (postId: string, delta: number) => void;
+  onReactionSummaryChange: (postId: string, summary: ReactionSummaryResponse) => void;
 }) {
   const isOwner = post.author.id === currentUserId;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -73,12 +383,17 @@ function PostCard({
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isReacting, setIsReacting] = useState(false);
+  const [reactionError, setReactionError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraftContent(post.content);
   }, [post.content]);
 
-  const authorName = post.author.displayName || post.author.username || 'Kirenz User';
+  const authorName = displayName(post.author);
+  const currentReaction = post.reactionSummary?.currentUserReaction;
+  const selectedReaction = getReactionOption(currentReaction);
+  const reactionTotal = getReactionTotal(post.reactionSummary, post.reactionsCount);
 
   const handleSave = async () => {
     if (!draftContent.trim()) {
@@ -112,6 +427,12 @@ function PostCard({
       setCommentError(getErrorMessage(err));
     } finally {
       setIsLoadingComments(false);
+    }
+  };
+
+  const loadCommentsForPopover = () => {
+    if (post.commentsCount > 0 && comments.length === 0 && !isLoadingComments) {
+      void loadComments();
     }
   };
 
@@ -169,6 +490,21 @@ function PostCard({
       onCommentCountChange(post.id, -1);
     } catch (err) {
       setCommentError(getErrorMessage(err));
+    }
+  };
+
+  const handlePostReaction = async (type: ReactionType) => {
+    setIsReacting(true);
+    setReactionError(null);
+    try {
+      const summary = currentReaction === type
+        ? await reactionService.unreactToPost(post.id)
+        : await reactionService.reactToPost(post.id, type);
+      onReactionSummaryChange(post.id, summary);
+    } catch (err) {
+      setReactionError(getErrorMessage(err));
+    } finally {
+      setIsReacting(false);
     }
   };
 
@@ -277,20 +613,44 @@ function PostCard({
       )}
 
       <div className="px-6 pb-6 pt-2">
+        {reactionError && (
+          <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
+            {reactionError}
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 py-2 border-b border-outline-variant/30">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full bg-tertiary flex items-center justify-center">
               <ThumbsUp size={12} className="text-white fill-current" />
             </div>
-            <span className="text-xs font-bold text-on-surface-variant">{post.reactionsCount} reactions</span>
+            <CountPopover label={formatCount(reactionTotal, 'reaction', 'reactions')}>
+              <ReactionBreakdown
+                summary={post.reactionSummary}
+                currentUserAvatarUrl={currentUserAvatarUrl}
+              />
+            </CountPopover>
           </div>
-          <span className="text-xs font-bold text-on-surface-variant">{post.commentsCount} comments</span>
+          <CountPopover
+            label={formatCount(post.commentsCount, 'comment', 'comments')}
+            align="right"
+            onOpen={loadCommentsForPopover}
+          >
+            <CommentersPopover
+              comments={comments}
+              isLoading={isLoadingComments}
+              commentsCount={post.commentsCount}
+            />
+          </CountPopover>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          <button className="flex items-center justify-center gap-2 py-2 hover:bg-primary-fixed rounded-full text-primary transition-all text-sm font-bold active:scale-95">
-            <Heart size={20} /> <span className="hidden sm:inline">Love</span>
-          </button>
+          <ReactionPicker
+            currentReaction={currentReaction}
+            selectedReaction={selectedReaction}
+            isReacting={isReacting}
+            onSelect={handlePostReaction}
+          />
           <button
             type="button"
             onClick={toggleComments}
@@ -328,6 +688,15 @@ function PostCard({
                       currentUserId={currentUserId}
                       onUpdate={handleUpdateComment}
                       onDelete={handleDeleteComment}
+                      onReactionChange={(commentId, summary) => {
+                        setComments((current) =>
+                          current.map((item) =>
+                            item.id === commentId
+                              ? { ...item, reactionsCount: summary.totalCount, reactionSummary: summary }
+                              : item
+                          )
+                        );
+                      }}
                     />
                   </React.Fragment>
                 ))}
@@ -372,18 +741,26 @@ function CommentItem({
   currentUserId,
   onUpdate,
   onDelete,
+  onReactionChange,
 }: {
   comment: CommentResponse;
   currentUserId?: string;
   onUpdate: (commentId: string, content: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
+  onReactionChange: (commentId: string, summary: ReactionSummaryResponse) => void;
 }) {
   const isOwner = comment.author.id === currentUserId;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draftContent, setDraftContent] = useState(comment.content);
   const [isSaving, setIsSaving] = useState(false);
-  const authorName = comment.author.displayName || comment.author.username || 'Kirenz User';
+  const [isReactionMenuOpen, setIsReactionMenuOpen] = useState(false);
+  const [isReacting, setIsReacting] = useState(false);
+  const [reactionError, setReactionError] = useState<string | null>(null);
+  const authorName = displayName(comment.author);
+  const currentReaction = comment.reactionSummary?.currentUserReaction;
+  const selectedReaction = getReactionOption(currentReaction);
+  const reactionTotal = getReactionTotal(comment.reactionSummary, comment.reactionsCount || 0);
 
   useEffect(() => {
     setDraftContent(comment.content);
@@ -401,6 +778,21 @@ function CommentItem({
       setIsMenuOpen(false);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCommentReaction = async (type: ReactionType) => {
+    setIsReacting(true);
+    setReactionError(null);
+    try {
+      const summary = currentReaction === type
+        ? await reactionService.unreactToComment(comment.id)
+        : await reactionService.reactToComment(comment.id, type);
+      onReactionChange(comment.id, summary);
+    } catch (err) {
+      setReactionError(getErrorMessage(err));
+    } finally {
+      setIsReacting(false);
     }
   };
 
@@ -489,10 +881,58 @@ function CommentItem({
             </div>
           )}
         </div>
-        <p className="mt-1 px-4 text-[11px] font-bold text-on-surface-variant">
+        <p className="hidden">
           {formatPostTime(comment.createdAt)}
           {comment.updatedAt !== comment.createdAt ? ' · edited' : ''}
         </p>
+        <div className="hidden">
+          <button
+            type="button"
+            onClick={() => setIsReactionMenuOpen((open) => !open)}
+            disabled={isReacting}
+            className={`text-[11px] font-bold active:scale-95 disabled:opacity-60 ${selectedReaction ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+          >
+            {selectedReaction ? `${selectedReaction.icon} ${selectedReaction.label}` : 'React'}
+          </button>
+          {reactionTotal > 0 && (
+            <span className="text-[11px] font-bold text-on-surface-variant">{reactionTotal}</span>
+          )}
+          {isReactionMenuOpen && (
+            <div className="absolute bottom-6 left-2 z-30 flex gap-1 rounded-full border border-outline-variant/40 bg-surface-container-lowest px-2 py-2 shadow-lg">
+              {reactionOptions.map((option) => (
+                <button
+                  key={option.type}
+                  type="button"
+                  onClick={() => handleCommentReaction(option.type)}
+                  className={`h-9 w-9 rounded-full text-lg transition-transform hover:scale-125 ${currentReaction === option.type ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}
+                  aria-label={option.label}
+                  title={option.label}
+                >
+                  {option.icon}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 text-[11px] font-bold text-on-surface-variant">
+          <span>{formatPostTime(comment.createdAt)}</span>
+          {comment.updatedAt !== comment.createdAt && <span>edited</span>}
+          <ReactionPicker
+            currentReaction={currentReaction}
+            selectedReaction={selectedReaction}
+            isReacting={isReacting}
+            onSelect={handleCommentReaction}
+            compact
+          />
+          {reactionTotal > 0 && (
+            <CountPopover label={formatCount(reactionTotal, 'reaction', 'reactions')}>
+              <ReactionBreakdown summary={comment.reactionSummary} />
+            </CountPopover>
+          )}
+        </div>
+        {reactionError && (
+          <p className="mt-1 px-4 text-[11px] font-bold text-on-error-container">{reactionError}</p>
+        )}
       </div>
     </div>
   );
@@ -584,6 +1024,16 @@ export default function HomeFeed() {
       current.map((post) =>
         post.id === postId
           ? { ...post, commentsCount: Math.max(0, post.commentsCount + delta) }
+          : post
+      )
+    );
+  };
+
+  const handleReactionSummaryChange = (postId: string, summary: ReactionSummaryResponse) => {
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === postId
+          ? { ...post, reactionsCount: summary.totalCount, reactionSummary: summary }
           : post
       )
     );
@@ -681,6 +1131,7 @@ export default function HomeFeed() {
                   onUpdate={handleUpdate}
                   onDelete={handleDelete}
                   onCommentCountChange={handleCommentCountChange}
+                  onReactionSummaryChange={handleReactionSummaryChange}
                 />
               </React.Fragment>
             ))
