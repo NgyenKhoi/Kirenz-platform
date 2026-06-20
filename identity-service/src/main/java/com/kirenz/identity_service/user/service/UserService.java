@@ -1,15 +1,18 @@
 package com.kirenz.identity_service.user.service;
 
 import com.kirenz.identity_service.common.exception.UserNotFoundException;
+import com.kirenz.identity_service.media.service.CloudinaryMediaService;
 import com.kirenz.identity_service.user.dto.UpdateUserProfileRequest;
 import com.kirenz.identity_service.user.dto.UserProfileDTO;
 import com.kirenz.identity_service.user.mapper.UserMapper;
 import com.kirenz.identity_service.user.model.User;
 import com.kirenz.identity_service.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +23,7 @@ public class UserService {
     
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final CloudinaryMediaService mediaService;
     
     public UserProfileDTO getCurrentUserProfile() {
         User user = getCurrentUser();
@@ -31,6 +35,24 @@ public class UserService {
         userMapper.updateEntity(request, user);
         user = userRepository.save(user);
         return userMapper.toUserProfileDTO(user);
+    }
+
+    public UserProfileDTO updateAvatar(MultipartFile file) {
+        User user = getCurrentUser();
+        String avatarUrl = mediaService.uploadAvatar(file).url();
+        user.setAvatarUrl(avatarUrl);
+        user = userRepository.save(user);
+        return userMapper.toUserProfileDTO(user);
+    }
+
+    public List<UserProfileDTO> searchProfiles(String query, UUID excludeId, Integer limit) {
+        String normalizedQuery = query == null ? "" : query.trim();
+        int normalizedLimit = limit == null ? 10 : Math.max(1, Math.min(limit, 20));
+
+        return userRepository.searchProfiles(normalizedQuery, excludeId, PageRequest.of(0, normalizedLimit))
+            .stream()
+            .map(userMapper::toUserProfileDTO)
+            .toList();
     }
 
     public List<UserProfileDTO> getProfilesByIds(List<UUID> ids) {
@@ -63,4 +85,3 @@ public class UserService {
             .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
     }
 }
-

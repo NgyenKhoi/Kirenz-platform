@@ -13,6 +13,7 @@ export const API_ENDPOINTS = {
   },
   USER: {
     ME: '/users/me',
+    AVATAR: '/users/me/avatar',
   },
   VERIFICATION: {
     SEND_OTP: '/verification/send-otp',
@@ -20,6 +21,7 @@ export const API_ENDPOINTS = {
   },
   FRIENDS: {
     BASE: '/friends',
+    SEARCH: '/users/search',
     REQUESTS: '/friends/requests',
     INCOMING: '/friends/requests/incoming',
     OUTGOING: '/friends/requests/outgoing',
@@ -44,6 +46,9 @@ export const API_ENDPOINTS = {
     MY_REACTION: (postId: string) => `/posts/${postId}/reactions/me`,
     COMMENTS: (postId: string) => `/posts/${postId}/comments`,
     COMMENT_DETAIL: (postId: string, commentId: string) => `/posts/${postId}/comments/${commentId}`,
+  },
+  MEDIA: {
+    POSTS: '/media/posts',
   },
   COMMENTS: {
     REACTIONS: (commentId: string) => `/comments/${commentId}/reactions`,

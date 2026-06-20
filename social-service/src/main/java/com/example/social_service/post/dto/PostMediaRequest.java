@@ -9,6 +9,8 @@ public record PostMediaRequest(
     MediaType type,
 
     @NotBlank(message = "Media URL is required")
-    String url
+    String url,
+
+    String publicId
 ) {
 }

@@ -11,6 +11,13 @@ import java.util.UUID;
 @FeignClient(name = "identity-service", url = "${services.identity.url}")
 public interface IdentityServiceClient {
 
+    @GetMapping("/api/users/internal/search")
+    ApiResponse<List<IdentityUserProfileResponse>> searchProfiles(
+        @RequestParam("q") String query,
+        @RequestParam("excludeId") UUID excludeId,
+        @RequestParam("limit") Integer limit
+    );
+
     @GetMapping("/api/users/internal/profiles")
     ApiResponse<List<IdentityUserProfileResponse>> getProfilesByIds(@RequestParam("ids") List<UUID> ids);
 }

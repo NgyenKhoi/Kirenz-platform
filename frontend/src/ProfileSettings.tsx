@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, MessageSquare, UsersRound, BookOpen, Sparkles, 
   Settings, Bell, Camera, User as UserIcon, Mail, Sun, Moon, Palette,
@@ -8,8 +8,10 @@ import Layout from './components/Layout';
 import { useAuth } from './hooks/useAuth';
 
 export default function ProfileSettings() {
-  const { user, updateProfile, isUpdatingProfile, updateProfileSuccess } = useAuth();
+  const { user, updateProfile, isUpdatingProfile, updateProfileSuccess, uploadAvatarAsync, isUploadingAvatar } = useAuth();
   const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('light');
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   
   const avatarUrl = user?.avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCs8AQ1VyctgRMqOBqcr3PDc7VEE9fQ2Finhj3ZftNZfaFDrOEUoeQ19iPtUyTrCijbr6p9xNxzWw8p_x6kxMmKvn_dfE1apfaKVZ5nrCzUzLb2VGanYhffU2Wdg7mSFxI-4RIzUGYB7Uk0_E39bQoOqSMovV-mxAlZYmeNfP-9PMJno1uQB10MAUfCdpRAiHr2bQBE50OhVtqM_M-N8ruZ6NeEIZZupVjU5N-EdjthGlfNpVJRVgG-wsao1aT-a-SG0AnWKaaw-5E';
   
@@ -41,6 +43,26 @@ export default function ProfileSettings() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Please choose an image file.');
+      return;
+    }
+
+    setAvatarError(null);
+    try {
+      await uploadAvatarAsync(file);
+    } catch {
+      setAvatarError('Could not upload avatar. Please try again.');
+    }
+  };
   const handleSave = () => {
     updateProfile({
       displayName: formData.displayName,
@@ -86,6 +108,13 @@ export default function ProfileSettings() {
             {/* Section 1: Profile Identity */}
             <section className="bg-surface-container-lowest p-8 rounded-[2rem] shadow-[0_10px_30px_-5px_rgba(255,176,156,0.15)] flex flex-col md:flex-row items-center gap-8 border border-outline-variant/10">
               <div className="relative group shrink-0">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
                 <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-primary-container/30">
                   <img 
                     alt="Large Avatar" 
@@ -94,15 +123,27 @@ export default function ProfileSettings() {
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <button className="absolute bottom-0 right-0 bg-primary text-on-primary p-2 flex items-center justify-center rounded-full shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:scale-110 transition-transform active:scale-95">
-                  <Camera size={20} />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  className="absolute bottom-0 right-0 bg-primary text-on-primary p-2 flex items-center justify-center rounded-full shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:scale-110 transition-transform active:scale-95 disabled:opacity-60"
+                  aria-label="Change avatar"
+                >
+                  {isUploadingAvatar ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
                 </button>
               </div>
               <div className="flex-1 text-center md:text-left">
                 <h3 className="text-xl font-bold text-on-surface mb-2">Profile Identity</h3>
                 <p className="text-base font-medium text-on-surface-variant mb-6">Update your photo and identity to let your friends recognize you.</p>
-                <button className="bg-primary-container text-on-primary-container px-6 py-2.5 rounded-full text-sm font-bold hover:shadow-md transition-all active:scale-[0.98]">
-                  Change Photo
+                {avatarError && <p className="mb-3 text-sm font-bold text-on-error-container">{avatarError}</p>}
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  className="bg-primary-container text-on-primary-container px-6 py-2.5 rounded-full text-sm font-bold hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-60"
+                >
+                  {isUploadingAvatar ? 'Uploading...' : 'Change Photo'}
                 </button>
               </div>
             </section>

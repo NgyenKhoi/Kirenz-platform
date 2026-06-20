@@ -42,3 +42,12 @@ export interface MutualFriendResponse {
 export interface SendFriendRequest {
   receiverId: string;
 }
+
+export interface UserSearchResponse {
+  id: string;
+  username: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  relationshipStatus: RelationshipStatus;
+}

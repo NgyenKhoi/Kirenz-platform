@@ -117,6 +117,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Failed to send OTP email. Please try again later", errorResponse));
     }
 
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleBadRequest(BadRequestException ex) {
+        ErrorResponse errorResponse = ErrorResponse.of(ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage(), errorResponse));
+    }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<ErrorResponse>> handleValidationErrors(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
