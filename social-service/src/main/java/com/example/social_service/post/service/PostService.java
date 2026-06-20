@@ -10,6 +10,8 @@ import com.example.social_service.post.dto.CreatePostRequest;
 import com.example.social_service.post.dto.PostMediaRequest;
 import com.example.social_service.post.dto.PostMediaResponse;
 import com.example.social_service.post.dto.PostResponse;
+import com.example.social_service.post.dto.SharePostRequest;
+import com.example.social_service.post.dto.SharedPostResponse;
 import com.example.social_service.post.dto.UpdatePostRequest;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostMedia;
@@ -24,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -56,6 +59,30 @@ public class PostService {
         return toResponse(saved, fetchAuthors(List.of(userId)), emptyReactionSummary());
     }
 
+    public PostResponse sharePost(UUID userId, String postId, SharePostRequest request) {
+        Post originalPost = activePost(postId);
+        if (originalPost.getOriginalPostId() != null) {
+            originalPost = activePost(originalPost.getOriginalPostId());
+        }
+
+        Instant now = Instant.now();
+        String caption = normalizeContent(request == null ? null : request.caption());
+        Post sharedPost = Post.builder()
+            .slug("post-" + UUID.randomUUID())
+            .userId(userId)
+            .content(caption)
+            .originalPostId(originalPost.getId())
+            .media(List.of())
+            .status(PostStatus.ACTIVE)
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+
+        Post saved = postRepository.save(sharedPost);
+        Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(List.of(userId, originalPost.getUserId()));
+        return toResponse(saved, authors, emptyReactionSummary());
+    }
+
     public List<PostResponse> listFeed(UUID userId) {
         List<Post> posts = postRepository.findByStatusOrderByCreatedAtDesc(PostStatus.ACTIVE);
         return toResponses(userId, posts);
@@ -67,9 +94,7 @@ public class PostService {
     }
 
     private List<PostResponse> toResponses(UUID userId, List<Post> posts) {
-        Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(
-            posts.stream().map(Post::getUserId).distinct().toList()
-        );
+        Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(authorIdsFor(posts));
         Map<String, ReactionSummaryResponse> reactionSummaries = reactionService.getSummaries(
             userId,
             ReactionTargetType.POST,
@@ -85,7 +110,7 @@ public class PostService {
         Post post = activePost(postId);
         return toResponse(
             post,
-            fetchAuthors(List.of(post.getUserId())),
+            fetchAuthors(authorIdsFor(List.of(post))),
             reactionService.getSummary(userId, ReactionTargetType.POST, postId)
         );
     }
@@ -105,7 +130,7 @@ public class PostService {
         Post saved = postRepository.save(post);
         return toResponse(
             saved,
-            fetchAuthors(List.of(userId)),
+            fetchAuthors(authorIdsFor(List.of(saved))),
             reactionService.getSummary(userId, ReactionTargetType.POST, postId)
         );
     }
@@ -136,6 +161,24 @@ public class PostService {
         if (content == null || content.isBlank()) {
             throw new BadRequestException("Post content is required");
         }
+    }
+
+    private List<UUID> authorIdsFor(List<Post> posts) {
+        List<UUID> authorIds = posts.stream()
+            .map(Post::getUserId)
+            .distinct()
+            .collect(Collectors.toList());
+
+        posts.stream()
+            .map(Post::getOriginalPostId)
+            .filter(originalPostId -> originalPostId != null && !originalPostId.isBlank())
+            .map(originalPostId -> postRepository.findByIdAndStatus(originalPostId, PostStatus.ACTIVE))
+            .flatMap(Optional::stream)
+            .map(Post::getUserId)
+            .filter(authorId -> !authorIds.contains(authorId))
+            .forEach(authorIds::add);
+
+        return authorIds;
     }
 
     private String normalizeContent(String content) {
@@ -185,6 +228,8 @@ public class PostService {
             post.getSlug(),
             author,
             post.getContent(),
+            post.getOriginalPostId(),
+            toSharedPostResponse(post.getOriginalPostId(), authors),
             post.getMedia().stream()
                 .map(media -> new PostMediaResponse(media.getType(), media.getUrl()))
                 .toList(),
@@ -195,6 +240,42 @@ public class PostService {
             post.getCreatedAt(),
             post.getUpdatedAt()
         );
+    }
+
+    private SharedPostResponse toSharedPostResponse(
+        String originalPostId,
+        Map<UUID, IdentityUserProfileResponse> authors
+    ) {
+        if (originalPostId == null || originalPostId.isBlank()) {
+            return null;
+        }
+
+        return postRepository.findByIdAndStatus(originalPostId, PostStatus.ACTIVE)
+            .map(originalPost -> {
+                IdentityUserProfileResponse profile = authors.get(originalPost.getUserId());
+                AuthorResponse author = profile == null
+                    ? new AuthorResponse(originalPost.getUserId(), null, "Kirenz User", null)
+                    : new AuthorResponse(profile.id(), profile.username(), profile.displayName(), profile.avatarUrl());
+
+                return new SharedPostResponse(
+                    originalPost.getId(),
+                    author,
+                    originalPost.getContent(),
+                    originalPost.getMedia().stream()
+                        .map(media -> new PostMediaResponse(media.getType(), media.getUrl()))
+                        .toList(),
+                    true,
+                    originalPost.getCreatedAt()
+                );
+            })
+            .orElse(new SharedPostResponse(
+                originalPostId,
+                null,
+                null,
+                List.of(),
+                false,
+                null
+            ));
     }
 
     private ReactionSummaryResponse emptyReactionSummary() {

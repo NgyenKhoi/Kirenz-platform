@@ -63,6 +63,11 @@ export default function UserProfile() {
     setPosts((current) => current.filter((post) => post.id !== postId));
   };
 
+  const handleSharePost = async (postId: string, caption: string) => {
+    const shared = await postService.share(postId, { caption });
+    setPosts((current) => [shared, ...current]);
+  };
+
   const handleCommentCountChange = (postId: string, delta: number) => {
     setPosts((current) =>
       current.map((post) =>
@@ -302,6 +307,7 @@ export default function UserProfile() {
                       currentUserAvatarUrl={user?.avatarUrl}
                       onUpdate={handleUpdatePost}
                       onDelete={handleDeletePost}
+                      onShare={handleSharePost}
                       onCommentCountChange={handleCommentCountChange}
                       onReactionSummaryChange={handleReactionSummaryChange}
                     />

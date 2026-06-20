@@ -11,6 +11,8 @@ public record PostResponse(
     String slug,
     AuthorResponse author,
     String content,
+    String originalPostId,
+    SharedPostResponse sharedPost,
     List<PostMediaResponse> media,
     Integer reactionsCount,
     ReactionSummaryResponse reactionSummary,

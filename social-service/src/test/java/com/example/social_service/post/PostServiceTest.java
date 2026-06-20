@@ -6,6 +6,7 @@ import com.example.social_service.common.exception.ForbiddenException;
 import com.example.social_service.identity.IdentityServiceClient;
 import com.example.social_service.post.dto.CreatePostRequest;
 import com.example.social_service.post.dto.PostResponse;
+import com.example.social_service.post.dto.SharePostRequest;
 import com.example.social_service.post.dto.UpdatePostRequest;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostStatus;
@@ -93,6 +94,44 @@ class PostServiceTest {
 
         assertThat(feed).extracting(PostResponse::id).containsExactly("newest", "older");
         verify(reactionService).getSummaries(any(), org.mockito.ArgumentMatchers.eq(ReactionTargetType.POST), any());
+    }
+
+    @Test
+    void sharePostSuccessfully() {
+        UUID sharerId = UUID.randomUUID();
+        UUID originalOwnerId = UUID.randomUUID();
+        Post original = post("post-1", originalOwnerId, "Original content", Instant.now());
+        when(postRepository.findByIdAndStatus("post-1", PostStatus.ACTIVE)).thenReturn(Optional.of(original));
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> {
+            Post post = invocation.getArgument(0);
+            post.setId("share-1");
+            return post;
+        });
+
+        PostResponse response = postService.sharePost(sharerId, "post-1", new SharePostRequest(" Great post "));
+
+        assertThat(response.id()).isEqualTo("share-1");
+        assertThat(response.author().id()).isEqualTo(sharerId);
+        assertThat(response.content()).isEqualTo("Great post");
+        assertThat(response.originalPostId()).isEqualTo("post-1");
+        assertThat(response.sharedPost()).isNotNull();
+        assertThat(response.sharedPost().available()).isTrue();
+        assertThat(response.sharedPost().content()).isEqualTo("Original content");
+    }
+
+    @Test
+    void sharedPostResponseHandlesDeletedOriginal() {
+        UUID sharerId = UUID.randomUUID();
+        Post shared = post("share-1", sharerId, "Caption", Instant.now());
+        shared.setOriginalPostId("deleted-post");
+        when(postRepository.findByIdAndStatus("share-1", PostStatus.ACTIVE)).thenReturn(Optional.of(shared));
+        when(postRepository.findByIdAndStatus("deleted-post", PostStatus.ACTIVE)).thenReturn(Optional.empty());
+
+        PostResponse response = postService.getPost(sharerId, "share-1");
+
+        assertThat(response.sharedPost()).isNotNull();
+        assertThat(response.sharedPost().available()).isFalse();
+        assertThat(response.sharedPost().id()).isEqualTo("deleted-post");
     }
 
     @Test

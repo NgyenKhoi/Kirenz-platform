@@ -1,6 +1,6 @@
 import { API_ENDPOINTS, socialServiceClient } from '../config/api.config';
 import { ApiResponse } from '../types/auth.types';
-import { CreatePostRequest, PostResponse, UpdatePostRequest } from '../types/post.types';
+import { CreatePostRequest, PostResponse, SharePostRequest, UpdatePostRequest } from '../types/post.types';
 
 export const postService = {
   create: async (data: CreatePostRequest): Promise<PostResponse> => {
@@ -35,6 +35,14 @@ export const postService = {
   update: async (postId: string, data: UpdatePostRequest): Promise<PostResponse> => {
     const response = await socialServiceClient.patch<ApiResponse<PostResponse>>(
       API_ENDPOINTS.POSTS.DETAIL(postId),
+      data
+    );
+    return response.data.data;
+  },
+
+  share: async (postId: string, data: SharePostRequest): Promise<PostResponse> => {
+    const response = await socialServiceClient.post<ApiResponse<PostResponse>>(
+      API_ENDPOINTS.POSTS.SHARES(postId),
       data
     );
     return response.data.data;

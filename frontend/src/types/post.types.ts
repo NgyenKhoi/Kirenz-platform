@@ -17,6 +17,10 @@ export interface UpdatePostRequest {
   media?: PostMediaRequest[];
 }
 
+export interface SharePostRequest {
+  caption?: string;
+}
+
 export interface AuthorResponse {
   id: string;
   username?: string | null;
@@ -29,11 +33,22 @@ export interface PostMediaResponse {
   url: string;
 }
 
+export interface SharedPostResponse {
+  id: string;
+  author?: AuthorResponse | null;
+  content?: string | null;
+  media: PostMediaResponse[];
+  available: boolean;
+  createdAt?: string | null;
+}
+
 export interface PostResponse {
   id: string;
   slug: string;
   author: AuthorResponse;
   content: string;
+  originalPostId?: string | null;
+  sharedPost?: SharedPostResponse | null;
   media: PostMediaResponse[];
   reactionsCount: number;
   reactionSummary?: ReactionSummaryResponse;

@@ -33,6 +33,9 @@ public class Post {
 
     private String content;
 
+    @Indexed
+    private String originalPostId;
+
     @Builder.Default
     private List<PostMedia> media = new ArrayList<>();
 
