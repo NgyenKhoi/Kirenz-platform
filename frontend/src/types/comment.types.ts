@@ -1,3 +1,5 @@
+import { ReactionSummaryResponse } from './reaction.types';
+
 export interface CommentAuthorResponse {
   id: string;
   username?: string | null;
@@ -8,8 +10,11 @@ export interface CommentAuthorResponse {
 export interface CommentResponse {
   id: string;
   postId: string;
+  parentCommentId?: string | null;
   author: CommentAuthorResponse;
   content: string;
+  reactionsCount: number;
+  reactionSummary?: ReactionSummaryResponse;
   status: 'ACTIVE' | 'INACTIVE' | 'DELETED';
   createdAt: string;
   updatedAt: string;
@@ -17,6 +22,7 @@ export interface CommentResponse {
 
 export interface CreateCommentRequest {
   content: string;
+  parentCommentId?: string | null;
 }
 
 export interface UpdateCommentRequest {

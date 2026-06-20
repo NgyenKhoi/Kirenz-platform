@@ -15,6 +15,9 @@ import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostMedia;
 import com.example.social_service.post.model.PostStatus;
 import com.example.social_service.post.repository.PostRepository;
+import com.example.social_service.reaction.dto.ReactionSummaryResponse;
+import com.example.social_service.reaction.model.ReactionTargetType;
+import com.example.social_service.reaction.service.ReactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +34,7 @@ public class PostService {
 
     private final PostRepository postRepository;
     private final IdentityServiceClient identityServiceClient;
+    private final ReactionService reactionService;
 
     public PostResponse createPost(UUID userId, CreatePostRequest request) {
         List<PostMedia> media = toMedia(request.media());
@@ -48,23 +52,42 @@ public class PostService {
             .updatedAt(now)
             .build();
 
-        return toResponse(postRepository.save(post), fetchAuthors(List.of(userId)));
+        Post saved = postRepository.save(post);
+        return toResponse(saved, fetchAuthors(List.of(userId)), emptyReactionSummary());
     }
 
-    public List<PostResponse> listFeed() {
+    public List<PostResponse> listFeed(UUID userId) {
         List<Post> posts = postRepository.findByStatusOrderByCreatedAtDesc(PostStatus.ACTIVE);
+        return toResponses(userId, posts);
+    }
+
+    public List<PostResponse> listMyPosts(UUID userId) {
+        List<Post> posts = postRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, PostStatus.ACTIVE);
+        return toResponses(userId, posts);
+    }
+
+    private List<PostResponse> toResponses(UUID userId, List<Post> posts) {
         Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(
             posts.stream().map(Post::getUserId).distinct().toList()
         );
+        Map<String, ReactionSummaryResponse> reactionSummaries = reactionService.getSummaries(
+            userId,
+            ReactionTargetType.POST,
+            posts.stream().map(Post::getId).toList()
+        );
 
         return posts.stream()
-            .map(post -> toResponse(post, authors))
+            .map(post -> toResponse(post, authors, reactionSummaries.getOrDefault(post.getId(), emptyReactionSummary())))
             .toList();
     }
 
-    public PostResponse getPost(String postId) {
+    public PostResponse getPost(UUID userId, String postId) {
         Post post = activePost(postId);
-        return toResponse(post, fetchAuthors(List.of(post.getUserId())));
+        return toResponse(
+            post,
+            fetchAuthors(List.of(post.getUserId())),
+            reactionService.getSummary(userId, ReactionTargetType.POST, postId)
+        );
     }
 
     public PostResponse updatePost(UUID userId, String postId, UpdatePostRequest request) {
@@ -79,7 +102,12 @@ public class PostService {
         post.setMedia(media);
         post.setUpdatedAt(Instant.now());
 
-        return toResponse(postRepository.save(post), fetchAuthors(List.of(userId)));
+        Post saved = postRepository.save(post);
+        return toResponse(
+            saved,
+            fetchAuthors(List.of(userId)),
+            reactionService.getSummary(userId, ReactionTargetType.POST, postId)
+        );
     }
 
     public void deletePost(UUID userId, String postId) {
@@ -142,7 +170,11 @@ public class PostService {
         }
     }
 
-    private PostResponse toResponse(Post post, Map<UUID, IdentityUserProfileResponse> authors) {
+    private PostResponse toResponse(
+        Post post,
+        Map<UUID, IdentityUserProfileResponse> authors,
+        ReactionSummaryResponse reactionSummary
+    ) {
         IdentityUserProfileResponse profile = authors.get(post.getUserId());
         AuthorResponse author = profile == null
             ? new AuthorResponse(post.getUserId(), null, "Kirenz User", null)
@@ -156,11 +188,20 @@ public class PostService {
             post.getMedia().stream()
                 .map(media -> new PostMediaResponse(media.getType(), media.getUrl()))
                 .toList(),
-            post.getReactionsCount(),
+            reactionsCount(post.getReactionsCount()),
+            reactionSummary,
             post.getCommentsCount(),
             post.getStatus(),
             post.getCreatedAt(),
             post.getUpdatedAt()
         );
+    }
+
+    private ReactionSummaryResponse emptyReactionSummary() {
+        return new ReactionSummaryResponse(0, null, Map.of());
+    }
+
+    private int reactionsCount(Integer reactionsCount) {
+        return reactionsCount == null ? 0 : reactionsCount;
     }
 }

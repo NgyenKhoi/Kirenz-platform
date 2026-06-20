@@ -43,7 +43,15 @@ public class PostController {
     public ResponseEntity<ApiResponse<List<PostResponse>>> feed() {
         return ResponseEntity.ok(ApiResponse.success(
             "Posts retrieved successfully",
-            postService.listFeed()
+            postService.listFeed(currentUser.id())
+        ));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<List<PostResponse>>> myPosts() {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Current user posts retrieved successfully",
+            postService.listMyPosts(currentUser.id())
         ));
     }
 
@@ -51,7 +59,7 @@ public class PostController {
     public ResponseEntity<ApiResponse<PostResponse>> detail(@PathVariable String postId) {
         return ResponseEntity.ok(ApiResponse.success(
             "Post retrieved successfully",
-            postService.getPost(postId)
+            postService.getPost(currentUser.id(), postId)
         ));
     }
 

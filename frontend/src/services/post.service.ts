@@ -18,6 +18,13 @@ export const postService = {
     return response.data.data;
   },
 
+  listMine: async (): Promise<PostResponse[]> => {
+    const response = await socialServiceClient.get<ApiResponse<PostResponse[]>>(
+      API_ENDPOINTS.POSTS.ME
+    );
+    return response.data.data;
+  },
+
   getById: async (postId: string): Promise<PostResponse> => {
     const response = await socialServiceClient.get<ApiResponse<PostResponse>>(
       API_ENDPOINTS.POSTS.DETAIL(postId)

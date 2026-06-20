@@ -1,3 +1,5 @@
+import { ReactionSummaryResponse } from './reaction.types';
+
 export type MediaType = 'IMAGE' | 'VIDEO';
 
 export interface PostMediaRequest {
@@ -34,6 +36,7 @@ export interface PostResponse {
   content: string;
   media: PostMediaResponse[];
   reactionsCount: number;
+  reactionSummary?: ReactionSummaryResponse;
   commentsCount: number;
   status: 'ACTIVE' | 'INACTIVE' | 'DELETED';
   createdAt: string;
