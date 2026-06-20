@@ -10,6 +10,7 @@ export interface CommentAuthorResponse {
 export interface CommentResponse {
   id: string;
   postId: string;
+  parentCommentId?: string | null;
   author: CommentAuthorResponse;
   content: string;
   reactionsCount: number;
@@ -21,6 +22,7 @@ export interface CommentResponse {
 
 export interface CreateCommentRequest {
   content: string;
+  parentCommentId?: string | null;
 }
 
 export interface UpdateCommentRequest {

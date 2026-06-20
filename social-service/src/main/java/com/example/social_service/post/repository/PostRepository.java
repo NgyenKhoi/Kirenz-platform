@@ -6,10 +6,13 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface PostRepository extends MongoRepository<Post, String> {
 
     List<Post> findByStatusOrderByCreatedAtDesc(PostStatus status);
+
+    List<Post> findByUserIdAndStatusOrderByCreatedAtDesc(UUID userId, PostStatus status);
 
     Optional<Post> findByIdAndStatus(String id, PostStatus status);
 }

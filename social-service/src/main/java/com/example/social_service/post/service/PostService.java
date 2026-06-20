@@ -58,6 +58,15 @@ public class PostService {
 
     public List<PostResponse> listFeed(UUID userId) {
         List<Post> posts = postRepository.findByStatusOrderByCreatedAtDesc(PostStatus.ACTIVE);
+        return toResponses(userId, posts);
+    }
+
+    public List<PostResponse> listMyPosts(UUID userId) {
+        List<Post> posts = postRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, PostStatus.ACTIVE);
+        return toResponses(userId, posts);
+    }
+
+    private List<PostResponse> toResponses(UUID userId, List<Post> posts) {
         Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(
             posts.stream().map(Post::getUserId).distinct().toList()
         );

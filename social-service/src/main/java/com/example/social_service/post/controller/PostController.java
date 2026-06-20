@@ -47,6 +47,14 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<List<PostResponse>>> myPosts() {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Current user posts retrieved successfully",
+            postService.listMyPosts(currentUser.id())
+        ));
+    }
+
     @GetMapping("/{postId}")
     public ResponseEntity<ApiResponse<PostResponse>> detail(@PathVariable String postId) {
         return ResponseEntity.ok(ApiResponse.success(

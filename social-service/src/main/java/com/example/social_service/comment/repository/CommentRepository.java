@@ -14,4 +14,6 @@ public interface CommentRepository extends MongoRepository<Comment, String> {
     Optional<Comment> findByIdAndStatus(String id, CommentStatus status);
 
     Optional<Comment> findByIdAndPostIdAndStatus(String id, String postId, CommentStatus status);
+
+    List<Comment> findByParentCommentIdAndStatus(String parentCommentId, CommentStatus status);
 }

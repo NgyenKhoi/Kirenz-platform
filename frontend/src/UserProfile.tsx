@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Search, Bell, Heart, Mail, User, Users, UsersRound, Sparkles, 
@@ -7,9 +7,16 @@ import {
 } from 'lucide-react';
 import Layout from './components/Layout';
 import { useAuth } from './hooks/useAuth';
+import { postService } from './services/post.service';
+import { PostCard } from './HomeFeed';
+import { PostResponse } from './types/post.types';
+import { ReactionSummaryResponse } from './types/reaction.types';
 
 export default function UserProfile() {
   const { user } = useAuth();
+  const [posts, setPosts] = useState<PostResponse[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [postError, setPostError] = useState<string | null>(null);
 
   const displayName = user?.displayName || user?.username || 'User';
   const bio = user?.bio || 'Capturing life\'s little joys. 🌻';
@@ -17,6 +24,65 @@ export default function UserProfile() {
   const website = user?.website || 'kirenz.com';
   const avatarUrl = user?.avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBbY_GUlw34tnkyFIMOl2BKettMEaotAsjvlMn6C_uAYu2C3nM_ijw2rr7U9XDlyBU_0LlidZUITe7OACoMYLzy0O5RdjRo0fH9NEmNkLOhjpaIoRogweGdwOQ-QcP4_RepAyayI6_jVKYnJjekbEf07QzVchgO3G2gcSWct_pYdY99tJYJchT_3k1kNmpev6u7x_QcQx94o5RYQ1tq5OVrkvJSM5IlD4Q11oyMhGIqiJ2ENgSg_Qv24OaSlAfI-ypwo4U6jlVrwoA';
   const joinedDate = user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'September 2021';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPosts = async () => {
+      setIsLoadingPosts(true);
+      setPostError(null);
+      try {
+        const response = await postService.listMine();
+        if (isMounted) {
+          setPosts(response);
+        }
+      } catch {
+        if (isMounted) {
+          setPostError('Could not load your posts. Please try again.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingPosts(false);
+        }
+      }
+    };
+
+    void loadPosts();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleUpdatePost = async (postId: string, content: string) => {
+    const updated = await postService.update(postId, { content });
+    setPosts((current) => current.map((post) => (post.id === postId ? updated : post)));
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    await postService.remove(postId);
+    setPosts((current) => current.filter((post) => post.id !== postId));
+  };
+
+  const handleCommentCountChange = (postId: string, delta: number) => {
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === postId
+          ? { ...post, commentsCount: Math.max(0, post.commentsCount + delta) }
+          : post
+      )
+    );
+  };
+
+  const handleReactionSummaryChange = (postId: string, summary: ReactionSummaryResponse) => {
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === postId
+          ? { ...post, reactionsCount: summary.totalCount, reactionSummary: summary }
+          : post
+      )
+    );
+  };
+
   return (
     <Layout>
       <div className="bg-surface text-on-surface min-h-screen pb-20 md:pb-0">
@@ -213,8 +279,38 @@ export default function UserProfile() {
                 </div>
               </div>
 
+              {postError && (
+                <div className="rounded-[2rem] bg-error-container px-5 py-4 text-sm font-bold text-on-error-container">
+                  {postError}
+                </div>
+              )}
+
+              {isLoadingPosts ? (
+                <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold border border-surface-container">
+                  Loading your posts...
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold border border-surface-container">
+                  You have not posted anything yet.
+                </div>
+              ) : (
+                posts.map((post) => (
+                  <React.Fragment key={post.id}>
+                    <PostCard
+                      post={post}
+                      currentUserId={user?.id}
+                      currentUserAvatarUrl={user?.avatarUrl}
+                      onUpdate={handleUpdatePost}
+                      onDelete={handleDeletePost}
+                      onCommentCountChange={handleCommentCountChange}
+                      onReactionSummaryChange={handleReactionSummaryChange}
+                    />
+                  </React.Fragment>
+                ))
+              )}
+
               {/* Feed Post 1 */}
-              <article className="bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] p-6 border border-surface-container hover:shadow-[0_0_20px_rgba(255,176,156,0.3)] transition-all">
+              <article className="hidden bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] p-6 border border-surface-container hover:shadow-[0_0_20px_rgba(255,176,156,0.3)] transition-all">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <img 
@@ -273,7 +369,7 @@ export default function UserProfile() {
               </article>
 
               {/* Feed Post 2 */}
-              <article className="bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] p-6 border border-surface-container hover:shadow-[0_0_20px_rgba(255,176,156,0.3)] transition-all">
+              <article className="hidden bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] p-6 border border-surface-container hover:shadow-[0_0_20px_rgba(255,176,156,0.3)] transition-all">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <img 

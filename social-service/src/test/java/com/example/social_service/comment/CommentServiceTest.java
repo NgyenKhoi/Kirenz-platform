@@ -62,6 +62,7 @@ class CommentServiceTest {
             .thenReturn(new ReactionSummaryResponse(0, null, Map.of()));
         lenient().when(reactionService.getSummaries(any(), any(), any()))
             .thenReturn(Map.of());
+        lenient().when(commentRepository.findByParentCommentIdAndStatus(any(), any())).thenReturn(List.of());
     }
 
     @Test
@@ -78,7 +79,7 @@ class CommentServiceTest {
         CommentResponse response = commentService.createComment(
             ownerId,
             "post-1",
-            new CreateCommentRequest(" First! ")
+            new CreateCommentRequest(" First! ", null)
         );
 
         assertThat(response.id()).isEqualTo("comment-1");
@@ -95,10 +96,37 @@ class CommentServiceTest {
         assertThatThrownBy(() -> commentService.createComment(
             UUID.randomUUID(),
             "post-1",
-            new CreateCommentRequest("   ")
+            new CreateCommentRequest("   ", null)
         ))
             .isInstanceOf(BadRequestException.class)
             .hasMessage("Comment content is required");
+    }
+
+    @Test
+    void createReplySuccessfully() {
+        UUID ownerId = UUID.randomUUID();
+        Post post = post("post-1", 1);
+        Comment parent = comment("comment-1", "post-1", UUID.randomUUID(), "Parent", Instant.now());
+        when(postRepository.findByIdAndStatus("post-1", PostStatus.ACTIVE)).thenReturn(Optional.of(post));
+        when(commentRepository.findByIdAndPostIdAndStatus("comment-1", "post-1", CommentStatus.ACTIVE))
+            .thenReturn(Optional.of(parent));
+        when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> {
+            Comment comment = invocation.getArgument(0);
+            comment.setId("reply-1");
+            return comment;
+        });
+
+        CommentResponse response = commentService.createComment(
+            ownerId,
+            "post-1",
+            new CreateCommentRequest(" Reply! ", "comment-1")
+        );
+
+        assertThat(response.id()).isEqualTo("reply-1");
+        assertThat(response.parentCommentId()).isEqualTo("comment-1");
+        assertThat(response.content()).isEqualTo("Reply!");
+        assertThat(post.getCommentsCount()).isEqualTo(2);
+        verify(postRepository).save(post);
     }
 
     @Test
@@ -108,7 +136,7 @@ class CommentServiceTest {
         assertThatThrownBy(() -> commentService.createComment(
             UUID.randomUUID(),
             "missing",
-            new CreateCommentRequest("Hello")
+            new CreateCommentRequest("Hello", null)
         ))
             .isInstanceOf(NotFoundException.class)
             .hasMessage("Post not found");
@@ -166,6 +194,30 @@ class CommentServiceTest {
         assertThat(comment.getDeletedAt()).isNotNull();
         assertThat(post.getCommentsCount()).isEqualTo(2);
         verify(commentRepository).save(comment);
+        verify(postRepository).save(post);
+    }
+
+    @Test
+    void ownerCanDeleteCommentAndItsReplies() {
+        UUID ownerId = UUID.randomUUID();
+        Post post = post("post-1", 3);
+        Comment parent = comment("comment-1", "post-1", ownerId, "Content", Instant.now());
+        Comment reply = comment("reply-1", "post-1", UUID.randomUUID(), "Reply", Instant.now());
+        reply.setParentCommentId("comment-1");
+        when(postRepository.findByIdAndStatus("post-1", PostStatus.ACTIVE)).thenReturn(Optional.of(post));
+        when(commentRepository.findByIdAndPostIdAndStatus("comment-1", "post-1", CommentStatus.ACTIVE))
+            .thenReturn(Optional.of(parent));
+        when(commentRepository.findByParentCommentIdAndStatus("comment-1", CommentStatus.ACTIVE))
+            .thenReturn(List.of(reply));
+        when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        commentService.deleteComment(ownerId, "post-1", "comment-1");
+
+        assertThat(parent.getStatus()).isEqualTo(CommentStatus.DELETED);
+        assertThat(reply.getStatus()).isEqualTo(CommentStatus.DELETED);
+        assertThat(post.getCommentsCount()).isEqualTo(1);
+        verify(commentRepository).save(parent);
+        verify(commentRepository).save(reply);
         verify(postRepository).save(post);
     }
 

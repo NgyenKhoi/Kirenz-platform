@@ -100,6 +100,21 @@ function uniqueCommentAuthors(comments: CommentResponse[]) {
   return Array.from(authors.values());
 }
 
+function topLevelComments(comments: CommentResponse[]) {
+  return comments.filter((comment) => !comment.parentCommentId);
+}
+
+function repliesForComment(comments: CommentResponse[], parentCommentId: string) {
+  return comments.filter((comment) => comment.parentCommentId === parentCommentId);
+}
+
+function descendantComments(comments: CommentResponse[], parentCommentId: string): CommentResponse[] {
+  return repliesForComment(comments, parentCommentId).flatMap((reply) => [
+    reply,
+    ...descendantComments(comments, reply.id),
+  ]);
+}
+
 function useHoverPopover() {
   const [isOpen, setIsOpen] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
@@ -355,7 +370,7 @@ function ReactionPicker({
   );
 }
 
-function PostCard({
+export function PostCard({
   post,
   currentUserId,
   currentUserAvatarUrl,
@@ -466,6 +481,18 @@ function PostCard({
     }
   };
 
+  const handleCreateReply = async (parentCommentId: string, content: string) => {
+    setCommentError(null);
+    try {
+      const created = await commentService.create(post.id, { content, parentCommentId });
+      setComments((current) => [...current, created]);
+      onCommentCountChange(post.id, 1);
+    } catch (err) {
+      setCommentError(getErrorMessage(err));
+      throw err;
+    }
+  };
+
   const handleUpdateComment = async (commentId: string, content: string) => {
     setCommentError(null);
     try {
@@ -486,11 +513,51 @@ function PostCard({
     setCommentError(null);
     try {
       await commentService.remove(post.id, commentId);
-      setComments((current) => current.filter((comment) => comment.id !== commentId));
-      onCommentCountChange(post.id, -1);
+      const removedIds = new Set([
+        commentId,
+        ...descendantComments(comments, commentId).map((comment) => comment.id),
+      ]);
+      setComments((current) => current.filter((comment) => !removedIds.has(comment.id)));
+      const removedCount = removedIds.size;
+      onCommentCountChange(post.id, -removedCount);
     } catch (err) {
       setCommentError(getErrorMessage(err));
     }
+  };
+
+  const renderCommentThread = (comment: CommentResponse, depth = 0): React.ReactNode => {
+    const replies = repliesForComment(comments, comment.id);
+
+    return (
+      <React.Fragment key={comment.id}>
+        <CommentItem
+          comment={comment}
+          currentUserId={currentUserId}
+          onUpdate={handleUpdateComment}
+          onDelete={handleDeleteComment}
+          onReply={handleCreateReply}
+          onReactionChange={(commentId, summary) => {
+            setComments((current) =>
+              current.map((item) =>
+                item.id === commentId
+                  ? { ...item, reactionsCount: summary.totalCount, reactionSummary: summary }
+                  : item
+              )
+            );
+          }}
+          depth={depth}
+        />
+        {replies.length > 0 && (
+          <div
+            className={`flex flex-col gap-3 border-l border-outline-variant/40 pl-3 sm:pl-4 ${
+              depth === 0 ? 'ml-10 sm:ml-14' : 'ml-6 sm:ml-8'
+            }`}
+          >
+            {replies.map((reply) => renderCommentThread(reply, depth + 1))}
+          </div>
+        )}
+      </React.Fragment>
+    );
   };
 
   const handlePostReaction = async (type: ReactionType) => {
@@ -681,25 +748,7 @@ function PostCard({
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {comments.map((comment) => (
-                  <React.Fragment key={comment.id}>
-                    <CommentItem
-                      comment={comment}
-                      currentUserId={currentUserId}
-                      onUpdate={handleUpdateComment}
-                      onDelete={handleDeleteComment}
-                      onReactionChange={(commentId, summary) => {
-                        setComments((current) =>
-                          current.map((item) =>
-                            item.id === commentId
-                              ? { ...item, reactionsCount: summary.totalCount, reactionSummary: summary }
-                              : item
-                          )
-                        );
-                      }}
-                    />
-                  </React.Fragment>
-                ))}
+                {topLevelComments(comments).map((comment) => renderCommentThread(comment))}
               </div>
             )}
 
@@ -741,13 +790,17 @@ function CommentItem({
   currentUserId,
   onUpdate,
   onDelete,
+  onReply,
   onReactionChange,
+  depth = 0,
 }: {
   comment: CommentResponse;
   currentUserId?: string;
   onUpdate: (commentId: string, content: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
+  onReply: (commentId: string, content: string) => Promise<void>;
   onReactionChange: (commentId: string, summary: ReactionSummaryResponse) => void;
+  depth?: number;
 }) {
   const isOwner = comment.author.id === currentUserId;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -757,7 +810,13 @@ function CommentItem({
   const [isReactionMenuOpen, setIsReactionMenuOpen] = useState(false);
   const [isReacting, setIsReacting] = useState(false);
   const [reactionError, setReactionError] = useState<string | null>(null);
+  const [isReplying, setIsReplying] = useState(false);
+  const [replyDraft, setReplyDraft] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
   const authorName = displayName(comment.author);
+  const isNested = depth > 0;
+  const isDeepNested = depth > 1;
   const currentReaction = comment.reactionSummary?.currentUserReaction;
   const selectedReaction = getReactionOption(currentReaction);
   const reactionTotal = getReactionTotal(comment.reactionSummary, comment.reactionsCount || 0);
@@ -796,9 +855,30 @@ function CommentItem({
     }
   };
 
+  const handleSubmitReply = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setReplyError(null);
+
+    if (!replyDraft.trim()) {
+      setReplyError('Reply content is required.');
+      return;
+    }
+
+    setIsSubmittingReply(true);
+    try {
+      await onReply(comment.id, replyDraft);
+      setReplyDraft('');
+      setIsReplying(false);
+    } catch (err) {
+      setReplyError(getErrorMessage(err));
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
   return (
-    <div className="flex gap-3">
-      <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+    <div className="flex min-w-0 max-w-full gap-3">
+      <div className={`${isNested ? 'h-8 w-8' : 'h-9 w-9'} rounded-full overflow-hidden shrink-0`}>
         <img
           alt={authorName}
           src={comment.author.avatarUrl || fallbackAvatar}
@@ -807,7 +887,7 @@ function CommentItem({
         />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="rounded-2xl bg-surface-container-low px-4 py-3">
+        <div className={`${isNested ? 'rounded-2xl bg-surface-container-lowest border border-outline-variant/25' : 'rounded-2xl bg-surface-container-low'} ${isDeepNested ? 'px-3' : 'px-4'} py-3`}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-on-surface">{authorName}</p>
@@ -924,12 +1004,43 @@ function CommentItem({
             onSelect={handleCommentReaction}
             compact
           />
+          <button
+            type="button"
+            onClick={() => setIsReplying((value) => !value)}
+            className="text-[11px] font-bold text-on-surface-variant hover:text-secondary"
+          >
+            Reply
+          </button>
           {reactionTotal > 0 && (
             <CountPopover label={formatCount(reactionTotal, 'reaction', 'reactions')}>
               <ReactionBreakdown summary={comment.reactionSummary} />
             </CountPopover>
           )}
         </div>
+        {isReplying && (
+          <div className="mt-2 px-4">
+            <p className="mb-1 text-[11px] font-bold text-secondary">Replying to {authorName}</p>
+            <form onSubmit={handleSubmitReply} className="flex gap-2">
+              <input
+                value={replyDraft}
+                onChange={(event) => setReplyDraft(event.target.value)}
+                placeholder={`Write a reply...`}
+                className="min-w-0 flex-1 rounded-full bg-surface-container-low px-4 py-2 text-xs font-medium text-on-surface outline-none focus:ring-2 focus:ring-secondary-container"
+              />
+              <button
+                type="submit"
+                disabled={isSubmittingReply || !replyDraft.trim()}
+                className="shrink-0 text-secondary disabled:opacity-50 active:scale-95 transition-transform"
+                aria-label="Send reply"
+              >
+                <Send size={16} />
+              </button>
+            </form>
+          </div>
+        )}
+        {replyError && (
+          <p className="mt-1 px-4 text-[11px] font-bold text-on-error-container">{replyError}</p>
+        )}
         {reactionError && (
           <p className="mt-1 px-4 text-[11px] font-bold text-on-error-container">{reactionError}</p>
         )}

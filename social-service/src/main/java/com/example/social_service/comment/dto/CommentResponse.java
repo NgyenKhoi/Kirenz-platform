@@ -8,6 +8,7 @@ import java.time.Instant;
 public record CommentResponse(
     String id,
     String postId,
+    String parentCommentId,
     CommentAuthorResponse author,
     String content,
     Integer reactionsCount,

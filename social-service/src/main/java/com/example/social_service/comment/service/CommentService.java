@@ -41,11 +41,16 @@ public class CommentService {
         Post post = activePost(postId);
         String content = normalizeContent(request.content());
         validateContent(content);
+        String parentCommentId = normalizeParentCommentId(request.parentCommentId());
+        if (parentCommentId != null) {
+            activeComment(postId, parentCommentId);
+        }
 
         Instant now = Instant.now();
         Comment comment = Comment.builder()
             .postId(postId)
             .userId(userId)
+            .parentCommentId(parentCommentId)
             .content(content)
             .status(CommentStatus.ACTIVE)
             .createdAt(now)
@@ -114,8 +119,9 @@ public class CommentService {
         comment.setDeletedAt(now);
         comment.setUpdatedAt(now);
         commentRepository.save(comment);
+        int deletedCount = 1 + deleteActiveReplies(commentId, now);
 
-        post.setCommentsCount(Math.max(0, post.getCommentsCount() - 1));
+        post.setCommentsCount(Math.max(0, post.getCommentsCount() - deletedCount));
         post.setUpdatedAt(now);
         postRepository.save(post);
     }
@@ -128,6 +134,19 @@ public class CommentService {
     private Comment activeComment(String postId, String commentId) {
         return commentRepository.findByIdAndPostIdAndStatus(commentId, postId, CommentStatus.ACTIVE)
             .orElseThrow(() -> new NotFoundException("Comment not found"));
+    }
+
+    private int deleteActiveReplies(String parentCommentId, Instant deletedAt) {
+        int deletedCount = 0;
+        List<Comment> replies = commentRepository.findByParentCommentIdAndStatus(parentCommentId, CommentStatus.ACTIVE);
+        for (Comment reply : replies) {
+            reply.setStatus(CommentStatus.DELETED);
+            reply.setDeletedAt(deletedAt);
+            reply.setUpdatedAt(deletedAt);
+            commentRepository.save(reply);
+            deletedCount += 1 + deleteActiveReplies(reply.getId(), deletedAt);
+        }
+        return deletedCount;
     }
 
     private void ensureOwner(UUID userId, Comment comment) {
@@ -144,6 +163,13 @@ public class CommentService {
 
     private String normalizeContent(String content) {
         return content == null ? "" : content.trim();
+    }
+
+    private String normalizeParentCommentId(String parentCommentId) {
+        if (parentCommentId == null || parentCommentId.isBlank()) {
+            return null;
+        }
+        return parentCommentId.trim();
     }
 
     private Map<UUID, IdentityUserProfileResponse> fetchAuthors(List<UUID> userIds) {
@@ -174,6 +200,7 @@ public class CommentService {
         return new CommentResponse(
             comment.getId(),
             comment.getPostId(),
+            comment.getParentCommentId(),
             author,
             comment.getContent(),
             reactionsCount(comment.getReactionsCount()),
