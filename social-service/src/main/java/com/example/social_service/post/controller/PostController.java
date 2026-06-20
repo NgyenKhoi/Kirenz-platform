@@ -4,6 +4,7 @@ import com.example.social_service.auth.CurrentUser;
 import com.example.social_service.common.dto.ApiResponse;
 import com.example.social_service.post.dto.CreatePostRequest;
 import com.example.social_service.post.dto.PostResponse;
+import com.example.social_service.post.dto.SharePostRequest;
 import com.example.social_service.post.dto.UpdatePostRequest;
 import com.example.social_service.post.service.PostService;
 import jakarta.validation.Valid;
@@ -61,6 +62,17 @@ public class PostController {
             "Post retrieved successfully",
             postService.getPost(currentUser.id(), postId)
         ));
+    }
+
+    @PostMapping("/{postId}/shares")
+    public ResponseEntity<ApiResponse<PostResponse>> sharePost(
+        @PathVariable String postId,
+        @RequestBody(required = false) SharePostRequest request
+    ) {
+        PostResponse response = postService.sharePost(currentUser.id(), postId, request);
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(ApiResponse.success("Post shared successfully", response));
     }
 
     @PatchMapping("/{postId}")

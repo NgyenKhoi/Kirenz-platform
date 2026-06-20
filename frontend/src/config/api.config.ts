@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
     BASE: '/posts',
     ME: '/posts/me',
     DETAIL: (postId: string) => `/posts/${postId}`,
+    SHARES: (postId: string) => `/posts/${postId}/shares`,
     REACTIONS: (postId: string) => `/posts/${postId}/reactions`,
     MY_REACTION: (postId: string) => `/posts/${postId}/reactions/me`,
     COMMENTS: (postId: string) => `/posts/${postId}/comments`,

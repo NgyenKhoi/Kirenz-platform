@@ -376,6 +376,7 @@ export function PostCard({
   currentUserAvatarUrl,
   onUpdate,
   onDelete,
+  onShare,
   onCommentCountChange,
   onReactionSummaryChange,
 }: {
@@ -384,6 +385,7 @@ export function PostCard({
   currentUserAvatarUrl?: string | null;
   onUpdate: (postId: string, content: string) => Promise<void>;
   onDelete: (postId: string) => Promise<void>;
+  onShare: (postId: string, caption: string) => Promise<void>;
   onCommentCountChange: (postId: string, delta: number) => void;
   onReactionSummaryChange: (postId: string, summary: ReactionSummaryResponse) => void;
 }) {
@@ -400,6 +402,14 @@ export function PostCard({
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isReacting, setIsReacting] = useState(false);
   const [reactionError, setReactionError] = useState<string | null>(null);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shareCaption, setShareCaption] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
+  const [originalPostDetail, setOriginalPostDetail] = useState<PostResponse | null>(null);
+  const [isLoadingOriginalPost, setIsLoadingOriginalPost] = useState(false);
+  const [originalPostError, setOriginalPostError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraftContent(post.content);
@@ -409,6 +419,7 @@ export function PostCard({
   const currentReaction = post.reactionSummary?.currentUserReaction;
   const selectedReaction = getReactionOption(currentReaction);
   const reactionTotal = getReactionTotal(post.reactionSummary, post.reactionsCount);
+  const sharedPost = post.sharedPost;
 
   const handleSave = async () => {
     if (!draftContent.trim()) {
@@ -575,7 +586,73 @@ export function PostCard({
     }
   };
 
+  const handleShare = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setShareError(null);
+    setIsSharing(true);
+    try {
+      await onShare(post.id, shareCaption);
+      setShareCaption('');
+      setIsShareOpen(false);
+    } catch (err) {
+      setShareError(getErrorMessage(err));
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const openOriginalPost = async () => {
+    if (!sharedPost?.available) {
+      return;
+    }
+
+    setIsOriginalModalOpen(true);
+    setOriginalPostError(null);
+
+    if (originalPostDetail?.id === sharedPost.id) {
+      return;
+    }
+
+    setIsLoadingOriginalPost(true);
+    try {
+      setOriginalPostDetail(await postService.getById(sharedPost.id));
+    } catch (err) {
+      setOriginalPostError(getErrorMessage(err));
+      setOriginalPostDetail(null);
+    } finally {
+      setIsLoadingOriginalPost(false);
+    }
+  };
+
+  const handleOriginalPostUpdate = async (postId: string, content: string) => {
+    const updated = await postService.update(postId, { content });
+    setOriginalPostDetail(updated);
+  };
+
+  const handleOriginalPostDelete = async (postId: string) => {
+    await onDelete(postId);
+    setOriginalPostDetail(null);
+    setOriginalPostError('This post is no longer available.');
+  };
+
+  const handleOriginalPostCommentCountChange = (postId: string, delta: number) => {
+    setOriginalPostDetail((current) =>
+      current && current.id === postId
+        ? { ...current, commentsCount: Math.max(0, current.commentsCount + delta) }
+        : current
+    );
+  };
+
+  const handleOriginalPostReactionSummaryChange = (postId: string, summary: ReactionSummaryResponse) => {
+    setOriginalPostDetail((current) =>
+      current && current.id === postId
+        ? { ...current, reactionsCount: summary.totalCount, reactionSummary: summary }
+        : current
+    );
+  };
+
   return (
+    <>
     <article className="bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] overflow-hidden">
       <div className="p-6 pb-0">
         <div className="flex items-start justify-between mb-4 gap-4">
@@ -591,7 +668,10 @@ export function PostCard({
             <div className="min-w-0">
               <h3 className="text-xl font-bold text-on-surface leading-tight truncate">{authorName}</h3>
               <p className="text-xs font-bold text-on-surface-variant flex items-center gap-1">
-                {formatPostTime(post.createdAt)} <span aria-hidden="true">.</span> <Globe size={12} />
+                {post.originalPostId ? 'Shared a post' : formatPostTime(post.createdAt)}
+                {post.originalPostId && <span aria-hidden="true">.</span>}
+                {post.originalPostId && <span>{formatPostTime(post.createdAt)}</span>}
+                <span aria-hidden="true">.</span> <Globe size={12} />
               </p>
             </div>
           </div>
@@ -661,7 +741,9 @@ export function PostCard({
             </div>
           </div>
         ) : (
-          <p className="text-lg font-medium text-on-surface mb-4 whitespace-pre-wrap">{post.content}</p>
+          post.content.trim() && (
+            <p className="text-lg font-medium text-on-surface mb-4 whitespace-pre-wrap">{post.content}</p>
+          )
         )}
       </div>
 
@@ -676,6 +758,69 @@ export function PostCard({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {sharedPost && (
+        <div className="px-4 pb-4">
+          {sharedPost.available ? (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={openOriginalPost}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  void openOriginalPost();
+                }
+              }}
+              className="overflow-hidden rounded-[1.5rem] border border-outline-variant/40 bg-surface-container-lowest cursor-pointer transition-colors hover:bg-surface-container-low"
+            >
+              <div className="p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <img
+                    alt={sharedPost.author?.displayName || sharedPost.author?.username || 'Kirenz User'}
+                    src={sharedPost.author?.avatarUrl || fallbackAvatar}
+                    className="h-9 w-9 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-on-surface">
+                      {sharedPost.author?.displayName || sharedPost.author?.username || 'Kirenz User'}
+                    </p>
+                    <p className="text-[11px] font-bold text-on-surface-variant">
+                      {sharedPost.createdAt ? formatPostTime(sharedPost.createdAt) : ''}
+                    </p>
+                  </div>
+                </div>
+                {sharedPost.content && (
+                  <p className="whitespace-pre-wrap text-sm font-medium text-on-surface">{sharedPost.content}</p>
+                )}
+              </div>
+              {sharedPost.media.length > 0 && (
+                <div className="grid gap-2 px-3 pb-3">
+                  {sharedPost.media.map((media) => (
+                    <div key={media.url} className="max-h-[320px] overflow-hidden rounded-[1rem] bg-surface-container-low">
+                      {media.type === 'VIDEO' ? (
+                        <video src={media.url} controls className="max-h-[320px] w-full object-cover" />
+                      ) : (
+                        <img
+                          alt="Shared post media"
+                          src={media.url}
+                          className="max-h-[320px] w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-[1.5rem] border border-dashed border-outline-variant/60 bg-surface-container-low px-4 py-5 text-sm font-bold text-on-surface-variant">
+              This shared post is no longer available.
+            </div>
+          )}
         </div>
       )}
 
@@ -725,10 +870,53 @@ export function PostCard({
           >
             <MessageSquare size={20} /> <span className="hidden sm:inline">Comment</span>
           </button>
-          <button className="flex items-center justify-center gap-2 py-2 hover:bg-tertiary-fixed rounded-full text-tertiary transition-all text-sm font-bold active:scale-95">
+          <button
+            type="button"
+            onClick={() => {
+              setShareError(null);
+              setIsShareOpen(true);
+            }}
+            className="flex items-center justify-center gap-2 py-2 hover:bg-tertiary-fixed rounded-full text-tertiary transition-all text-sm font-bold active:scale-95"
+          >
             <Share2 size={20} /> <span className="hidden sm:inline">Share</span>
           </button>
         </div>
+
+        {isShareOpen && (
+          <div className="mt-4 rounded-2xl border border-outline-variant/40 bg-surface-container-low p-4">
+            <form onSubmit={handleShare} className="space-y-3">
+              <textarea
+                value={shareCaption}
+                onChange={(event) => setShareCaption(event.target.value)}
+                rows={3}
+                placeholder="Say something about this post..."
+                className="w-full resize-none rounded-2xl bg-surface-container-lowest px-4 py-3 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-tertiary-container"
+              />
+              {shareError && (
+                <p className="text-xs font-bold text-on-error-container">{shareError}</p>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsShareOpen(false);
+                    setShareCaption('');
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high"
+                >
+                  <X size={14} /> Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSharing}
+                  className="inline-flex items-center gap-1 rounded-full bg-tertiary-container px-5 py-2 text-xs font-bold text-on-tertiary-container disabled:opacity-60 active:scale-95"
+                >
+                  <Share2 size={14} /> {isSharing ? 'Sharing...' : 'Share now'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {isCommentsOpen && (
           <div className="mt-5 border-t border-outline-variant/30 pt-5">
@@ -782,6 +970,43 @@ export function PostCard({
         )}
       </div>
     </article>
+    {isOriginalModalOpen && (
+      <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8 backdrop-blur-sm">
+        <div className="w-full max-w-[760px]">
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setIsOriginalModalOpen(false)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface-container-lowest text-on-surface shadow-lg hover:bg-surface-container-low"
+              aria-label="Close shared post detail"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          {isLoadingOriginalPost ? (
+            <div className="rounded-[2rem] bg-surface-container-lowest p-8 text-center text-sm font-bold text-on-surface-variant shadow-xl">
+              Loading original post...
+            </div>
+          ) : originalPostDetail ? (
+            <PostCard
+              post={originalPostDetail}
+              currentUserId={currentUserId}
+              currentUserAvatarUrl={currentUserAvatarUrl}
+              onUpdate={handleOriginalPostUpdate}
+              onDelete={handleOriginalPostDelete}
+              onShare={onShare}
+              onCommentCountChange={handleOriginalPostCommentCountChange}
+              onReactionSummaryChange={handleOriginalPostReactionSummaryChange}
+            />
+          ) : (
+            <div className="rounded-[2rem] border border-dashed border-outline-variant/60 bg-surface-container-lowest p-8 text-center text-sm font-bold text-on-surface-variant shadow-xl">
+              {originalPostError || 'This post is no longer available.'}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -1130,6 +1355,19 @@ export default function HomeFeed() {
     }
   };
 
+  const handleShare = async (postId: string, caption: string) => {
+    setError(null);
+    setMessage(null);
+    try {
+      const shared = await postService.share(postId, { caption });
+      setPosts((current) => [shared, ...current]);
+      setMessage('Post shared successfully.');
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err;
+    }
+  };
+
   const handleCommentCountChange = (postId: string, delta: number) => {
     setPosts((current) =>
       current.map((post) =>
@@ -1241,6 +1479,7 @@ export default function HomeFeed() {
                   currentUserAvatarUrl={user?.avatarUrl}
                   onUpdate={handleUpdate}
                   onDelete={handleDelete}
+                  onShare={handleShare}
                   onCommentCountChange={handleCommentCountChange}
                   onReactionSummaryChange={handleReactionSummaryChange}
                 />
