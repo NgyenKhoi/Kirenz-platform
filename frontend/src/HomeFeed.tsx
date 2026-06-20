@@ -17,6 +17,13 @@ import { useAuthStore } from './store/authStore';
 
 const fallbackAvatar = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDn9I6Bn8A1s6Gv_kblRDw5crnta6Vb7W0KyrBjRdHoUu3nEM5p1A7ODn_isaa7M80w2yF_GqrvezNIIz11PYt7KqMNO5ISVUrgUKCJZ3FvNZkhQeNhkwYyW_jdHb2Qja9CR9u9BVzj_6IFkVhiHPLeS6JXKmIBmfaC71-cnJodIWg_zqMW4RUF73sKvLv8IZWTXErCay6A4e6Xaho8Q6Y-8TCyc4_rZbQGrTBGVqYllUj1ftVmkK9I2EnSe5Ph9NHEg-y1kcqoQHI';
 
+interface SelectedPostImage {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
+
 function getErrorMessage(error: unknown): string {
   const axiosError = error as AxiosError<ErrorResponse>;
   return axiosError.response?.data?.message || 'Something went wrong. Please try again.';
@@ -1278,8 +1285,9 @@ export default function HomeFeed() {
   const { user } = useAuthStore();
   const [posts, setPosts] = useState<PostResponse[]>([]);
   const [content, setContent] = useState('');
-  const [mediaUrl, setMediaUrl] = useState('');
-  const [mediaType, setMediaType] = useState<'IMAGE' | 'VIDEO'>('IMAGE');
+  const [selectedImages, setSelectedImages] = useState<SelectedPostImage[]>([]);
+  const selectedImagesRef = useRef<SelectedPostImage[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -1302,26 +1310,70 @@ export default function HomeFeed() {
   useEffect(() => {
     void loadPosts();
   }, []);
+  useEffect(() => {
+    selectedImagesRef.current = selectedImages;
+  }, [selectedImages]);
+
+  useEffect(() => () => {
+    selectedImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+  }, []);
+
+  const handleSelectImages = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith('image/'));
+    event.target.value = '';
+
+    if (files.length === 0) {
+      return;
+    }
+
+    setSelectedImages((current) => [
+      ...current,
+      ...files.map((file) => ({
+        id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      })),
+    ].slice(0, 10));
+  };
+
+  const removeSelectedImage = (imageId: string) => {
+    setSelectedImages((current) => {
+      const removed = current.find((image) => image.id === imageId);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return current.filter((image) => image.id !== imageId);
+    });
+  };
+
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
     setMessage(null);
 
-    if (!content.trim()) {
-      setError('Post content is required.');
+    if (!content.trim() && selectedImages.length === 0) {
+      setError('Post content or at least one image is required.');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const uploadedMedia = selectedImages.length > 0
+        ? await postService.uploadImages(selectedImages.map((image) => image.file))
+        : [];
       const created = await postService.create({
         content,
-        media: mediaUrl.trim() ? [{ type: mediaType, url: mediaUrl.trim() }] : [],
+        media: uploadedMedia.map((media) => ({
+          type: media.type,
+          url: media.url,
+          publicId: media.publicId,
+        })),
       });
       setPosts((current) => [created, ...current]);
       setContent('');
-      setMediaUrl('');
+      selectedImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      setSelectedImages([]);
       setMessage('Post created successfully.');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -1424,40 +1476,56 @@ export default function HomeFeed() {
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[140px_1fr] mb-4">
-              <select
-                value={mediaType}
-                onChange={(event) => setMediaType(event.target.value as 'IMAGE' | 'VIDEO')}
-                className="bg-surface-container-low rounded-full px-4 py-3 text-sm font-bold text-on-surface outline-none focus:ring-2 focus:ring-primary-container"
-                aria-label="Media type"
-              >
-                <option value="IMAGE">Image</option>
-                <option value="VIDEO">Video</option>
-              </select>
-              <input
-                type="url"
-                value={mediaUrl}
-                onChange={(event) => setMediaUrl(event.target.value)}
-                placeholder="Optional image or video URL"
-                className="bg-surface-container-low rounded-full px-5 py-3 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary-container"
-              />
-            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleSelectImages}
+              className="hidden"
+            />
+
+            {selectedImages.length > 0 && (
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {selectedImages.map((image) => (
+                  <div key={image.id} className="relative aspect-square overflow-hidden rounded-2xl bg-surface-container-low">
+                    <img
+                      alt="Selected upload preview"
+                      src={image.previewUrl}
+                      className="h-full w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSelectedImage(image.id)}
+                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-surface-container-lowest/90 text-on-surface shadow-sm active:scale-95"
+                      aria-label="Remove image"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2 justify-between items-center pt-2 border-t border-outline-variant/30 mt-4">
               <div className="flex gap-2">
-                <span className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-tertiary">
-                  <ImageIcon size={20} /> Photo/Video
-                </span>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-tertiary rounded-full hover:bg-tertiary-fixed active:scale-95"
+                >
+                  <ImageIcon size={20} /> Photo
+                </button>
                 <span className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-secondary hidden sm:flex">
                   <Smile size={20} /> Feeling/Activity
                 </span>
               </div>
               <button
                 type="submit"
-                disabled={isSubmitting || !content.trim()}
+                disabled={isSubmitting || (!content.trim() && selectedImages.length === 0)}
                 className="bg-primary-container text-on-primary-container px-8 py-2 rounded-full text-sm font-bold active:scale-95 transition-transform shadow-sm disabled:opacity-60"
               >
-                {isSubmitting ? 'Posting...' : 'Post'}
+                {isSubmitting ? (selectedImages.length > 0 ? 'Uploading...' : 'Posting...') : 'Post'}
               </button>
             </div>
           </form>

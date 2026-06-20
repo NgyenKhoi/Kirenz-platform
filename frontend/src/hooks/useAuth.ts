@@ -65,6 +65,16 @@ export const useAuth = () => {
     },
   });
 
+
+  const uploadAvatarMutation = useMutation({
+    mutationFn: (file: File) => authService.uploadAvatar(file),
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser);
+    },
+    onError: (error: AxiosError<{ message: string }>) => {
+      setError(error.response?.data?.message || 'Failed to upload avatar');
+    },
+  });
   return {
     user,
     isAuthenticated,
@@ -87,6 +97,9 @@ export const useAuth = () => {
     updateProfileAsync: updateProfileMutation.mutateAsync,
     isUpdatingProfile: updateProfileMutation.isPending,
     updateProfileSuccess: updateProfileMutation.isSuccess,
+    uploadAvatar: uploadAvatarMutation.mutate,
+    uploadAvatarAsync: uploadAvatarMutation.mutateAsync,
+    isUploadingAvatar: uploadAvatarMutation.isPending,
     refetchUser,
     initializeAuth,
   };

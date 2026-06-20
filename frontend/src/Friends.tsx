@@ -16,7 +16,7 @@ import {
 import Layout from './components/Layout';
 import { friendService } from './services/friend.service';
 import { ErrorResponse } from './types/auth.types';
-import { FriendRequestResponse, FriendResponse, MutualFriendResponse } from './types/friend.types';
+import { FriendRequestResponse, FriendResponse, MutualFriendResponse, UserSearchResponse } from './types/friend.types';
 import { useAuthStore } from './store/authStore';
 
 type FriendsTab = 'friends' | 'incoming' | 'outgoing';
@@ -45,7 +45,9 @@ function shortId(id: string): string {
 export default function Friends() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<FriendsTab>('friends');
-  const [receiverId, setReceiverId] = useState('');
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [friendSearchResults, setFriendSearchResults] = useState<UserSearchResponse[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [statusTargetId, setStatusTargetId] = useState('');
   const [statusResult, setStatusResult] = useState<string | null>(null);
   const [mutualTargetId, setMutualTargetId] = useState('');
@@ -113,26 +115,53 @@ export default function Friends() {
     }
   };
 
-  const handleSendRequest = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedReceiverId = receiverId.trim();
-
-    if (!uuidPattern.test(trimmedReceiverId)) {
-      setError('Enter a valid user UUID.');
+  useEffect(() => {
+    const query = friendSearchQuery.trim();
+    if (query.length < 2) {
+      setFriendSearchResults([]);
+      setIsSearchingUsers(false);
       return;
     }
 
+    let isActive = true;
+    setIsSearchingUsers(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const results = await friendService.searchUsers(query, 10);
+        if (isActive) {
+          setFriendSearchResults(results);
+          setError(null);
+        }
+      } catch (searchError) {
+        if (isActive) {
+          setFriendSearchResults([]);
+          setError(getErrorMessage(searchError));
+        }
+      } finally {
+        if (isActive) {
+          setIsSearchingUsers(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timer);
+    };
+  }, [friendSearchQuery]);
+
+  const handleSendRequestToUser = async (receiverId: string) => {
     await runAction(
-      trimmedReceiverId,
+      receiverId,
       async () => {
-        await friendService.sendRequest({ receiverId: trimmedReceiverId });
-        setReceiverId('');
+        await friendService.sendRequest({ receiverId });
+        setFriendSearchQuery('');
+        setFriendSearchResults([]);
         setActiveTab('outgoing');
       },
       'Friend request sent.'
     );
   };
-
   const handleCheckStatus = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedTargetId = statusTargetId.trim();
@@ -217,38 +246,72 @@ export default function Friends() {
           )}
 
           <section className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-            <form
-              onSubmit={handleSendRequest}
-              className="bg-surface-container-lowest rounded-3xl p-6 border border-primary-container/30 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]"
-            >
+            <section className="bg-surface-container-lowest rounded-3xl p-6 border border-primary-container/30 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-11 h-11 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
                   <UserPlus size={22} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-on-surface">Send friend request</h3>
-                  <p className="text-sm text-on-surface-variant">Use another account's UUID while search is not implemented yet.</p>
+                  <h3 className="text-lg font-bold text-on-surface">Find friends</h3>
+                  <p className="text-sm text-on-surface-variant">Search by username, display name, or email.</p>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative">
+                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
-                  value={receiverId}
-                  onChange={(event) => setReceiverId(event.target.value)}
-                  placeholder="Receiver user UUID"
-                  className="min-w-0 flex-1 bg-surface-container border border-outline-variant rounded-2xl py-3 px-4 font-mono text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary-container/20"
+                  value={friendSearchQuery}
+                  onChange={(event) => setFriendSearchQuery(event.target.value)}
+                  placeholder="Search users"
+                  className="w-full bg-surface-container border border-outline-variant rounded-2xl py-3 pl-11 pr-4 text-sm font-medium text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary-container/20"
                 />
-                <button
-                  type="submit"
-                  disabled={actionId === receiverId.trim()}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary text-on-primary px-5 py-3 font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
-                >
-                  {actionId === receiverId.trim() ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                  Send
-                </button>
               </div>
-            </form>
 
+              <div className="mt-4 space-y-3">
+                {isSearchingUsers && (
+                  <div className="rounded-2xl bg-surface-container px-4 py-3 text-sm font-bold text-on-surface-variant flex items-center gap-2">
+                    <Loader2 size={16} className="animate-spin" /> Searching users...
+                  </div>
+                )}
+
+                {!isSearchingUsers && friendSearchQuery.trim().length >= 2 && friendSearchResults.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container px-4 py-4 text-sm font-bold text-on-surface-variant text-center">
+                    No users found.
+                  </div>
+                )}
+
+                {friendSearchResults.map((result) => {
+                  const canSendRequest = result.relationshipStatus === 'NONE';
+                  return (
+                    <div key={result.id} className="rounded-2xl bg-surface-container border border-outline-variant p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="h-12 w-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0 overflow-hidden">
+                          {result.avatarUrl ? (
+                            <img src={result.avatarUrl} alt={result.displayName || result.username} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            (result.displayName || result.username || '?').slice(0, 1).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-on-surface truncate">{result.displayName || result.username}</p>
+                          <p className="text-xs text-primary font-bold truncate">@{result.username}</p>
+                          {result.bio && <p className="text-xs text-on-surface-variant line-clamp-1 mt-1">{result.bio}</p>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSendRequestToUser(result.id)}
+                        disabled={!canSendRequest || actionId === result.id}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-primary text-on-primary px-4 py-2 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                      >
+                        {actionId === result.id ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                        {canSendRequest ? 'Send request' : result.relationshipStatus.replaceAll('_', ' ')}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
             <form
               onSubmit={handleCheckStatus}
               className="bg-surface-container rounded-3xl p-6 border border-outline-variant"

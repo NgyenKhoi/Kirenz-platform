@@ -119,7 +119,7 @@ public class PostService {
         Post post = activePost(postId);
         ensureOwner(userId, post);
 
-        List<PostMedia> media = toMedia(request.media());
+        List<PostMedia> media = request.media() == null ? post.getMedia() : toMedia(request.media());
         String content = normalizeContent(request.content());
         validatePostBody(content, media);
 
@@ -158,8 +158,8 @@ public class PostService {
     }
 
     private void validatePostBody(String content, List<PostMedia> media) {
-        if (content == null || content.isBlank()) {
-            throw new BadRequestException("Post content is required");
+        if ((content == null || content.isBlank()) && (media == null || media.isEmpty())) {
+            throw new BadRequestException("Post content or media is required");
         }
     }
 
@@ -185,6 +185,10 @@ public class PostService {
         return content == null ? "" : content.trim();
     }
 
+    private String normalizePublicId(String publicId) {
+        return publicId == null || publicId.isBlank() ? null : publicId.trim();
+    }
+
     private List<PostMedia> toMedia(List<PostMediaRequest> media) {
         if (media == null) {
             return List.of();
@@ -194,6 +198,7 @@ public class PostService {
             .map(item -> PostMedia.builder()
                 .type(item.type())
                 .url(item.url().trim())
+                .publicId(normalizePublicId(item.publicId()))
                 .build())
             .toList();
     }
@@ -231,7 +236,7 @@ public class PostService {
             post.getOriginalPostId(),
             toSharedPostResponse(post.getOriginalPostId(), authors),
             post.getMedia().stream()
-                .map(media -> new PostMediaResponse(media.getType(), media.getUrl()))
+                .map(media -> new PostMediaResponse(media.getType(), media.getUrl(), media.getPublicId()))
                 .toList(),
             reactionsCount(post.getReactionsCount()),
             reactionSummary,
@@ -262,7 +267,7 @@ public class PostService {
                     author,
                     originalPost.getContent(),
                     originalPost.getMedia().stream()
-                        .map(media -> new PostMediaResponse(media.getType(), media.getUrl()))
+                        .map(media -> new PostMediaResponse(media.getType(), media.getUrl(), media.getPublicId()))
                         .toList(),
                     true,
                     originalPost.getCreatedAt()

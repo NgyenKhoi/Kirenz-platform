@@ -5,6 +5,7 @@ export type MediaType = 'IMAGE' | 'VIDEO';
 export interface PostMediaRequest {
   type: MediaType;
   url: string;
+  publicId?: string | null;
 }
 
 export interface CreatePostRequest {
@@ -31,6 +32,7 @@ export interface AuthorResponse {
 export interface PostMediaResponse {
   type: MediaType;
   url: string;
+  publicId?: string | null;
 }
 
 export interface SharedPostResponse {
@@ -56,4 +58,14 @@ export interface PostResponse {
   status: 'ACTIVE' | 'INACTIVE' | 'DELETED';
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MediaUploadResponse {
+  type: MediaType;
+  url: string;
+  publicId?: string | null;
+  width?: number | null;
+  height?: number | null;
+  format?: string | null;
+  bytes?: number | null;
 }

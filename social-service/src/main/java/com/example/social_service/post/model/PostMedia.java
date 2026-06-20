@@ -14,4 +14,6 @@ public class PostMedia {
     private MediaType type;
 
     private String url;
+
+    private String publicId;
 }

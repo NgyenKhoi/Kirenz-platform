@@ -6,9 +6,17 @@ import {
   FriendStatusResponse,
   MutualFriendResponse,
   SendFriendRequest,
+  UserSearchResponse,
 } from '../types/friend.types';
 
 export const friendService = {
+  searchUsers: async (query: string, limit = 10): Promise<UserSearchResponse[]> => {
+    const response = await userServiceClient.get<ApiResponse<UserSearchResponse[]>>(
+      API_ENDPOINTS.FRIENDS.SEARCH,
+      { params: { q: query, limit } }
+    );
+    return response.data.data;
+  },
   sendRequest: async (data: SendFriendRequest): Promise<FriendRequestResponse> => {
     const response = await userServiceClient.post<ApiResponse<FriendRequestResponse>>(
       API_ENDPOINTS.FRIENDS.REQUESTS,

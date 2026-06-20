@@ -74,6 +74,22 @@ export const authService = {
   },
 
 
+
+  uploadAvatar: async (file: File): Promise<UserProfile> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<ApiResponse<UserProfile>>(
+      API_ENDPOINTS.USER.AVATAR,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    const userData = response.data.data;
+
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
+
+    return userData;
+  },
   logout: () => {
     localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);

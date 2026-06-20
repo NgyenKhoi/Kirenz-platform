@@ -1,8 +1,23 @@
 import { API_ENDPOINTS, socialServiceClient } from '../config/api.config';
 import { ApiResponse } from '../types/auth.types';
-import { CreatePostRequest, PostResponse, SharePostRequest, UpdatePostRequest } from '../types/post.types';
+import { CreatePostRequest, MediaUploadResponse, PostResponse, SharePostRequest, UpdatePostRequest } from '../types/post.types';
 
 export const postService = {
+  uploadImages: async (files: File[]): Promise<MediaUploadResponse[]> => {
+    return Promise.all(
+      files.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await socialServiceClient.post<ApiResponse<MediaUploadResponse>>(
+          API_ENDPOINTS.MEDIA.POSTS,
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+        return response.data.data;
+      })
+    );
+  },
   create: async (data: CreatePostRequest): Promise<PostResponse> => {
     const response = await socialServiceClient.post<ApiResponse<PostResponse>>(
       API_ENDPOINTS.POSTS.BASE,
