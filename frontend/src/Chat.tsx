@@ -204,7 +204,7 @@ export default function Chat() {
           <section className="flex flex-col flex-1 bg-surface-container-lowest md:h-full rounded-[2rem] overflow-hidden shadow-[0_12px_40px_-12px_rgba(139,78,62,0.15)] border border-surface-container h-[600px] md:h-auto z-10 relative">
             
             {/* Chat Header */}
-            <header className="h-20 px-6 flex items-center justify-between border-b border-surface-container bg-white shrink-0">
+            <header className="h-20 px-6 flex items-center justify-between border-b border-surface-container bg-surface-container-lowest shrink-0">
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <img 
@@ -291,10 +291,10 @@ export default function Chat() {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 md:p-6 border-t border-surface-container bg-white shrink-0 absolute bottom-0 left-0 right-0 z-20 md:relative">
+            <div className="p-4 md:p-6 border-t border-surface-container bg-surface-container-lowest shrink-0 absolute bottom-0 left-0 right-0 z-20 md:relative">
               <form 
                 onSubmit={handleSendMessage}
-                className="flex items-center gap-2 md:gap-4 bg-surface-container-low p-2 pr-2.5 rounded-full border-2 border-transparent focus-within:border-primary-container focus-within:bg-white transition-all shadow-sm"
+                className="flex items-center gap-2 md:gap-4 bg-surface-container-low p-2 pr-2.5 rounded-full border-2 border-transparent focus-within:border-primary-container focus-within:bg-surface-container-lowest transition-all shadow-sm"
               >
                 <button 
                   type="button"
@@ -338,7 +338,7 @@ export default function Chat() {
 
       {/* Floating Toast Notification */}
       <div 
-        className={`fixed bottom-24 md:bottom-8 right-6 md:right-8 z-[60] transform transition-all duration-500 ease-out flex items-center gap-4 bg-white p-4 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] border-l-4 border-primary ${
+        className={`fixed bottom-24 md:bottom-8 right-6 md:right-8 z-[60] transform transition-all duration-500 ease-out flex items-center gap-4 bg-surface-container-lowest p-4 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] border-l-4 border-primary ${
           showToast ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'
         }`}
       >

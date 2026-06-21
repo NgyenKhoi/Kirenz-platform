@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import Login from './Login';
 import Register from './Register';
@@ -17,8 +18,13 @@ import Chat from './Chat';
 import EditCover from './EditCover';
 import BlockedUsers from './BlockedUsers';
 import ProtectedRoute from './components/ProtectedRoute';
+import { initTheme } from './utils/theme';
 
 export default function App() {
+  useEffect(() => {
+    initTheme();
+  }, []);
+
   return (
     <BrowserRouter>
       <div className="fixed top-0 left-0 right-0 bg-surface-container border-b border-outline-variant p-2 flex justify-center gap-4 z-[100] text-sm hidden">

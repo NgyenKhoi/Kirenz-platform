@@ -352,7 +352,7 @@ export default function Stories() {
               <p className="text-base font-medium italic leading-relaxed">
                 "What's a small detail that made you smile today?"
               </p>
-              <button className="mt-6 w-full bg-white text-secondary font-bold py-3 rounded-full shadow-[0_4px_12px_rgba(118,91,6,0.15)] hover:shadow-[0_8px_20px_rgba(118,91,6,0.2)] transition-all hover:-translate-y-0.5 active:scale-95">
+              <button className="mt-6 w-full bg-surface-container-lowest text-secondary font-bold py-3 rounded-full shadow-[0_4px_12px_rgba(118,91,6,0.15)] hover:shadow-[0_8px_20px_rgba(118,91,6,0.2)] transition-all hover:-translate-y-0.5 active:scale-95">
                 Answer now
               </button>
             </div>

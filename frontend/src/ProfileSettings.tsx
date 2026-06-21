@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Eye, Globe, Users, Lock, Shield, UserPlus,
   MessageSquare, Menu, Bell, Loader2, UserX,
@@ -9,16 +9,23 @@ import Layout from './components/Layout';
 import { useBlockedUsers, useUnblockUser } from './hooks/useBlocks';
 import { extractErrorMessage } from './utils/formErrors';
 import { useAuthStore } from './store/authStore';
+import { getPersistedTheme, applyTheme } from './utils/theme';
 
 function shortId(id: string): string {
   return `${id.slice(0, 8)}...${id.slice(-6)}`;
 }
 
 export default function ProfileSettings() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [profileVisibility, setProfileVisibility] = useState<'public' | 'friends' | 'private'>('public');
-  const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>(getPersistedTheme);
   const [actionError, setActionError] = useState('');
+
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'auto') => {
+    setTheme(newTheme);
+    applyTheme(newTheme);
+  };
   
   const blockedUsersQuery = useBlockedUsers();
   const unblockUserMutation = useUnblockUser();
@@ -252,7 +259,7 @@ export default function ProfileSettings() {
                 <h4 className="text-sm font-bold text-on-surface mb-4">Theme Selection</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <button 
-                    onClick={() => setTheme('light')}
+                    onClick={() => handleThemeChange('light')}
                     className={`flex flex-col items-center gap-2 p-4 rounded-[1.5rem] transition-all border-2 ${theme === 'light' ? 'bg-primary-container/10 border-primary-container' : 'bg-surface-container-low border-transparent hover:bg-surface-variant'}`}
                   >
                     <div className="w-12 h-12 rounded-full bg-surface-bright flex items-center justify-center border border-primary-container/20">
@@ -262,7 +269,7 @@ export default function ProfileSettings() {
                   </button>
                   
                   <button 
-                    onClick={() => setTheme('dark')}
+                    onClick={() => handleThemeChange('dark')}
                     className={`flex flex-col items-center gap-2 p-4 rounded-[1.5rem] transition-all border-2 ${theme === 'dark' ? 'bg-primary-container/10 border-primary-container' : 'bg-surface-container-low border-transparent hover:bg-surface-variant'}`}
                   >
                     <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
@@ -272,7 +279,7 @@ export default function ProfileSettings() {
                   </button>
                   
                   <button 
-                    onClick={() => setTheme('auto')}
+                    onClick={() => handleThemeChange('auto')}
                     className={`flex flex-col items-center gap-2 p-4 rounded-[1.5rem] transition-all border-2 ${theme === 'auto' ? 'bg-primary-container/10 border-primary-container' : 'bg-surface-container-low border-transparent hover:bg-surface-variant'}`}
                   >
                     <div className="w-12 h-12 rounded-full bg-tertiary-container flex items-center justify-center">
@@ -286,10 +293,18 @@ export default function ProfileSettings() {
 
             {/* Footer Actions */}
             <div className="flex items-center justify-end gap-4 mt-4 pb-12">
-              <button className="px-6 sm:px-8 py-3 rounded-full text-sm font-bold text-on-surface-variant hover:bg-surface-container-highest transition-all active:scale-95">
+              <button 
+                type="button"
+                onClick={() => navigate('/home')}
+                className="px-6 sm:px-8 py-3 rounded-full text-sm font-bold text-on-surface-variant hover:bg-surface-container-highest transition-all active:scale-95"
+              >
                 Cancel
               </button>
-              <button className="px-6 sm:px-8 py-3 rounded-full text-sm font-bold bg-primary text-on-primary shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:shadow-[0_8px_16px_rgba(139,78,62,0.4)] hover:-translate-y-0.5 active:scale-95 transition-all">
+              <button 
+                type="button"
+                onClick={() => navigate('/home')}
+                className="px-6 sm:px-8 py-3 rounded-full text-sm font-bold bg-primary text-on-primary shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:shadow-[0_8px_16px_rgba(139,78,62,0.4)] hover:-translate-y-0.5 active:scale-95 transition-all"
+              >
                 Save Changes
               </button>
             </div>
