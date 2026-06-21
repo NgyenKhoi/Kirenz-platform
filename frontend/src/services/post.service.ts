@@ -40,6 +40,13 @@ export const postService = {
     return response.data.data;
   },
 
+  listByUser: async (userId: string): Promise<PostResponse[]> => {
+    const response = await socialServiceClient.get<ApiResponse<PostResponse[]>>(
+      API_ENDPOINTS.POSTS.USER(userId)
+    );
+    return response.data.data;
+  },
+
   getById: async (postId: string): Promise<PostResponse> => {
     const response = await socialServiceClient.get<ApiResponse<PostResponse>>(
       API_ENDPOINTS.POSTS.DETAIL(postId)

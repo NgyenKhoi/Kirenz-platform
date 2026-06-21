@@ -22,6 +22,10 @@ export interface FriendRequestResponse {
 export interface FriendResponse {
   friendshipId: string;
   friendId: string;
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
   createdAt: string;
 }
 
@@ -50,4 +54,13 @@ export interface UserSearchResponse {
   avatarUrl?: string | null;
   bio?: string | null;
   relationshipStatus: RelationshipStatus;
+}
+
+export interface FriendSuggestionResponse {
+  id: string;
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  mutualFriendCount: number;
 }

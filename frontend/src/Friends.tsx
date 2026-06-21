@@ -1,4 +1,5 @@
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import {
   Check,
@@ -16,12 +17,12 @@ import {
 import Layout from './components/Layout';
 import { friendService } from './services/friend.service';
 import { ErrorResponse } from './types/auth.types';
-import { FriendRequestResponse, FriendResponse, MutualFriendResponse, UserSearchResponse } from './types/friend.types';
+import { FriendRequestResponse, FriendResponse, FriendSuggestionResponse, UserSearchResponse } from './types/friend.types';
 import { useAuthStore } from './store/authStore';
 
 type FriendsTab = 'friends' | 'incoming' | 'outgoing';
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 
 function getErrorMessage(error: unknown): string {
   const axiosError = error as AxiosError<ErrorResponse>;
@@ -48,10 +49,7 @@ export default function Friends() {
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [friendSearchResults, setFriendSearchResults] = useState<UserSearchResponse[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
-  const [statusTargetId, setStatusTargetId] = useState('');
-  const [statusResult, setStatusResult] = useState<string | null>(null);
-  const [mutualTargetId, setMutualTargetId] = useState('');
-  const [mutualFriends, setMutualFriends] = useState<MutualFriendResponse[]>([]);
+
   const [friends, setFriends] = useState<FriendResponse[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestResponse[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestResponse[]>([]);
@@ -59,6 +57,8 @@ export default function Friends() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<FriendSuggestionResponse[]>([]);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(true);
 
   const loadFriendsData = useCallback(async () => {
     setIsLoading(true);
@@ -82,6 +82,16 @@ export default function Friends() {
   useEffect(() => {
     loadFriendsData();
   }, [loadFriendsData]);
+
+  useEffect(() => {
+    let active = true;
+    setIsSuggestionsLoading(true);
+    friendService.getSuggestions(10)
+      .then((data) => { if (active) setSuggestions(data); })
+      .catch(() => { /* ignore */ })
+      .finally(() => { if (active) setIsSuggestionsLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const totalPending = incomingRequests.length + outgoingRequests.length;
 
@@ -157,54 +167,11 @@ export default function Friends() {
         await friendService.sendRequest({ receiverId });
         setFriendSearchQuery('');
         setFriendSearchResults([]);
+        setSuggestions((prev) => prev.filter((s) => s.id !== receiverId));
         setActiveTab('outgoing');
       },
       'Friend request sent.'
     );
-  };
-  const handleCheckStatus = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedTargetId = statusTargetId.trim();
-
-    if (!uuidPattern.test(trimmedTargetId)) {
-      setError('Enter a valid user UUID to check relationship status.');
-      return;
-    }
-
-    setActionId(`status-${trimmedTargetId}`);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await friendService.getStatus(trimmedTargetId);
-      setStatusResult(result.status);
-    } catch (statusError) {
-      setError(getErrorMessage(statusError));
-    } finally {
-      setActionId(null);
-    }
-  };
-
-  const handleLoadMutualFriends = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedTargetId = mutualTargetId.trim();
-
-    if (!uuidPattern.test(trimmedTargetId)) {
-      setError('Enter a valid target user UUID to load mutual friends.');
-      return;
-    }
-
-    setActionId(`mutual-${trimmedTargetId}`);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await friendService.getMutualFriends(trimmedTargetId);
-      setMutualFriends(result);
-      setMessage(`${result.length} mutual friend${result.length === 1 ? '' : 's'} found.`);
-    } catch (mutualError) {
-      setError(getErrorMessage(mutualError));
-    } finally {
-      setActionId(null);
-    }
   };
 
   return (
@@ -230,13 +197,6 @@ export default function Friends() {
                 Copy my ID
               </button>
             </div>
-
-            {user?.id && (
-              <div className="mt-4 rounded-2xl bg-surface-container-lowest border border-outline-variant px-5 py-4">
-                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-[0.08em] mb-1">Current user ID</p>
-                <p className="font-mono text-sm text-on-surface break-all">{user.id}</p>
-              </div>
-            )}
           </header>
 
           {(message || error) && (
@@ -245,167 +205,70 @@ export default function Friends() {
             </div>
           )}
 
-          <section className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-            <section className="bg-surface-container-lowest rounded-3xl p-6 border border-primary-container/30 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-11 h-11 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
-                  <UserPlus size={22} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-on-surface">Find friends</h3>
-                  <p className="text-sm text-on-surface-variant">Search by username, display name, or email.</p>
-                </div>
-              </div>
-
-              <div className="relative">
-                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                <input
-                  value={friendSearchQuery}
-                  onChange={(event) => setFriendSearchQuery(event.target.value)}
-                  placeholder="Search users"
-                  className="w-full bg-surface-container border border-outline-variant rounded-2xl py-3 pl-11 pr-4 text-sm font-medium text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary-container/20"
-                />
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {isSearchingUsers && (
-                  <div className="rounded-2xl bg-surface-container px-4 py-3 text-sm font-bold text-on-surface-variant flex items-center gap-2">
-                    <Loader2 size={16} className="animate-spin" /> Searching users...
-                  </div>
-                )}
-
-                {!isSearchingUsers && friendSearchQuery.trim().length >= 2 && friendSearchResults.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container px-4 py-4 text-sm font-bold text-on-surface-variant text-center">
-                    No users found.
-                  </div>
-                )}
-
-                {friendSearchResults.map((result) => {
-                  const canSendRequest = result.relationshipStatus === 'NONE';
-                  return (
-                    <div key={result.id} className="rounded-2xl bg-surface-container border border-outline-variant p-4 flex flex-col sm:flex-row sm:items-center gap-4">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0 overflow-hidden">
-                          {result.avatarUrl ? (
-                            <img src={result.avatarUrl} alt={result.displayName || result.username} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                          ) : (
-                            (result.displayName || result.username || '?').slice(0, 1).toUpperCase()
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-on-surface truncate">{result.displayName || result.username}</p>
-                          <p className="text-xs text-primary font-bold truncate">@{result.username}</p>
-                          {result.bio && <p className="text-xs text-on-surface-variant line-clamp-1 mt-1">{result.bio}</p>}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleSendRequestToUser(result.id)}
-                        disabled={!canSendRequest || actionId === result.id}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-primary text-on-primary px-4 py-2 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
-                      >
-                        {actionId === result.id ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                        {canSendRequest ? 'Send request' : result.relationshipStatus.replaceAll('_', ' ')}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-            <form
-              onSubmit={handleCheckStatus}
-              className="bg-surface-container rounded-3xl p-6 border border-outline-variant"
-            >
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-11 h-11 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center">
-                  <Search size={22} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-on-surface">Check status</h3>
-                  <p className="text-sm text-on-surface-variant">Inspect your relationship with a user ID.</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <input
-                  value={statusTargetId}
-                  onChange={(event) => setStatusTargetId(event.target.value)}
-                  placeholder="Target user UUID"
-                  className="w-full bg-surface-container-lowest border border-outline-variant rounded-2xl py-3 px-4 font-mono text-sm text-on-surface focus:outline-none focus:border-primary"
-                />
-                <button
-                  type="submit"
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-tertiary text-on-tertiary px-5 py-3 font-bold hover:brightness-95 active:scale-95 transition-all"
-                >
-                  {actionId?.startsWith('status-') ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-                  Check
-                </button>
-                {statusResult && (
-                  <div className="rounded-2xl bg-surface-container-lowest px-4 py-3 text-center">
-                    <p className="text-xs font-bold text-on-surface-variant uppercase tracking-[0.08em]">Status</p>
-                    <p className="text-lg font-bold text-primary">{statusResult.replaceAll('_', ' ')}</p>
-                  </div>
-                )}
-              </div>
-            </form>
-          </section>
-
           <section className="bg-surface-container-lowest rounded-3xl p-6 border border-primary-container/30 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]">
-            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-              <form onSubmit={handleLoadMutualFriends} className="lg:w-[360px] shrink-0">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center">
-                    <Users size={22} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-on-surface">Mutual friends</h3>
-                    <p className="text-sm text-on-surface-variant">Compare your friend list with a target user.</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <input
-                    value={mutualTargetId}
-                    onChange={(event) => setMutualTargetId(event.target.value)}
-                    placeholder="Target user UUID"
-                    className="w-full bg-surface-container border border-outline-variant rounded-2xl py-3 px-4 font-mono text-sm text-on-surface focus:outline-none focus:border-primary"
-                  />
-                  <button
-                    type="submit"
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-secondary text-on-secondary px-5 py-3 font-bold hover:brightness-95 active:scale-95 transition-all"
-                  >
-                    {actionId?.startsWith('mutual-') ? <Loader2 size={18} className="animate-spin" /> : <Users size={18} />}
-                    Load mutual friends
-                  </button>
-                </div>
-              </form>
-
-              <div className="flex-1 min-w-0">
-                {mutualFriends.length === 0 ? (
-                  <div className="min-h-[172px] rounded-2xl border border-dashed border-outline-variant bg-surface-container-low flex items-center justify-center text-center px-6">
-                    <p className="text-sm text-on-surface-variant">Mutual friends will appear here after you load a target user.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {mutualFriends.map((friend) => (
-                      <div key={friend.id} className="rounded-2xl bg-surface-container-low border border-outline-variant p-4 flex gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0 overflow-hidden">
-                          {friend.avatarUrl ? (
-                            <img src={friend.avatarUrl} alt={friend.displayName || friend.username} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          ) : (
-                            (friend.displayName || friend.username || '?').slice(0, 1).toUpperCase()
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-on-surface truncate">{friend.displayName || friend.username}</p>
-                          <p className="text-xs text-primary font-bold">@{friend.username}</p>
-                          <p className="text-xs text-on-surface-variant font-mono truncate mt-2">{friend.id}</p>
-                          {friend.bio && <p className="text-sm text-on-surface-variant line-clamp-2 mt-2">{friend.bio}</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-11 h-11 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
+                <UserPlus size={22} />
               </div>
+              <div>
+                <h3 className="text-lg font-bold text-on-surface">Find friends</h3>
+                <p className="text-sm text-on-surface-variant">Search by username, display name, or email.</p>
+              </div>
+            </div>
+
+            <div className="relative">
+              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+              <input
+                value={friendSearchQuery}
+                onChange={(event) => setFriendSearchQuery(event.target.value)}
+                placeholder="Search users"
+                className="w-full bg-surface-container border border-outline-variant rounded-2xl py-3 pl-11 pr-4 text-sm font-medium text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary-container/20"
+              />
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {isSearchingUsers && (
+                <div className="rounded-2xl bg-surface-container px-4 py-3 text-sm font-bold text-on-surface-variant flex items-center gap-2">
+                  <Loader2 size={16} className="animate-spin" /> Searching users...
+                </div>
+              )}
+
+              {!isSearchingUsers && friendSearchQuery.trim().length >= 2 && friendSearchResults.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container px-4 py-4 text-sm font-bold text-on-surface-variant text-center">
+                  No users found.
+                </div>
+              )}
+
+              {friendSearchResults.map((result) => {
+                const canSendRequest = result.relationshipStatus === 'NONE';
+                return (
+                  <div key={result.id} className="rounded-2xl bg-surface-container border border-outline-variant p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <Link to={`/profile/${result.id}`} className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-80 transition-opacity">
+                      <div className="h-12 w-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0 overflow-hidden">
+                        {result.avatarUrl ? (
+                          <img src={result.avatarUrl} alt={result.displayName || result.username} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          (result.displayName || result.username || '?').slice(0, 1).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-on-surface truncate">{result.displayName || result.username}</p>
+                        <p className="text-xs text-primary font-bold truncate">@{result.username}</p>
+                        {result.bio && <p className="text-xs text-on-surface-variant line-clamp-1 mt-1">{result.bio}</p>}
+                      </div>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleSendRequestToUser(result.id)}
+                      disabled={!canSendRequest || actionId === result.id}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-primary text-on-primary px-4 py-2 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                    >
+                      {actionId === result.id ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      {canSendRequest ? 'Send request' : result.relationshipStatus.replaceAll('_', ' ')}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </section>
 
@@ -499,12 +362,53 @@ export default function Friends() {
 
       <aside className="fixed right-0 top-0 h-screen w-[320px] p-8 hidden xl:block bg-surface z-40 overflow-y-auto">
         <div className="bg-surface-container rounded-3xl p-6 shadow-[0_10px_40px_-10px_rgba(139,78,62,0.1)]">
-          <h4 className="text-xl font-bold text-primary mb-4">Friend Flow</h4>
-          <div className="space-y-4 text-sm text-on-surface-variant">
-            <FlowStep icon={<Send size={18} />} title="Send" text="Copy another user's UUID and send a request." />
-            <FlowStep icon={<Check size={18} />} title="Accept" text="Login as the receiver to accept the incoming request." />
-            <FlowStep icon={<Users size={18} />} title="Manage" text="Both users will see the friendship after acceptance." />
-          </div>
+          <h4 className="text-xl font-bold text-primary mb-4">Friends You May Know</h4>
+          {isSuggestionsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={24} className="animate-spin text-primary" />
+            </div>
+          ) : suggestions.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-low p-4 text-center">
+              <Users size={32} className="mx-auto text-on-surface-variant/60 mb-2" />
+              <p className="text-sm font-bold text-on-surface">No suggestions yet</p>
+              <p className="text-xs text-on-surface-variant mt-1">Add more friends to discover people you may know!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {suggestions.map((suggestion) => {
+                const displayName = suggestion.displayName || suggestion.username || 'Kirenz User';
+                return (
+                  <div key={suggestion.id} className="rounded-2xl bg-surface-container-low border border-outline-variant p-3 transition-all hover:border-primary/30 hover:shadow-sm">
+                    <Link to={`/profile/${suggestion.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                      <div className="h-10 w-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0 overflow-hidden text-sm">
+                        {suggestion.avatarUrl ? (
+                          <img src={suggestion.avatarUrl} alt={displayName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          displayName.slice(0, 1).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-on-surface text-sm truncate">{displayName}</p>
+                        {suggestion.username && <p className="text-[11px] text-primary font-bold truncate">@{suggestion.username}</p>}
+                        <p className="text-[11px] text-on-surface-variant mt-0.5">
+                          {suggestion.mutualFriendCount} mutual friend{suggestion.mutualFriendCount !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleSendRequestToUser(suggestion.id)}
+                      disabled={actionId === suggestion.id}
+                      className="w-full mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-on-primary px-3 py-2 text-xs font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                    >
+                      {actionId === suggestion.id ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                      Add Friend
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </aside>
     </Layout>
@@ -526,14 +430,25 @@ function FriendList({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {friends.map((friend) => (
-        <div key={friend.friendshipId} className="rounded-2xl border border-outline-variant bg-surface-container-low p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-[0.08em]">Friend ID</p>
-              <p className="font-mono text-sm text-on-surface break-all mt-1">{friend.friendId}</p>
-              <p className="text-xs text-on-surface-variant mt-3">Friends since {formatDate(friend.createdAt)}</p>
-            </div>
+      {friends.map((friend) => {
+        const displayName = friend.displayName || friend.username || 'Kirenz User';
+        return (
+          <div key={friend.friendshipId} className="rounded-2xl border border-outline-variant bg-surface-container-low p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <Link to={`/profile/${friend.friendId}`} className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="h-12 w-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0 overflow-hidden">
+                {friend.avatarUrl ? (
+                  <img src={friend.avatarUrl} alt={displayName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  displayName.slice(0, 1).toUpperCase()
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-on-surface truncate">{displayName}</p>
+                {friend.username && <p className="text-xs text-primary font-bold truncate">@{friend.username}</p>}
+                {friend.bio && <p className="text-xs text-on-surface-variant line-clamp-1 mt-1">{friend.bio}</p>}
+                <p className="text-[10px] text-on-surface-variant mt-2 font-medium">Friends since {formatDate(friend.createdAt)}</p>
+              </div>
+            </Link>
             <button
               type="button"
               onClick={() => onRemove(friend.friendId)}
@@ -544,8 +459,8 @@ function FriendList({
               {actionId === friend.friendId ? <Loader2 size={18} className="animate-spin" /> : <UserMinus size={18} />}
             </button>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -644,16 +559,4 @@ function EmptyState({ title, text }: { title: string; text: string }) {
   );
 }
 
-function FlowStep({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
-  return (
-    <div className="flex gap-3">
-      <div className="w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center shrink-0">
-        {icon}
-      </div>
-      <div>
-        <p className="font-bold text-on-surface">{title}</p>
-        <p>{text}</p>
-      </div>
-    </div>
-  );
-}
+
