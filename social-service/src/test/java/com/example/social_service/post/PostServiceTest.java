@@ -15,6 +15,7 @@ import com.example.social_service.post.service.PostService;
 import com.example.social_service.reaction.dto.ReactionSummaryResponse;
 import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.service.ReactionService;
+import com.example.social_service.user.UserServiceClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,13 +45,16 @@ class PostServiceTest {
     private IdentityServiceClient identityServiceClient;
 
     @Mock
+    private UserServiceClient userServiceClient;
+
+    @Mock
     private ReactionService reactionService;
 
     private PostService postService;
 
     @BeforeEach
     void setUp() {
-        postService = new PostService(postRepository, identityServiceClient, reactionService);
+        postService = new PostService(postRepository, identityServiceClient, userServiceClient, reactionService);
         lenient().when(identityServiceClient.getProfilesByIds(any())).thenReturn(ApiResponse.success("ok", List.of()));
         lenient().when(reactionService.getSummary(any(), any(), any()))
             .thenReturn(new ReactionSummaryResponse(0, null, Map.of()));
@@ -67,7 +71,7 @@ class PostServiceTest {
             return post;
         });
 
-        PostResponse response = postService.createPost(ownerId, new CreatePostRequest(" Hello world ", List.of()));
+        PostResponse response = postService.createPost(ownerId, new CreatePostRequest(" Hello world ", List.of(), null));
 
         assertThat(response.id()).isEqualTo("post-1");
         assertThat(response.content()).isEqualTo("Hello world");
@@ -79,9 +83,9 @@ class PostServiceTest {
     void doesNotCreateEmptyPost() {
         UUID ownerId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> postService.createPost(ownerId, new CreatePostRequest("   ", List.of())))
+        assertThatThrownBy(() -> postService.createPost(ownerId, new CreatePostRequest("   ", List.of(), null)))
             .isInstanceOf(BadRequestException.class)
-            .hasMessage("Post content is required");
+            .hasMessage("Post content or media is required");
     }
 
     @Test
@@ -141,7 +145,7 @@ class PostServiceTest {
         when(postRepository.findByIdAndStatus("post-1", PostStatus.ACTIVE)).thenReturn(Optional.of(post));
         when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PostResponse response = postService.updatePost(ownerId, "post-1", new UpdatePostRequest("After", List.of()));
+        PostResponse response = postService.updatePost(ownerId, "post-1", new UpdatePostRequest("After", List.of(), null));
 
         assertThat(response.content()).isEqualTo("After");
         verify(postRepository).save(post);
@@ -166,7 +170,7 @@ class PostServiceTest {
         Post post = post("post-1", UUID.randomUUID(), "Content", Instant.now());
         when(postRepository.findByIdAndStatus("post-1", PostStatus.ACTIVE)).thenReturn(Optional.of(post));
 
-        assertThatThrownBy(() -> postService.updatePost(UUID.randomUUID(), "post-1", new UpdatePostRequest("Nope", List.of())))
+        assertThatThrownBy(() -> postService.updatePost(UUID.randomUUID(), "post-1", new UpdatePostRequest("Nope", List.of(), null)))
             .isInstanceOf(ForbiddenException.class)
             .hasMessage("Only the post owner can modify this post");
     }

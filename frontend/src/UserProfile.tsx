@@ -11,8 +11,8 @@ import { useAuth } from './hooks/useAuth';
 import { postService } from './services/post.service';
 import { friendService } from './services/friend.service';
 import { authService } from './services/auth.service';
-import { PostCard } from './HomeFeed';
-import { PostResponse } from './types/post.types';
+import { MediaViewerModal, PostCard, PostComposer } from './HomeFeed';
+import { PostImageResponse, PostPrivacy, PostResponse } from './types/post.types';
 import { ReactionSummaryResponse } from './types/reaction.types';
 import { UserProfile as UserProfileType } from './types/auth.types';
 import { RelationshipStatus } from './types/friend.types';
@@ -32,10 +32,16 @@ export default function UserProfile() {
   const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('NONE');
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'POSTS' | 'PHOTOS'>('POSTS');
 
   const [posts, setPosts] = useState<PostResponse[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [postError, setPostError] = useState<string | null>(null);
+  const [postMessage, setPostMessage] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<PostImageResponse[]>([]);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const [friendCount, setFriendCount] = useState<number>(0);
 
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -190,6 +196,39 @@ export default function UserProfile() {
     };
   }, [userId, isOwnProfile]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPhotos = async () => {
+      const id = isOwnProfile ? user?.id : userId;
+      if (!id) {
+        return;
+      }
+
+      setIsLoadingPhotos(true);
+      setPhotoError(null);
+      try {
+        const response = await postService.listUserImages(id);
+        if (isMounted) {
+          setPhotos(response);
+        }
+      } catch {
+        if (isMounted) {
+          setPhotoError('Could not load photos. Please try again.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingPhotos(false);
+        }
+      }
+    };
+
+    void loadPhotos();
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, isOwnProfile, user?.id]);
+
   const handleSendRequest = async () => {
     if (!userId) return;
     setIsActionLoading(true);
@@ -272,8 +311,8 @@ export default function UserProfile() {
     }
   };
 
-  const handleUpdatePost = async (postId: string, content: string) => {
-    const updated = await postService.update(postId, { content });
+  const handleUpdatePost = async (postId: string, content: string, privacy: PostPrivacy) => {
+    const updated = await postService.update(postId, { content, privacy });
     setPosts((current) => current.map((post) => (post.id === postId ? updated : post)));
   };
 
@@ -284,7 +323,9 @@ export default function UserProfile() {
 
   const handleSharePost = async (postId: string, caption: string) => {
     const shared = await postService.share(postId, { caption });
-    setPosts((current) => [shared, ...current]);
+    if (isOwnProfile) {
+      setPosts((current) => [shared, ...current]);
+    }
   };
 
   const handleCommentCountChange = (postId: string, delta: number) => {
@@ -499,10 +540,22 @@ export default function UserProfile() {
               
               {/* Tabs */}
               <div className="flex border-b border-surface-variant mt-6 px-2 overflow-x-auto gap-8 hide-scrollbar">
-                <button className="px-4 py-4 text-primary border-b-4 border-primary font-bold whitespace-nowrap outline-none">Posts</button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('POSTS')}
+                  className={`px-4 py-4 font-bold whitespace-nowrap outline-none ${activeTab === 'POSTS' ? 'text-primary border-b-4 border-primary' : 'text-on-surface-variant hover:text-primary transition-colors'}`}
+                >
+                  Posts
+                </button>
                 <button className="px-4 py-4 text-on-surface-variant font-bold hover:text-primary transition-colors whitespace-nowrap outline-none">About</button>
                 <button className="px-4 py-4 text-on-surface-variant font-bold hover:text-primary transition-colors whitespace-nowrap outline-none">Friends</button>
-                <button className="px-4 py-4 text-on-surface-variant font-bold hover:text-primary transition-colors whitespace-nowrap outline-none">Photos</button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('PHOTOS')}
+                  className={`px-4 py-4 font-bold whitespace-nowrap outline-none ${activeTab === 'PHOTOS' ? 'text-primary border-b-4 border-primary' : 'text-on-surface-variant hover:text-primary transition-colors'}`}
+                >
+                  Photos
+                </button>
               </div>
             </div>
           </div>
@@ -548,73 +601,124 @@ export default function UserProfile() {
               <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-on-surface">Photos</h3>
-                  <a href="#" className="text-primary font-bold text-sm hover:underline">See All</a>
+                  <span className="text-primary font-bold text-sm">{photos.length}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdYpvc9i4RXHyvc1973iPtBPf4pAdNIPf1MYh1ehlOmAl2Hpvmo0UueCpJ575kwYs8sln2UQfzTRE3oAF_DamtKMXOw535Avd8iHSeRf0W4LqoUWy_vqGtjXF8Fgf_F9EwrRk2voyDOhTo5NV5St8l3h8qr0BBs_G6bV3s4HKFbOA-6-AiV4wkPISCY6jST2VVMbgewkjeEVNZp9sRd0tHxGqUBnFJO6Ae8OghUkVvl9QrQ8YUqlEE8OpVqPQt_JBiPX3dFxPWFoU"
-                    alt="Forest flowers"
-                    className="w-full aspect-square object-cover rounded-xl"
-                    referrerPolicy="no-referrer"
-                  />
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrKetq0iEQVlAeWQIqd0aCvPPlJm3s8IIXmsQfm1oZH5BxttsKb8JTzmB33ATKwzfuNSt2fZeLXP7i0ZYijyS-18F-uTKRxWOF09WG1c01oFv3GAvpTog8phPhg7GU41qSQaDBLCmPcX3cIxlqts0ukzz1rTqLUuIzJKSrm9STdUYJxcnit5bxml5_hwC8FnulOfpIq8XcwlAAqxWuq8IwjEa-Bnj4X6fQSzTI_6YN63eWZEZBWIT8UiDIstKcJanED9AJPCTaQoc"
-                    alt="Coffee and book"
-                    className="w-full aspect-square object-cover rounded-xl"
-                    referrerPolicy="no-referrer"
-                  />
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdhWdDTiiIG4B5zzXYZUCNjBZR12M0Q_XWuKWTNtGBu4dmK3pgwxB0RqPpUkxZNxk_GMCv3NR4cm9DMFC7Lmn4UUuipWfq_leCJKEzEB1guSUV1I21gFiPw52OGvLHmwTPZCSi8nE4ceFu8PKIreyszVJk3EgdFg6XzBCPgBcrkf-Wnf3GmFW7cNeV_11Horw772ob8FsFIDqKLlaG91i9GeMxvydD7Vet1ZuMVlZofXf1f-fSjLXXeOr6rOTFACoxKH-nzUejRm4"
-                    alt="Desk setup"
-                    className="w-full aspect-square object-cover rounded-xl"
-                    referrerPolicy="no-referrer"
-                  />
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1u2H02N3-kBMUUnqDejjyQJv9o6VvrbrO7eRZPjfSL4zFi4j68qH7iNMpTjj7TI1AIpI4zDHlUy4P1OpmDqN7NenXm4TFLl1HZiiX5T_8YWLEXdlv142QCgtZrXIVzFgpx7zHVrlcmO9zIt7jUd-SiqH5G226zm942bQZnyJ_1J6NJjUTHuJ2_SsC-jgulypkAsgCMlOGExDJjkoAxyMkN9eQ_rHRcNDSr8eHY6BUJ9X0GN_eNcwsEFXYWQSoI3pb_kgNfSy0N5M"
-                    alt="Avocado toast"
-                    className="w-full aspect-square object-cover rounded-xl"
-                    referrerPolicy="no-referrer"
-                  />
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuApHogXBMWoUD-se2buD5BPx7Lw31K7Oaf2G5FiRezlm57WBd7qd-tupCLuWbzt3pag7-fs2_nBGNHTKr1xt96i1joCBqLqQXT7nBhzlOkWqo4c5f8KKWNaEr3C3Jt_h4sJBIiwW87WUMp9huO_W7lfpr7718TtoEqjShdZEg1UQsvk2ZOu1JSO3rSV7Wd-EXdTq7U4Wk2Cw1-0NuAAttM3xxqsq45Pkg89Yh-6t35XzoIv8mFJTXeOutvZ1a-KgwiVkcpnLowA6ww"
-                    alt="Laughing child"
-                    className="w-full aspect-square object-cover rounded-xl"
-                    referrerPolicy="no-referrer"
-                  />
-                  <img 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSJXy98glpRVs2tEJ_PJaQ85qdPl1L5TFgY_xszE8xWjykjcre2DJIQv-JF4Sgh3KAcV4yWlAv7bw6ZNCQlX62JOR5yTNVWhTb6i2HMJWzbfKNQc46OmDyRYGKmAVQAq9IkwiwCFJ4kxbuTaphOKS0hE9_GjAqZwB6luZm2ieywwJToeydztQam3ZOr73EdeLv9RU6XOkVjY40bL8KF91fCZ0lv2RU8PG9CG0qzoBC4aI2y8mnDkFYFQ_lN9vKsBQvJmkjUlf-yew"
-                    alt="Leaves with dew"
-                    className="w-full aspect-square object-cover rounded-xl"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
+                {isLoadingPhotos ? (
+                  <div className="rounded-xl bg-surface-container-low p-4 text-center text-sm font-bold text-on-surface-variant">
+                    Loading photos...
+                  </div>
+                ) : photoError ? (
+                  <div className="rounded-xl bg-error-container p-4 text-center text-sm font-bold text-on-error-container">
+                    {photoError}
+                  </div>
+                ) : photos.length === 0 ? (
+                  <div className="rounded-xl bg-surface-container-low p-4 text-center text-sm font-bold text-on-surface-variant">
+                    No photos yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {photos.slice(0, 9).map((photo, index) => (
+                      <button
+                        key={`${photo.postId}-${photo.url}`}
+                        type="button"
+                        onClick={() => setSelectedPhotoIndex(index)}
+                        className="aspect-square overflow-hidden rounded-xl bg-surface-container-low active:scale-95"
+                        aria-label={`Open profile photo ${index + 1}`}
+                      >
+                        <img
+                          src={photo.url}
+                          alt="Profile post media"
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               
             </div>
 
             {/* Right Column: Posts Feed */}
             <div className="lg:col-span-7 flex flex-col gap-6">
+              {activeTab === 'PHOTOS' && (
+                <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-on-surface">Photos</h3>
+                    <span className="text-sm font-bold text-on-surface-variant">{photos.length} photo{photos.length === 1 ? '' : 's'}</span>
+                  </div>
+                  {isLoadingPhotos ? (
+                    <div className="rounded-xl bg-surface-container-low p-8 text-center text-sm font-bold text-on-surface-variant">
+                      Loading photos...
+                    </div>
+                  ) : photoError ? (
+                    <div className="rounded-xl bg-error-container p-8 text-center text-sm font-bold text-on-error-container">
+                      {photoError}
+                    </div>
+                  ) : photos.length === 0 ? (
+                    <div className="rounded-xl bg-surface-container-low p-8 text-center text-sm font-bold text-on-surface-variant">
+                      No photos yet.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {photos.map((photo, index) => (
+                        <button
+                          key={`${photo.postId}-${photo.url}-full`}
+                          type="button"
+                          onClick={() => setSelectedPhotoIndex(index)}
+                          className="aspect-square overflow-hidden rounded-xl bg-surface-container-low active:scale-95"
+                          aria-label={`Open profile photo ${index + 1}`}
+                        >
+                          <img
+                            src={photo.url}
+                            alt="Profile post media"
+                            className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'POSTS' && (
+                <>
               
               {/* Create Post (Mini) */}
               {isOwnProfile && (
-                <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container flex items-center gap-4">
-                  <img 
-                    alt="Alex" 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPNex2nR06iU5gSe9fB5C6pYwUMraBZJH0sn-mb4Nbc6v3UrxSqNURwENaMiEdA5NFQYSDMAX1Xj0x3dvsKufVXJYSGpsAtDnKg9JhETu2mX9yEb3HrxO7JYdl2YFNa3PyidnvLPqpIujp-OGY0aEWTsfwH6sasTrWsWbX4ign1bR7BHq3nCRF82VG2F4gwKVCbw_qSS8TvHs8AQZi2X9nCLgOwIzEwjI3OGstKNf98bQqwhNEwVn4rylJVICAVDzBeQSiWTMtbtc"
-                    className="w-10 h-10 rounded-full object-cover shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                  <button className="flex-grow text-left px-6 py-3 bg-surface-container-low rounded-full text-on-surface-variant text-sm font-medium hover:bg-surface-container-high transition-colors outline-none border-none">
-                    What's on your mind, {user?.displayName || user?.username || 'Alex'}?
-                  </button>
-                  <div className="flex gap-1 shrink-0">
-                    <button className="p-2 text-primary hover:bg-primary-fixed rounded-full transition-colors hidden sm:block">
-                      <ImageIcon size={20} />
-                    </button>
-                    <button className="p-2 text-secondary hover:bg-secondary-fixed rounded-full transition-colors hidden sm:block">
-                      <Smile size={20} />
-                    </button>
-                  </div>
+                <PostComposer
+                  user={user}
+                  className="border border-surface-container"
+                  onCreated={(created) => {
+                    setPosts((current) => [created, ...current]);
+                    const createdImages = created.media
+                      .filter((media) => media.type === 'IMAGE')
+                      .map((media) => ({
+                        postId: created.id,
+                        url: media.url,
+                        publicId: media.publicId,
+                        createdAt: created.createdAt,
+                      }));
+                    if (createdImages.length > 0) {
+                      setPhotos((current) => [...createdImages, ...current]);
+                    }
+                    setPostError(null);
+                  }}
+                  onError={(message) => {
+                    setPostMessage(null);
+                    setPostError(message || null);
+                  }}
+                  onSuccess={(message) => {
+                    setPostError(null);
+                    setPostMessage(message || null);
+                  }}
+                />
+              )}
+
+              {postMessage && (
+                <div className="rounded-[2rem] bg-primary-container px-5 py-4 text-sm font-bold text-on-primary-container">
+                  {postMessage}
                 </div>
               )}
 
@@ -647,6 +751,8 @@ export default function UserProfile() {
                     />
                   </React.Fragment>
                 ))
+              )}
+                </>
               )}
 
               {/* Feed Post 1 */}
@@ -774,6 +880,17 @@ export default function UserProfile() {
           </div>
         </main>
       </div>
+      {selectedPhotoIndex !== null && (
+        <MediaViewerModal
+          media={photos.map((photo) => ({
+            type: 'IMAGE' as const,
+            url: photo.url,
+            publicId: photo.publicId,
+          }))}
+          index={selectedPhotoIndex}
+          onClose={() => setSelectedPhotoIndex(null)}
+        />
+      )}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
           <div className="bg-surface-container-lowest w-full max-w-lg rounded-[2rem] border border-outline-variant/30 shadow-2xl p-6 md:p-8 space-y-6 relative max-h-[90vh] overflow-y-auto">

@@ -18,6 +18,7 @@ import com.example.social_service.post.repository.PostRepository;
 import com.example.social_service.reaction.dto.ReactionSummaryResponse;
 import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.service.ReactionService;
+import com.example.social_service.user.UserServiceClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,11 +53,14 @@ class CommentServiceTest {
     @Mock
     private ReactionService reactionService;
 
+    @Mock
+    private UserServiceClient userServiceClient;
+
     private CommentService commentService;
 
     @BeforeEach
     void setUp() {
-        commentService = new CommentService(commentRepository, postRepository, identityServiceClient, reactionService);
+        commentService = new CommentService(commentRepository, postRepository, identityServiceClient, reactionService, userServiceClient);
         lenient().when(identityServiceClient.getProfilesByIds(any())).thenReturn(ApiResponse.success("ok", List.of()));
         lenient().when(reactionService.getSummary(any(), any(), any()))
             .thenReturn(new ReactionSummaryResponse(0, null, Map.of()));

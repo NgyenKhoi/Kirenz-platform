@@ -45,6 +45,7 @@ export const API_ENDPOINTS = {
     ME: '/posts/me',
     DETAIL: (postId: string) => `/posts/${postId}`,
     USER: (userId: string) => `/posts/user/${userId}`,
+    USER_IMAGES: (userId: string) => `/posts/user/${userId}/images`,
     SHARES: (postId: string) => `/posts/${postId}/shares`,
     REACTIONS: (postId: string) => `/posts/${postId}/reactions`,
     MY_REACTION: (postId: string) => `/posts/${postId}/reactions/me`,

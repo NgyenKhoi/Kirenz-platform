@@ -1,6 +1,7 @@
 package com.example.social_service.post.dto;
 
 import com.example.social_service.post.model.PostStatus;
+import com.example.social_service.post.model.PostPrivacy;
 import com.example.social_service.reaction.dto.ReactionSummaryResponse;
 
 import java.time.Instant;
@@ -11,6 +12,7 @@ public record PostResponse(
     String slug,
     AuthorResponse author,
     String content,
+    PostPrivacy privacy,
     String originalPostId,
     SharedPostResponse sharedPost,
     List<PostMediaResponse> media,

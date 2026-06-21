@@ -24,6 +24,8 @@ jwt:
 services:
   identity:
     url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  user:
+    url: ${USER_SERVICE_URL:http://localhost:8082}
 
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME}

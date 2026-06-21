@@ -9,4 +9,4 @@ spring:
             - id: social-service
               uri: lb://social-service
               predicates:
-                - Path=/api/posts/**,/api/comments/**
+                - Path=/api/posts/**,/api/comments/**,/api/media/**

@@ -13,11 +13,14 @@ import com.example.social_service.common.exception.NotFoundException;
 import com.example.social_service.identity.IdentityServiceClient;
 import com.example.social_service.identity.IdentityUserProfileResponse;
 import com.example.social_service.post.model.Post;
+import com.example.social_service.post.model.PostPrivacy;
 import com.example.social_service.post.model.PostStatus;
 import com.example.social_service.post.repository.PostRepository;
 import com.example.social_service.reaction.dto.ReactionSummaryResponse;
 import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.service.ReactionService;
+import com.example.social_service.user.FriendStatusResponse;
+import com.example.social_service.user.UserServiceClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -36,9 +39,10 @@ public class CommentService {
     private final PostRepository postRepository;
     private final IdentityServiceClient identityServiceClient;
     private final ReactionService reactionService;
+    private final UserServiceClient userServiceClient;
 
     public CommentResponse createComment(UUID userId, String postId, CreateCommentRequest request) {
-        Post post = activePost(postId);
+        Post post = visiblePost(userId, postId);
         String content = normalizeContent(request.content());
         validateContent(content);
         String parentCommentId = normalizeParentCommentId(request.parentCommentId());
@@ -66,7 +70,7 @@ public class CommentService {
     }
 
     public List<CommentResponse> listComments(UUID userId, String postId) {
-        activePost(postId);
+        visiblePost(userId, postId);
 
         List<Comment> comments = commentRepository.findByPostIdAndStatusOrderByCreatedAtAsc(
             postId,
@@ -91,7 +95,7 @@ public class CommentService {
     }
 
     public CommentResponse updateComment(UUID userId, String postId, String commentId, UpdateCommentRequest request) {
-        activePost(postId);
+        visiblePost(userId, postId);
         Comment comment = activeComment(postId, commentId);
         ensureOwner(userId, comment);
 
@@ -110,7 +114,7 @@ public class CommentService {
     }
 
     public void deleteComment(UUID userId, String postId, String commentId) {
-        Post post = activePost(postId);
+        Post post = visiblePost(userId, postId);
         Comment comment = activeComment(postId, commentId);
         ensureOwner(userId, comment);
 
@@ -129,6 +133,33 @@ public class CommentService {
     private Post activePost(String postId) {
         return postRepository.findByIdAndStatus(postId, PostStatus.ACTIVE)
             .orElseThrow(() -> new NotFoundException("Post not found"));
+    }
+
+    private Post visiblePost(UUID viewerId, String postId) {
+        Post post = activePost(postId);
+        if (!canView(viewerId, post)) {
+            throw new NotFoundException("Post not found");
+        }
+        return post;
+    }
+
+    private boolean canView(UUID viewerId, Post post) {
+        if (post.getUserId().equals(viewerId)) {
+            return true;
+        }
+        PostPrivacy privacy = post.getPrivacy() == null ? PostPrivacy.PUBLIC : post.getPrivacy();
+        if (privacy == PostPrivacy.PUBLIC) {
+            return true;
+        }
+        if (privacy == PostPrivacy.ONLY_ME) {
+            return false;
+        }
+        try {
+            FriendStatusResponse status = userServiceClient.getFriendStatus(post.getUserId()).getData();
+            return status != null && "FRIENDS".equals(status.status());
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     private Comment activeComment(String postId, String commentId) {

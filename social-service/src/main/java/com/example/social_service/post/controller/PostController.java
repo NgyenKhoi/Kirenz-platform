@@ -3,6 +3,7 @@ package com.example.social_service.post.controller;
 import com.example.social_service.auth.CurrentUser;
 import com.example.social_service.common.dto.ApiResponse;
 import com.example.social_service.post.dto.CreatePostRequest;
+import com.example.social_service.post.dto.PostImageResponse;
 import com.example.social_service.post.dto.PostResponse;
 import com.example.social_service.post.dto.SharePostRequest;
 import com.example.social_service.post.dto.UpdatePostRequest;
@@ -97,7 +98,15 @@ public class PostController {
     public ResponseEntity<ApiResponse<List<PostResponse>>> getUserPosts(@PathVariable UUID userId) {
         return ResponseEntity.ok(ApiResponse.success(
             "User posts retrieved successfully",
-            postService.listMyPosts(userId)
+            postService.listUserPosts(currentUser.id(), userId)
+        ));
+    }
+
+    @GetMapping("/user/{userId}/images")
+    public ResponseEntity<ApiResponse<List<PostImageResponse>>> getUserImages(@PathVariable UUID userId) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "User images retrieved successfully",
+            postService.listUserImages(currentUser.id(), userId)
         ));
     }
 }

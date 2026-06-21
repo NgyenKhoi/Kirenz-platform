@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, Bell, Bookmark, Calendar, Image as ImageIcon, Smile,
   Globe, MoreHorizontal, Heart, MessageSquare, Share2, ThumbsUp,
-  Gift, Video, Edit2, Save, Trash2, X, Send
+  Gift, Video, Edit2, Save, Trash2, X, Send, Users, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AxiosError } from 'axios';
@@ -12,7 +12,7 @@ import { postService } from './services/post.service';
 import { reactionService } from './services/reaction.service';
 import { ErrorResponse } from './types/auth.types';
 import { CommentResponse } from './types/comment.types';
-import { PostResponse } from './types/post.types';
+import { PostMediaResponse, PostPrivacy, PostResponse } from './types/post.types';
 import { ReactionSummaryResponse, ReactionType } from './types/reaction.types';
 import { useAuthStore } from './store/authStore';
 
@@ -88,6 +88,16 @@ function formatCount(count: number, singular: string, plural: string) {
 
 function displayName(author: { username?: string | null; displayName?: string | null }) {
   return author.displayName || author.username || 'Kirenz User';
+}
+
+const privacyOptions: Array<{ value: PostPrivacy; label: string; Icon: typeof Globe }> = [
+  { value: 'PUBLIC', label: 'Public', Icon: Globe },
+  { value: 'FRIENDS', label: 'Friends', Icon: Users },
+  { value: 'ONLY_ME', label: 'Only me', Icon: Lock },
+];
+
+function getPrivacyOption(privacy?: PostPrivacy | null) {
+  return privacyOptions.find((option) => option.value === privacy) || privacyOptions[0];
 }
 
 function uniqueCommentAuthors(comments: CommentResponse[]) {
@@ -407,6 +417,323 @@ function ReactionPicker({
   );
 }
 
+export function PostComposer({
+  user,
+  onCreated,
+  onError,
+  onSuccess,
+  className = '',
+}: {
+  user?: { avatarUrl?: string | null; displayName?: string | null; username?: string | null } | null;
+  onCreated: (post: PostResponse) => void;
+  onError?: (message: string) => void;
+  onSuccess?: (message: string) => void;
+  className?: string;
+}) {
+  const [content, setContent] = useState('');
+  const [selectedImages, setSelectedImages] = useState<SelectedPostImage[]>([]);
+  const selectedImagesRef = useRef<SelectedPostImage[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [privacy, setPrivacy] = useState<PostPrivacy>('PUBLIC');
+  const profileName = useMemo(() => user?.displayName || user?.username || 'there', [user]);
+
+  useEffect(() => {
+    selectedImagesRef.current = selectedImages;
+  }, [selectedImages]);
+
+  useEffect(() => () => {
+    selectedImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+  }, []);
+
+  const handleSelectImages = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = (Array.from(event.currentTarget.files ?? []) as File[]).filter((file) => file.type.startsWith('image/'));
+    event.target.value = '';
+
+    if (files.length === 0) {
+      return;
+    }
+
+    setSelectedImages((current) => [
+      ...current,
+      ...files.map((file) => ({
+        id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      })),
+    ].slice(0, 10));
+  };
+
+  const removeSelectedImage = (imageId: string) => {
+    setSelectedImages((current) => {
+      const removed = current.find((image) => image.id === imageId);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return current.filter((image) => image.id !== imageId);
+    });
+  };
+
+  const handleCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    onError?.('');
+    onSuccess?.('');
+
+    if (!content.trim() && selectedImages.length === 0) {
+      onError?.('Post content or at least one image is required.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const uploadedMedia = selectedImages.length > 0
+        ? await postService.uploadImages(selectedImages.map((image) => image.file))
+        : [];
+      const created = await postService.create({
+        content,
+        privacy,
+        media: uploadedMedia.map((media) => ({
+          type: media.type,
+          url: media.url,
+          publicId: media.publicId,
+        })),
+      });
+      onCreated(created);
+      setContent('');
+      setPrivacy('PUBLIC');
+      selectedImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      setSelectedImages([]);
+      onSuccess?.('Post created successfully.');
+    } catch (err) {
+      onError?.(getErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleCreate} className={`bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] ${className}`}>
+      <div className="flex gap-4 mb-4">
+        <div className="w-12 h-12 rounded-full overflow-hidden shrink-0">
+          <img
+            alt="Profile"
+            src={user?.avatarUrl || fallbackAvatar}
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        <textarea
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+          rows={3}
+          placeholder={`What's on your mind, ${profileName}?`}
+          className="w-full bg-surface-container-low focus:bg-surface-container-high text-left px-6 py-3 rounded-3xl text-on-surface text-base font-medium transition-colors border-none outline-none resize-none focus:ring-2 focus:ring-primary-container"
+        />
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleSelectImages}
+        className="hidden"
+      />
+
+      {selectedImages.length > 0 && (
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {selectedImages.map((image) => (
+            <div key={image.id} className="relative aspect-square overflow-hidden rounded-2xl bg-surface-container-low">
+              <img
+                alt="Selected upload preview"
+                src={image.previewUrl}
+                className="h-full w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removeSelectedImage(image.id)}
+                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-surface-container-lowest/90 text-on-surface shadow-sm active:scale-95"
+                aria-label="Remove image"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 justify-between items-center pt-2 border-t border-outline-variant/30 mt-4">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-tertiary rounded-full hover:bg-tertiary-fixed active:scale-95"
+          >
+            <ImageIcon size={20} /> Photo
+          </button>
+          <span className="hidden items-center gap-2 px-4 py-2 text-sm font-bold text-secondary sm:flex">
+            <Smile size={20} /> Feeling/Activity
+          </span>
+          <label className="relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container-low">
+            {React.createElement(getPrivacyOption(privacy).Icon, { size: 18 })}
+            <select
+              value={privacy}
+              onChange={(event) => setPrivacy(event.target.value as PostPrivacy)}
+              className="cursor-pointer bg-transparent font-bold outline-none"
+              aria-label="Post privacy"
+            >
+              {privacyOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <button
+          type="submit"
+          disabled={isSubmitting || (!content.trim() && selectedImages.length === 0)}
+          className="bg-primary-container text-on-primary-container px-8 py-2 rounded-full text-sm font-bold active:scale-95 transition-transform shadow-sm disabled:opacity-60"
+        >
+          {isSubmitting ? (selectedImages.length > 0 ? 'Uploading...' : 'Posting...') : 'Post'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function mediaTileClass(count: number, index: number) {
+  if (count === 1) {
+    return 'col-span-2 row-span-2 h-[280px] sm:h-[420px]';
+  }
+  if (count === 2) {
+    return 'h-[220px] sm:h-[340px]';
+  }
+  if (count === 3 && index === 0) {
+    return 'col-span-2 h-[240px] sm:h-[320px]';
+  }
+  return 'h-[170px] sm:h-[240px]';
+}
+
+function MediaGrid({
+  media,
+  compact = false,
+  onOpen,
+}: {
+  media: PostMediaResponse[];
+  compact?: boolean;
+  onOpen: (index: number) => void;
+}) {
+  const visibleMedia = media.slice(0, 4);
+  const extraCount = Math.max(0, media.length - visibleMedia.length);
+
+  return (
+    <div className={`grid grid-cols-2 gap-2 overflow-hidden rounded-[1.5rem] ${compact ? 'rounded-[1rem]' : ''}`}>
+      {visibleMedia.map((item, index) => (
+        <div
+          key={`${item.url}-${index}`}
+          className={`relative overflow-hidden bg-surface-container-low ${mediaTileClass(media.length, index)}`}
+        >
+          {item.type === 'VIDEO' ? (
+            <video src={item.url} controls className="h-full w-full object-cover" />
+          ) : (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen(index);
+              }}
+              className="block h-full w-full"
+              aria-label={`Open image ${index + 1}`}
+            >
+              <img
+                alt="Post media"
+                src={item.url}
+                className="h-full w-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </button>
+          )}
+          {extraCount > 0 && index === visibleMedia.length - 1 && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen(index);
+              }}
+              className="absolute inset-0 flex items-center justify-center bg-black/55 text-3xl font-bold text-white"
+              aria-label={`Open ${extraCount} more images`}
+            >
+              +{extraCount}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function MediaViewerModal({
+  media,
+  index,
+  onClose,
+}: {
+  media: PostMediaResponse[];
+  index: number;
+  onClose: () => void;
+}) {
+  const item = media[index];
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  if (!item) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur hover:bg-white/25"
+        aria-label="Close image viewer"
+      >
+        <X size={22} />
+      </button>
+      <div className="max-h-[90vh] max-w-5xl" onClick={(event) => event.stopPropagation()}>
+        {item.type === 'VIDEO' ? (
+          <video src={item.url} controls autoPlay className="max-h-[90vh] max-w-full rounded-xl bg-black object-contain" />
+        ) : (
+          <img
+            alt="Post media enlarged"
+            src={item.url}
+            className="max-h-[90vh] max-w-full rounded-xl object-contain"
+            referrerPolicy="no-referrer"
+          />
+        )}
+        {media.length > 1 && (
+          <p className="mt-3 text-center text-sm font-bold text-white/80">
+            {index + 1} / {media.length}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PostCard({
   post,
   currentUserId,
@@ -420,7 +747,7 @@ export function PostCard({
   post: PostResponse;
   currentUserId?: string;
   currentUserAvatarUrl?: string | null;
-  onUpdate: (postId: string, content: string) => Promise<void>;
+  onUpdate: (postId: string, content: string, privacy: PostPrivacy) => Promise<void>;
   onDelete: (postId: string) => Promise<void>;
   onShare: (postId: string, caption: string) => Promise<void>;
   onCommentCountChange: (postId: string, delta: number) => void;
@@ -430,6 +757,7 @@ export function PostCard({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draftContent, setDraftContent] = useState(post.content);
+  const [draftPrivacy, setDraftPrivacy] = useState<PostPrivacy>(post.privacy || 'PUBLIC');
   const [isSaving, setIsSaving] = useState(false);
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [comments, setComments] = useState<CommentResponse[]>([]);
@@ -447,12 +775,16 @@ export function PostCard({
   const [originalPostDetail, setOriginalPostDetail] = useState<PostResponse | null>(null);
   const [isLoadingOriginalPost, setIsLoadingOriginalPost] = useState(false);
   const [originalPostError, setOriginalPostError] = useState<string | null>(null);
+  const [viewerMedia, setViewerMedia] = useState<PostMediaResponse[] | null>(null);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   useEffect(() => {
     setDraftContent(post.content);
-  }, [post.content]);
+    setDraftPrivacy(post.privacy || 'PUBLIC');
+  }, [post.content, post.privacy]);
 
   const authorName = displayName(post.author);
+  const privacy = getPrivacyOption(post.privacy);
   const currentReaction = post.reactionSummary?.currentUserReaction;
   const selectedReaction = getReactionOption(currentReaction);
   const reactionTotal = getReactionTotal(post.reactionSummary, post.reactionsCount);
@@ -465,7 +797,7 @@ export function PostCard({
 
     setIsSaving(true);
     try {
-      await onUpdate(post.id, draftContent);
+      await onUpdate(post.id, draftContent, draftPrivacy);
       setIsEditing(false);
       setIsMenuOpen(false);
     } finally {
@@ -660,8 +992,8 @@ export function PostCard({
     }
   };
 
-  const handleOriginalPostUpdate = async (postId: string, content: string) => {
-    const updated = await postService.update(postId, { content });
+  const handleOriginalPostUpdate = async (postId: string, content: string, privacy: PostPrivacy) => {
+    const updated = await postService.update(postId, { content, privacy });
     setOriginalPostDetail(updated);
   };
 
@@ -707,7 +1039,9 @@ export function PostCard({
                   {post.originalPostId ? 'Shared a post' : formatPostTime(post.createdAt)}
                   {post.originalPostId && <span aria-hidden="true">.</span>}
                   {post.originalPostId && <span>{formatPostTime(post.createdAt)}</span>}
-                  <span aria-hidden="true">.</span> <Globe size={12} />
+                  <span aria-hidden="true">.</span>
+                  <privacy.Icon size={12} />
+                  <span>{privacy.label}</span>
                 </p>
               </div>
             </div>
@@ -756,10 +1090,26 @@ export function PostCard({
                 className="w-full resize-none rounded-2xl bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-base font-medium text-on-surface focus:ring-2 focus:ring-primary-container outline-none"
               />
               <div className="mt-3 flex justify-end gap-2">
+                <label className="mr-auto inline-flex items-center gap-2 rounded-full bg-surface-container-low px-3 py-2 text-sm font-bold text-on-surface-variant">
+                  {React.createElement(getPrivacyOption(draftPrivacy).Icon, { size: 16 })}
+                  <select
+                    value={draftPrivacy}
+                    onChange={(event) => setDraftPrivacy(event.target.value as PostPrivacy)}
+                    className="cursor-pointer bg-transparent font-bold outline-none"
+                    aria-label="Edit post privacy"
+                  >
+                    {privacyOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   onClick={() => {
                     setDraftContent(post.content);
+                    setDraftPrivacy(post.privacy || 'PUBLIC');
                     setIsEditing(false);
                   }}
                   className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container-low"
@@ -784,16 +1134,14 @@ export function PostCard({
         </div>
 
         {post.media.length > 0 && (
-          <div className="px-4 pb-4 grid gap-3">
-            {post.media.map((media) => (
-              <div key={media.url} className="rounded-[1.5rem] overflow-hidden max-h-[420px] bg-surface-container-low">
-                {media.type === 'VIDEO' ? (
-                  <video src={media.url} controls className="w-full max-h-[420px] object-cover" />
-                ) : (
-                  <img alt="Post media" src={media.url} className="w-full max-h-[420px] object-cover" referrerPolicy="no-referrer" />
-                )}
-              </div>
-            ))}
+          <div className="px-4 pb-4">
+            <MediaGrid
+              media={post.media}
+              onOpen={(index) => {
+                setViewerMedia(post.media);
+                setViewerIndex(index);
+              }}
+            />
           </div>
         )}
 
@@ -834,21 +1182,15 @@ export function PostCard({
                   )}
                 </div>
                 {sharedPost.media.length > 0 && (
-                  <div className="grid gap-2 px-3 pb-3">
-                    {sharedPost.media.map((media) => (
-                      <div key={media.url} className="max-h-[320px] overflow-hidden rounded-[1rem] bg-surface-container-low">
-                        {media.type === 'VIDEO' ? (
-                          <video src={media.url} controls className="max-h-[320px] w-full object-cover" />
-                        ) : (
-                          <img
-                            alt="Shared post media"
-                            src={media.url}
-                            className="max-h-[320px] w-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                      </div>
-                    ))}
+                  <div className="px-3 pb-3">
+                    <MediaGrid
+                      media={sharedPost.media}
+                      compact
+                      onOpen={(index) => {
+                        setViewerMedia(sharedPost.media);
+                        setViewerIndex(index);
+                      }}
+                    />
                   </div>
                 )}
               </div>
@@ -1041,6 +1383,13 @@ export function PostCard({
             )}
           </div>
         </div>
+      )}
+      {viewerMedia && (
+        <MediaViewerModal
+          media={viewerMedia}
+          index={viewerIndex}
+          onClose={() => setViewerMedia(null)}
+        />
       )}
     </>
   );
@@ -1313,16 +1662,9 @@ function CommentItem({
 export default function HomeFeed() {
   const { user } = useAuthStore();
   const [posts, setPosts] = useState<PostResponse[]>([]);
-  const [content, setContent] = useState('');
-  const [selectedImages, setSelectedImages] = useState<SelectedPostImage[]>([]);
-  const selectedImagesRef = useRef<SelectedPostImage[]>([]);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const profileName = useMemo(() => user?.displayName || user?.username || 'there', [user]);
 
   const loadPosts = async () => {
     setIsLoading(true);
@@ -1339,83 +1681,12 @@ export default function HomeFeed() {
   useEffect(() => {
     void loadPosts();
   }, []);
-  useEffect(() => {
-    selectedImagesRef.current = selectedImages;
-  }, [selectedImages]);
 
-  useEffect(() => () => {
-    selectedImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-  }, []);
-
-  const handleSelectImages = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith('image/'));
-    event.target.value = '';
-
-    if (files.length === 0) {
-      return;
-    }
-
-    setSelectedImages((current) => [
-      ...current,
-      ...files.map((file) => ({
-        id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-      })),
-    ].slice(0, 10));
-  };
-
-  const removeSelectedImage = (imageId: string) => {
-    setSelectedImages((current) => {
-      const removed = current.find((image) => image.id === imageId);
-      if (removed) {
-        URL.revokeObjectURL(removed.previewUrl);
-      }
-      return current.filter((image) => image.id !== imageId);
-    });
-  };
-
-
-  const handleCreate = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(null);
-    setMessage(null);
-
-    if (!content.trim() && selectedImages.length === 0) {
-      setError('Post content or at least one image is required.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const uploadedMedia = selectedImages.length > 0
-        ? await postService.uploadImages(selectedImages.map((image) => image.file))
-        : [];
-      const created = await postService.create({
-        content,
-        media: uploadedMedia.map((media) => ({
-          type: media.type,
-          url: media.url,
-          publicId: media.publicId,
-        })),
-      });
-      setPosts((current) => [created, ...current]);
-      setContent('');
-      selectedImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-      setSelectedImages([]);
-      setMessage('Post created successfully.');
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleUpdate = async (postId: string, nextContent: string) => {
+  const handleUpdate = async (postId: string, nextContent: string, privacy: PostPrivacy) => {
     setError(null);
     setMessage(null);
     try {
-      const updated = await postService.update(postId, { content: nextContent });
+      const updated = await postService.update(postId, { content: nextContent, privacy });
       setPosts((current) => current.map((post) => (post.id === postId ? updated : post)));
       setMessage('Post updated successfully.');
     } catch (err) {
@@ -1486,78 +1757,18 @@ export default function HomeFeed() {
             </div>
           )}
 
-          <form onSubmit={handleCreate} className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)]">
-            <div className="flex gap-4 mb-4">
-              <div className="w-12 h-12 rounded-full overflow-hidden shrink-0">
-                <img
-                  alt="Profile"
-                  src={user?.avatarUrl || fallbackAvatar}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <textarea
-                value={content}
-                onChange={(event) => setContent(event.target.value)}
-                rows={3}
-                placeholder={`What's on your mind, ${profileName}?`}
-                className="w-full bg-surface-container-low focus:bg-surface-container-high text-left px-6 py-3 rounded-3xl text-on-surface text-base font-medium transition-colors border-none outline-none resize-none focus:ring-2 focus:ring-primary-container"
-              />
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleSelectImages}
-              className="hidden"
-            />
-
-            {selectedImages.length > 0 && (
-              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {selectedImages.map((image) => (
-                  <div key={image.id} className="relative aspect-square overflow-hidden rounded-2xl bg-surface-container-low">
-                    <img
-                      alt="Selected upload preview"
-                      src={image.previewUrl}
-                      className="h-full w-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeSelectedImage(image.id)}
-                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-surface-container-lowest/90 text-on-surface shadow-sm active:scale-95"
-                      aria-label="Remove image"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2 justify-between items-center pt-2 border-t border-outline-variant/30 mt-4">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-tertiary rounded-full hover:bg-tertiary-fixed active:scale-95"
-                >
-                  <ImageIcon size={20} /> Photo
-                </button>
-                <span className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-secondary hidden sm:flex">
-                  <Smile size={20} /> Feeling/Activity
-                </span>
-              </div>
-              <button
-                type="submit"
-                disabled={isSubmitting || (!content.trim() && selectedImages.length === 0)}
-                className="bg-primary-container text-on-primary-container px-8 py-2 rounded-full text-sm font-bold active:scale-95 transition-transform shadow-sm disabled:opacity-60"
-              >
-                {isSubmitting ? (selectedImages.length > 0 ? 'Uploading...' : 'Posting...') : 'Post'}
-              </button>
-            </div>
-          </form>
+          <PostComposer
+            user={user}
+            onCreated={(created) => setPosts((current) => [created, ...current])}
+            onError={(nextError) => {
+              setMessage(null);
+              setError(nextError || null);
+            }}
+            onSuccess={(nextMessage) => {
+              setError(null);
+              setMessage(nextMessage || null);
+            }}
+          />
 
           {isLoading ? (
             <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold">
