@@ -50,6 +50,7 @@ export default function App() {
           <Route path="/stories" element={<ProtectedRoute><Stories /></ProtectedRoute>} />
           <Route path="/story/:id" element={<ProtectedRoute><StoryViewer /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+          <Route path="/profile/:userId" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
           <Route path="/edit-cover" element={<ProtectedRoute><EditCover /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />

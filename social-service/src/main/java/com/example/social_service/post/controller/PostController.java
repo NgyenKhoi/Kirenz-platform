@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -90,5 +91,13 @@ public class PostController {
     public ResponseEntity<ApiResponse<Void>> deletePost(@PathVariable String postId) {
         postService.deletePost(currentUser.id(), postId);
         return ResponseEntity.ok(ApiResponse.success("Post deleted successfully", null));
+    }
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<ApiResponse<List<PostResponse>>> getUserPosts(@PathVariable UUID userId) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "User posts retrieved successfully",
+            postService.listMyPosts(userId)
+        ));
     }
 }

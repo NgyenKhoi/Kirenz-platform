@@ -4,6 +4,7 @@ import {
   Globe, MoreHorizontal, Heart, MessageSquare, Share2, ThumbsUp,
   Gift, Video, Edit2, Save, Trash2, X, Send
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AxiosError } from 'axios';
 import Layout from './components/Layout';
 import { commentService } from './services/comment.service';
@@ -22,7 +23,6 @@ interface SelectedPostImage {
   file: File;
   previewUrl: string;
 }
-
 
 function getErrorMessage(error: unknown): string {
   const axiosError = error as AxiosError<ErrorResponse>;
@@ -332,47 +332,77 @@ function ReactionPicker({
       onFocus={open}
       onBlur={closeSoon}
     >
-      <button
+      <motion.button
         type="button"
+        whileTap={{ scale: 0.95 }}
         onClick={handleMainClick}
         disabled={isReacting}
         className={compact
-          ? `text-[11px] font-bold active:scale-95 disabled:opacity-60 ${selectedReaction ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`
-          : `w-full flex items-center justify-center gap-2 py-2 hover:bg-primary-fixed rounded-full transition-all text-sm font-bold active:scale-95 disabled:opacity-60 ${selectedReaction ? 'text-primary' : 'text-on-surface-variant'}`
+          ? `text-[11px] font-bold disabled:opacity-60 ${selectedReaction ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`
+          : `w-full flex items-center justify-center gap-2 py-2 hover:bg-primary-fixed rounded-full transition-colors text-sm font-bold disabled:opacity-60 ${selectedReaction ? 'text-primary' : 'text-on-surface-variant'}`
         }
       >
-        {selectedReaction ? (
-          compact ? `${selectedReaction.icon} ${selectedReaction.label}` : <span className="text-lg leading-none">{selectedReaction.icon}</span>
-        ) : compact ? (
-          'React'
-        ) : (
-          <Heart size={20} />
-        )}
-        {!compact && <span className="hidden sm:inline">{selectedReaction?.label || 'React'}</span>}
-      </button>
-      {isOpen && (
-        <div
-          className={`absolute z-40 flex gap-1 rounded-full border border-outline-variant/40 bg-surface-container-lowest px-2 py-2 shadow-lg ${compact ? 'bottom-6 left-0' : 'bottom-11 left-0'}`}
-          onMouseEnter={open}
-          onMouseLeave={closeSoon}
-        >
-          {reactionOptions.map((option) => (
-            <button
-              key={option.type}
-              type="button"
-              onClick={() => {
-                onSelect(option.type);
-                setIsOpen(false);
-              }}
-              className={`${compact ? 'h-9 w-9 text-lg' : 'h-10 w-10 text-xl'} rounded-full transition-transform hover:scale-125 ${currentReaction === option.type ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}
-              aria-label={option.label}
-              title={option.label}
+        <AnimatePresence mode="popLayout">
+          {selectedReaction ? (
+            <motion.span
+              key={selectedReaction.type}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ type: "spring", bounce: 0.5 }}
+              className="inline-flex items-center gap-1"
             >
-              {option.icon}
-            </button>
-          ))}
-        </div>
-      )}
+              {compact ? (
+                <>{selectedReaction.icon} {selectedReaction.label}</>
+              ) : (
+                <span className="text-lg leading-none">{selectedReaction.icon}</span>
+              )}
+            </motion.span>
+          ) : (
+            <motion.span
+              key="default"
+              className="inline-flex items-center gap-1"
+            >
+              {compact ? 'React' : <Heart size={20} />}
+            </motion.span>
+          )}
+        </AnimatePresence>
+        {!compact && <span className="hidden sm:inline">{selectedReaction?.label || 'React'}</span>}
+      </motion.button>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 10, transition: { duration: 0.15 } }}
+            transition={{ type: "spring", bounce: 0.4, duration: 0.4 }}
+            className={`absolute z-40 flex gap-1 rounded-full border border-outline-variant/40 bg-surface-container-lowest px-2 py-2 shadow-lg ${compact ? 'bottom-6 left-0' : 'bottom-11 left-0'}`}
+            onMouseEnter={open}
+            onMouseLeave={closeSoon}
+          >
+            {reactionOptions.map((option, index) => (
+              <motion.button
+                key={option.type}
+                type="button"
+                initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: "spring", bounce: 0.6, delay: index * 0.04 }}
+                whileHover={{ scale: 1.3, originY: 1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  onSelect(option.type);
+                  setIsOpen(false);
+                }}
+                className={`${compact ? 'h-9 w-9 text-lg' : 'h-10 w-10 text-xl'} rounded-full flex items-center justify-center origin-bottom ${currentReaction === option.type ? 'bg-primary-container' : 'hover:bg-surface-container-low'}`}
+                aria-label={option.label}
+                title={option.label}
+              >
+                {option.icon}
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -567,9 +597,8 @@ export function PostCard({
         />
         {replies.length > 0 && (
           <div
-            className={`flex flex-col gap-3 border-l border-outline-variant/40 pl-3 sm:pl-4 ${
-              depth === 0 ? 'ml-10 sm:ml-14' : 'ml-6 sm:ml-8'
-            }`}
+            className={`flex flex-col gap-3 border-l border-outline-variant/40 pl-3 sm:pl-4 ${depth === 0 ? 'ml-10 sm:ml-14' : 'ml-6 sm:ml-8'
+              }`}
           >
             {replies.map((reply) => renderCommentThread(reply, depth + 1))}
           </div>
@@ -660,359 +689,359 @@ export function PostCard({
 
   return (
     <>
-    <article className="bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] overflow-hidden">
-      <div className="p-6 pb-0">
-        <div className="flex items-start justify-between mb-4 gap-4">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="w-11 h-11 rounded-full overflow-hidden shrink-0">
-              <img
-                alt={authorName}
-                src={post.author.avatarUrl || fallbackAvatar}
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-xl font-bold text-on-surface leading-tight truncate">{authorName}</h3>
-              <p className="text-xs font-bold text-on-surface-variant flex items-center gap-1">
-                {post.originalPostId ? 'Shared a post' : formatPostTime(post.createdAt)}
-                {post.originalPostId && <span aria-hidden="true">.</span>}
-                {post.originalPostId && <span>{formatPostTime(post.createdAt)}</span>}
-                <span aria-hidden="true">.</span> <Globe size={12} />
-              </p>
-            </div>
-          </div>
-
-          {isOwner && (
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsMenuOpen((open) => !open)}
-                className="p-2 text-outline hover:text-on-surface hover:bg-surface-container-low rounded-full transition-colors"
-                aria-label="Post actions"
-              >
-                <MoreHorizontal size={24} />
-              </button>
-              {isMenuOpen && (
-                <div className="absolute right-0 top-11 z-20 w-40 rounded-2xl bg-surface-container-lowest shadow-lg border border-outline-variant/40 p-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditing(true);
-                      setIsMenuOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container-low"
-                  >
-                    <Edit2 size={16} /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-on-error-container hover:bg-error-container"
-                  >
-                    <Trash2 size={16} /> Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {isEditing ? (
-          <div className="mb-4">
-            <textarea
-              value={draftContent}
-              onChange={(event) => setDraftContent(event.target.value)}
-              rows={4}
-              className="w-full resize-none rounded-2xl bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-base font-medium text-on-surface focus:ring-2 focus:ring-primary-container outline-none"
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftContent(post.content);
-                  setIsEditing(false);
-                }}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container-low"
-              >
-                <X size={16} /> Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving || !draftContent.trim()}
-                className="inline-flex items-center gap-2 rounded-full bg-primary-container text-on-primary-container px-5 py-2 text-sm font-bold disabled:opacity-60 active:scale-95 transition-all"
-              >
-                <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        ) : (
-          post.content.trim() && (
-            <p className="text-lg font-medium text-on-surface mb-4 whitespace-pre-wrap">{post.content}</p>
-          )
-        )}
-      </div>
-
-      {post.media.length > 0 && (
-        <div className="px-4 pb-4 grid gap-3">
-          {post.media.map((media) => (
-            <div key={media.url} className="rounded-[1.5rem] overflow-hidden max-h-[420px] bg-surface-container-low">
-              {media.type === 'VIDEO' ? (
-                <video src={media.url} controls className="w-full max-h-[420px] object-cover" />
-              ) : (
-                <img alt="Post media" src={media.url} className="w-full max-h-[420px] object-cover" referrerPolicy="no-referrer" />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {sharedPost && (
-        <div className="px-4 pb-4">
-          {sharedPost.available ? (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={openOriginalPost}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  void openOriginalPost();
-                }
-              }}
-              className="overflow-hidden rounded-[1.5rem] border border-outline-variant/40 bg-surface-container-lowest cursor-pointer transition-colors hover:bg-surface-container-low"
-            >
-              <div className="p-4">
-                <div className="mb-3 flex items-center gap-3">
-                  <img
-                    alt={sharedPost.author?.displayName || sharedPost.author?.username || 'Kirenz User'}
-                    src={sharedPost.author?.avatarUrl || fallbackAvatar}
-                    className="h-9 w-9 rounded-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-on-surface">
-                      {sharedPost.author?.displayName || sharedPost.author?.username || 'Kirenz User'}
-                    </p>
-                    <p className="text-[11px] font-bold text-on-surface-variant">
-                      {sharedPost.createdAt ? formatPostTime(sharedPost.createdAt) : ''}
-                    </p>
-                  </div>
-                </div>
-                {sharedPost.content && (
-                  <p className="whitespace-pre-wrap text-sm font-medium text-on-surface">{sharedPost.content}</p>
-                )}
-              </div>
-              {sharedPost.media.length > 0 && (
-                <div className="grid gap-2 px-3 pb-3">
-                  {sharedPost.media.map((media) => (
-                    <div key={media.url} className="max-h-[320px] overflow-hidden rounded-[1rem] bg-surface-container-low">
-                      {media.type === 'VIDEO' ? (
-                        <video src={media.url} controls className="max-h-[320px] w-full object-cover" />
-                      ) : (
-                        <img
-                          alt="Shared post media"
-                          src={media.url}
-                          className="max-h-[320px] w-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-[1.5rem] border border-dashed border-outline-variant/60 bg-surface-container-low px-4 py-5 text-sm font-bold text-on-surface-variant">
-              This shared post is no longer available.
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="px-6 pb-6 pt-2">
-        {reactionError && (
-          <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
-            {reactionError}
-          </div>
-        )}
-
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 py-2 border-b border-outline-variant/30">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-tertiary flex items-center justify-center">
-              <ThumbsUp size={12} className="text-white fill-current" />
-            </div>
-            <CountPopover label={formatCount(reactionTotal, 'reaction', 'reactions')}>
-              <ReactionBreakdown
-                summary={post.reactionSummary}
-                currentUserAvatarUrl={currentUserAvatarUrl}
-              />
-            </CountPopover>
-          </div>
-          <CountPopover
-            label={formatCount(post.commentsCount, 'comment', 'comments')}
-            align="right"
-            onOpen={loadCommentsForPopover}
-          >
-            <CommentersPopover
-              comments={comments}
-              isLoading={isLoadingComments}
-              commentsCount={post.commentsCount}
-            />
-          </CountPopover>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          <ReactionPicker
-            currentReaction={currentReaction}
-            selectedReaction={selectedReaction}
-            isReacting={isReacting}
-            onSelect={handlePostReaction}
-          />
-          <button
-            type="button"
-            onClick={toggleComments}
-            className="flex items-center justify-center gap-2 py-2 hover:bg-secondary-fixed rounded-full text-secondary transition-all text-sm font-bold active:scale-95"
-          >
-            <MessageSquare size={20} /> <span className="hidden sm:inline">Comment</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setShareError(null);
-              setIsShareOpen(true);
-            }}
-            className="flex items-center justify-center gap-2 py-2 hover:bg-tertiary-fixed rounded-full text-tertiary transition-all text-sm font-bold active:scale-95"
-          >
-            <Share2 size={20} /> <span className="hidden sm:inline">Share</span>
-          </button>
-        </div>
-
-        {isShareOpen && (
-          <div className="mt-4 rounded-2xl border border-outline-variant/40 bg-surface-container-low p-4">
-            <form onSubmit={handleShare} className="space-y-3">
-              <textarea
-                value={shareCaption}
-                onChange={(event) => setShareCaption(event.target.value)}
-                rows={3}
-                placeholder="Say something about this post..."
-                className="w-full resize-none rounded-2xl bg-surface-container-lowest px-4 py-3 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-tertiary-container"
-              />
-              {shareError && (
-                <p className="text-xs font-bold text-on-error-container">{shareError}</p>
-              )}
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsShareOpen(false);
-                    setShareCaption('');
-                  }}
-                  className="inline-flex items-center gap-1 rounded-full px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high"
-                >
-                  <X size={14} /> Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSharing}
-                  className="inline-flex items-center gap-1 rounded-full bg-tertiary-container px-5 py-2 text-xs font-bold text-on-tertiary-container disabled:opacity-60 active:scale-95"
-                >
-                  <Share2 size={14} /> {isSharing ? 'Sharing...' : 'Share now'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {isCommentsOpen && (
-          <div className="mt-5 border-t border-outline-variant/30 pt-5">
-            {commentError && (
-              <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
-                {commentError}
-              </div>
-            )}
-
-            {isLoadingComments ? (
-              <div className="rounded-2xl bg-surface-container-low px-4 py-4 text-center text-sm font-bold text-on-surface-variant">
-                Loading comments...
-              </div>
-            ) : comments.length === 0 ? (
-              <div className="rounded-2xl bg-surface-container-low px-4 py-4 text-center text-sm font-bold text-on-surface-variant">
-                No comments yet.
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {topLevelComments(comments).map((comment) => renderCommentThread(comment))}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateComment} className="mt-4 flex gap-3">
-              <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+      <article className="bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] overflow-hidden">
+        <div className="p-6 pb-0">
+          <div className="flex items-start justify-between mb-4 gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-11 h-11 rounded-full overflow-hidden shrink-0">
                 <img
-                  alt="Your avatar"
-                  src={currentUserAvatarUrl || fallbackAvatar}
+                  alt={authorName}
+                  src={post.author.avatarUrl || fallbackAvatar}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <div className="flex-1 flex gap-2 rounded-2xl bg-surface-container-low px-4 py-2">
-                <input
-                  value={commentDraft}
-                  onChange={(event) => setCommentDraft(event.target.value)}
-                  placeholder="Write a comment..."
-                  className="min-w-0 flex-1 bg-transparent text-sm font-medium text-on-surface outline-none"
-                />
+              <div className="min-w-0">
+                <h3 className="text-xl font-bold text-on-surface leading-tight truncate">{authorName}</h3>
+                <p className="text-xs font-bold text-on-surface-variant flex items-center gap-1">
+                  {post.originalPostId ? 'Shared a post' : formatPostTime(post.createdAt)}
+                  {post.originalPostId && <span aria-hidden="true">.</span>}
+                  {post.originalPostId && <span>{formatPostTime(post.createdAt)}</span>}
+                  <span aria-hidden="true">.</span> <Globe size={12} />
+                </p>
+              </div>
+            </div>
+
+            {isOwner && (
+              <div className="relative shrink-0">
                 <button
-                  type="submit"
-                  disabled={isSubmittingComment || !commentDraft.trim()}
-                  className="shrink-0 text-secondary disabled:opacity-50 active:scale-95 transition-transform"
-                  aria-label="Send comment"
+                  type="button"
+                  onClick={() => setIsMenuOpen((open) => !open)}
+                  className="p-2 text-outline hover:text-on-surface hover:bg-surface-container-low rounded-full transition-colors"
+                  aria-label="Post actions"
                 >
-                  <Send size={18} />
+                  <MoreHorizontal size={24} />
+                </button>
+                {isMenuOpen && (
+                  <div className="absolute right-0 top-11 z-20 w-40 rounded-2xl bg-surface-container-lowest shadow-lg border border-outline-variant/40 p-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container-low"
+                    >
+                      <Edit2 size={16} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-on-error-container hover:bg-error-container"
+                    >
+                      <Trash2 size={16} /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {isEditing ? (
+            <div className="mb-4">
+              <textarea
+                value={draftContent}
+                onChange={(event) => setDraftContent(event.target.value)}
+                rows={4}
+                className="w-full resize-none rounded-2xl bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-base font-medium text-on-surface focus:ring-2 focus:ring-primary-container outline-none"
+              />
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftContent(post.content);
+                    setIsEditing(false);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container-low"
+                >
+                  <X size={16} /> Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving || !draftContent.trim()}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary-container text-on-primary-container px-5 py-2 text-sm font-bold disabled:opacity-60 active:scale-95 transition-all"
+                >
+                  <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
                 </button>
               </div>
-            </form>
+            </div>
+          ) : (
+            post.content.trim() && (
+              <p className="text-lg font-medium text-on-surface mb-4 whitespace-pre-wrap">{post.content}</p>
+            )
+          )}
+        </div>
+
+        {post.media.length > 0 && (
+          <div className="px-4 pb-4 grid gap-3">
+            {post.media.map((media) => (
+              <div key={media.url} className="rounded-[1.5rem] overflow-hidden max-h-[420px] bg-surface-container-low">
+                {media.type === 'VIDEO' ? (
+                  <video src={media.url} controls className="w-full max-h-[420px] object-cover" />
+                ) : (
+                  <img alt="Post media" src={media.url} className="w-full max-h-[420px] object-cover" referrerPolicy="no-referrer" />
+                )}
+              </div>
+            ))}
           </div>
         )}
-      </div>
-    </article>
-    {isOriginalModalOpen && (
-      <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8 backdrop-blur-sm">
-        <div className="w-full max-w-[760px]">
-          <div className="mb-3 flex justify-end">
+
+        {sharedPost && (
+          <div className="px-4 pb-4">
+            {sharedPost.available ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={openOriginalPost}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    void openOriginalPost();
+                  }
+                }}
+                className="overflow-hidden rounded-[1.5rem] border border-outline-variant/40 bg-surface-container-lowest cursor-pointer transition-colors hover:bg-surface-container-low"
+              >
+                <div className="p-4">
+                  <div className="mb-3 flex items-center gap-3">
+                    <img
+                      alt={sharedPost.author?.displayName || sharedPost.author?.username || 'Kirenz User'}
+                      src={sharedPost.author?.avatarUrl || fallbackAvatar}
+                      className="h-9 w-9 rounded-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-on-surface">
+                        {sharedPost.author?.displayName || sharedPost.author?.username || 'Kirenz User'}
+                      </p>
+                      <p className="text-[11px] font-bold text-on-surface-variant">
+                        {sharedPost.createdAt ? formatPostTime(sharedPost.createdAt) : ''}
+                      </p>
+                    </div>
+                  </div>
+                  {sharedPost.content && (
+                    <p className="whitespace-pre-wrap text-sm font-medium text-on-surface">{sharedPost.content}</p>
+                  )}
+                </div>
+                {sharedPost.media.length > 0 && (
+                  <div className="grid gap-2 px-3 pb-3">
+                    {sharedPost.media.map((media) => (
+                      <div key={media.url} className="max-h-[320px] overflow-hidden rounded-[1rem] bg-surface-container-low">
+                        {media.type === 'VIDEO' ? (
+                          <video src={media.url} controls className="max-h-[320px] w-full object-cover" />
+                        ) : (
+                          <img
+                            alt="Shared post media"
+                            src={media.url}
+                            className="max-h-[320px] w-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-outline-variant/60 bg-surface-container-low px-4 py-5 text-sm font-bold text-on-surface-variant">
+                This shared post is no longer available.
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="px-6 pb-6 pt-2">
+          {reactionError && (
+            <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
+              {reactionError}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 py-2 border-b border-outline-variant/30">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-tertiary flex items-center justify-center">
+                <ThumbsUp size={12} className="text-white fill-current" />
+              </div>
+              <CountPopover label={formatCount(reactionTotal, 'reaction', 'reactions')}>
+                <ReactionBreakdown
+                  summary={post.reactionSummary}
+                  currentUserAvatarUrl={currentUserAvatarUrl}
+                />
+              </CountPopover>
+            </div>
+            <CountPopover
+              label={formatCount(post.commentsCount, 'comment', 'comments')}
+              align="right"
+              onOpen={loadCommentsForPopover}
+            >
+              <CommentersPopover
+                comments={comments}
+                isLoading={isLoadingComments}
+                commentsCount={post.commentsCount}
+              />
+            </CountPopover>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <ReactionPicker
+              currentReaction={currentReaction}
+              selectedReaction={selectedReaction}
+              isReacting={isReacting}
+              onSelect={handlePostReaction}
+            />
             <button
               type="button"
-              onClick={() => setIsOriginalModalOpen(false)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface-container-lowest text-on-surface shadow-lg hover:bg-surface-container-low"
-              aria-label="Close shared post detail"
+              onClick={toggleComments}
+              className="flex items-center justify-center gap-2 py-2 hover:bg-secondary-fixed rounded-full text-secondary transition-all text-sm font-bold active:scale-95"
             >
-              <X size={20} />
+              <MessageSquare size={20} /> <span className="hidden sm:inline">Comment</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShareError(null);
+                setIsShareOpen(true);
+              }}
+              className="flex items-center justify-center gap-2 py-2 hover:bg-tertiary-fixed rounded-full text-tertiary transition-all text-sm font-bold active:scale-95"
+            >
+              <Share2 size={20} /> <span className="hidden sm:inline">Share</span>
             </button>
           </div>
-          {isLoadingOriginalPost ? (
-            <div className="rounded-[2rem] bg-surface-container-lowest p-8 text-center text-sm font-bold text-on-surface-variant shadow-xl">
-              Loading original post...
+
+          {isShareOpen && (
+            <div className="mt-4 rounded-2xl border border-outline-variant/40 bg-surface-container-low p-4">
+              <form onSubmit={handleShare} className="space-y-3">
+                <textarea
+                  value={shareCaption}
+                  onChange={(event) => setShareCaption(event.target.value)}
+                  rows={3}
+                  placeholder="Say something about this post..."
+                  className="w-full resize-none rounded-2xl bg-surface-container-lowest px-4 py-3 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-tertiary-container"
+                />
+                {shareError && (
+                  <p className="text-xs font-bold text-on-error-container">{shareError}</p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsShareOpen(false);
+                      setShareCaption('');
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high"
+                  >
+                    <X size={14} /> Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSharing}
+                    className="inline-flex items-center gap-1 rounded-full bg-tertiary-container px-5 py-2 text-xs font-bold text-on-tertiary-container disabled:opacity-60 active:scale-95"
+                  >
+                    <Share2 size={14} /> {isSharing ? 'Sharing...' : 'Share now'}
+                  </button>
+                </div>
+              </form>
             </div>
-          ) : originalPostDetail ? (
-            <PostCard
-              post={originalPostDetail}
-              currentUserId={currentUserId}
-              currentUserAvatarUrl={currentUserAvatarUrl}
-              onUpdate={handleOriginalPostUpdate}
-              onDelete={handleOriginalPostDelete}
-              onShare={onShare}
-              onCommentCountChange={handleOriginalPostCommentCountChange}
-              onReactionSummaryChange={handleOriginalPostReactionSummaryChange}
-            />
-          ) : (
-            <div className="rounded-[2rem] border border-dashed border-outline-variant/60 bg-surface-container-lowest p-8 text-center text-sm font-bold text-on-surface-variant shadow-xl">
-              {originalPostError || 'This post is no longer available.'}
+          )}
+
+          {isCommentsOpen && (
+            <div className="mt-5 border-t border-outline-variant/30 pt-5">
+              {commentError && (
+                <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
+                  {commentError}
+                </div>
+              )}
+
+              {isLoadingComments ? (
+                <div className="rounded-2xl bg-surface-container-low px-4 py-4 text-center text-sm font-bold text-on-surface-variant">
+                  Loading comments...
+                </div>
+              ) : comments.length === 0 ? (
+                <div className="rounded-2xl bg-surface-container-low px-4 py-4 text-center text-sm font-bold text-on-surface-variant">
+                  No comments yet.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {topLevelComments(comments).map((comment) => renderCommentThread(comment))}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateComment} className="mt-4 flex gap-3">
+                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+                  <img
+                    alt="Your avatar"
+                    src={currentUserAvatarUrl || fallbackAvatar}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="flex-1 flex gap-2 rounded-2xl bg-surface-container-low px-4 py-2">
+                  <input
+                    value={commentDraft}
+                    onChange={(event) => setCommentDraft(event.target.value)}
+                    placeholder="Write a comment..."
+                    className="min-w-0 flex-1 bg-transparent text-sm font-medium text-on-surface outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSubmittingComment || !commentDraft.trim()}
+                    className="shrink-0 text-secondary disabled:opacity-50 active:scale-95 transition-transform"
+                    aria-label="Send comment"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
+              </form>
             </div>
           )}
         </div>
-      </div>
-    )}
+      </article>
+      {isOriginalModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-[760px]">
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsOriginalModalOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface-container-lowest text-on-surface shadow-lg hover:bg-surface-container-low"
+                aria-label="Close shared post detail"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {isLoadingOriginalPost ? (
+              <div className="rounded-[2rem] bg-surface-container-lowest p-8 text-center text-sm font-bold text-on-surface-variant shadow-xl">
+                Loading original post...
+              </div>
+            ) : originalPostDetail ? (
+              <PostCard
+                post={originalPostDetail}
+                currentUserId={currentUserId}
+                currentUserAvatarUrl={currentUserAvatarUrl}
+                onUpdate={handleOriginalPostUpdate}
+                onDelete={handleOriginalPostDelete}
+                onShare={onShare}
+                onCommentCountChange={handleOriginalPostCommentCountChange}
+                onReactionSummaryChange={handleOriginalPostReactionSummaryChange}
+              />
+            ) : (
+              <div className="rounded-[2rem] border border-dashed border-outline-variant/60 bg-surface-container-lowest p-8 text-center text-sm font-bold text-on-surface-variant shadow-xl">
+                {originalPostError || 'This post is no longer available.'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

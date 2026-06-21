@@ -8,6 +8,7 @@ import com.kirenz.user_service.common.exception.NotFoundException;
 import com.kirenz.user_service.friend.dto.FriendRequestResponse;
 import com.kirenz.user_service.friend.dto.FriendResponse;
 import com.kirenz.user_service.friend.dto.FriendStatusResponse;
+import com.kirenz.user_service.friend.dto.FriendSuggestionResponse;
 import com.kirenz.user_service.friend.dto.MutualFriendResponse;
 import com.kirenz.user_service.friend.model.FriendRequest;
 import com.kirenz.user_service.friend.model.FriendRequestStatus;
@@ -21,10 +22,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -137,9 +142,41 @@ public class FriendService {
 
     @Transactional(readOnly = true)
     public List<FriendResponse> listFriends(UUID userId) {
-        return friendshipRepository.findByUserId1OrUserId2OrderByCreatedAtDesc(userId, userId)
-            .stream()
-            .map(friendship -> toFriendResponse(friendship, userId))
+        List<Friendship> friendships = friendshipRepository.findByUserId1OrUserId2OrderByCreatedAtDesc(userId, userId);
+        List<UUID> friendIds = friendships.stream()
+            .map(f -> f.getUserId1().equals(userId) ? f.getUserId2() : f.getUserId1())
+            .toList();
+
+        java.util.Map<UUID, com.kirenz.user_service.identity.IdentityUserProfileResponse> profiles = java.util.Map.of();
+        if (!friendIds.isEmpty()) {
+            try {
+                profiles = identityServiceClient.getProfilesByIds(friendIds)
+                    .getData()
+                    .stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                        com.kirenz.user_service.identity.IdentityUserProfileResponse::id,
+                        java.util.function.Function.identity()
+                    ));
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        java.util.Map<UUID, com.kirenz.user_service.identity.IdentityUserProfileResponse> finalProfiles = profiles;
+        return friendships.stream()
+            .map(f -> {
+                UUID friendId = f.getUserId1().equals(userId) ? f.getUserId2() : f.getUserId1();
+                var profile = finalProfiles.get(friendId);
+                return new FriendResponse(
+                    f.getId(),
+                    friendId,
+                    profile != null ? profile.username() : null,
+                    profile != null ? profile.displayName() : "Kirenz User",
+                    profile != null ? profile.avatarUrl() : null,
+                    profile != null ? profile.bio() : null,
+                    f.getCreatedAt()
+                );
+            })
             .toList();
     }
 
@@ -212,6 +249,83 @@ public class FriendService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<FriendSuggestionResponse> suggestFriends(UUID userId, int limit) {
+        Set<UUID> myFriendIds = friendIdsOf(userId);
+
+        if (myFriendIds.isEmpty()) {
+            return List.of();
+        }
+
+        // Collect all blocked user ids (in both directions)
+        Set<UUID> blockedIds = new LinkedHashSet<>();
+        blockRepository.findByBlockerIdOrderByCreatedAtDesc(userId)
+            .forEach(b -> blockedIds.add(b.getBlockedId()));
+
+        // Collect all pending request user ids (outgoing and incoming)
+        Set<UUID> pendingIds = new LinkedHashSet<>();
+        friendRequestRepository
+            .findByRequesterIdAndStatusOrderByCreatedAtDesc(userId, FriendRequestStatus.PENDING)
+            .forEach(r -> pendingIds.add(r.getReceiverId()));
+        friendRequestRepository
+            .findByReceiverIdAndStatusOrderByCreatedAtDesc(userId, FriendRequestStatus.PENDING)
+            .forEach(r -> pendingIds.add(r.getRequesterId()));
+
+        // For each friend, get their friends -> count how many times a candidate appears
+        Map<UUID, Integer> candidateMutualCount = new HashMap<>();
+        for (UUID friendId : myFriendIds) {
+            Set<UUID> friendOfFriendIds = friendIdsOf(friendId);
+            for (UUID fofId : friendOfFriendIds) {
+                // Exclude self, existing friends, blocked users, pending requests
+                if (fofId.equals(userId) || myFriendIds.contains(fofId)
+                    || blockedIds.contains(fofId) || pendingIds.contains(fofId)) {
+                    continue;
+                }
+                candidateMutualCount.merge(fofId, 1, Integer::sum);
+            }
+        }
+
+        if (candidateMutualCount.isEmpty()) {
+            return List.of();
+        }
+
+        // Sort candidates by mutual friend count (descending) and take top N
+        List<UUID> topCandidateIds = candidateMutualCount.entrySet().stream()
+            .sorted(Map.Entry.<UUID, Integer>comparingByValue(Comparator.reverseOrder()))
+            .limit(limit)
+            .map(Map.Entry::getKey)
+            .toList();
+
+        // Fetch profiles from identity-service
+        Map<UUID, IdentityUserProfileResponse> profiles;
+        try {
+            profiles = identityServiceClient.getProfilesByIds(topCandidateIds)
+                .getData()
+                .stream()
+                .collect(Collectors.toMap(
+                    IdentityUserProfileResponse::id,
+                    java.util.function.Function.identity()
+                ));
+        } catch (Exception e) {
+            profiles = Map.of();
+        }
+
+        Map<UUID, IdentityUserProfileResponse> finalProfiles = profiles;
+        return topCandidateIds.stream()
+            .map(candidateId -> {
+                var profile = finalProfiles.get(candidateId);
+                return new FriendSuggestionResponse(
+                    candidateId,
+                    profile != null ? profile.username() : null,
+                    profile != null ? profile.displayName() : "Kirenz User",
+                    profile != null ? profile.avatarUrl() : null,
+                    profile != null ? profile.bio() : null,
+                    candidateMutualCount.getOrDefault(candidateId, 0)
+                );
+            })
+            .toList();
+    }
+
     private FriendRequestResponse toResponse(FriendRequest request) {
         return new FriendRequestResponse(
             request.getId(),
@@ -228,7 +342,34 @@ public class FriendService {
         UUID friendId = friendship.getUserId1().equals(currentUserId)
             ? friendship.getUserId2()
             : friendship.getUserId1();
-        return new FriendResponse(friendship.getId(), friendId, friendship.getCreatedAt());
+
+        String username = null;
+        String displayName = "Kirenz User";
+        String avatarUrl = null;
+        String bio = null;
+
+        try {
+            var response = identityServiceClient.getProfilesByIds(List.of(friendId));
+            if (response != null && response.getData() != null && !response.getData().isEmpty()) {
+                var profile = response.getData().get(0);
+                username = profile.username();
+                displayName = profile.displayName();
+                avatarUrl = profile.avatarUrl();
+                bio = profile.bio();
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+
+        return new FriendResponse(
+            friendship.getId(),
+            friendId,
+            username,
+            displayName,
+            avatarUrl,
+            bio,
+            friendship.getCreatedAt()
+        );
     }
 
     private Set<UUID> friendIdsOf(UUID userId) {

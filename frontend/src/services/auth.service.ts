@@ -61,6 +61,13 @@ export const authService = {
     return userData;
   },
 
+  getUserProfile: async (userId: string): Promise<UserProfile> => {
+    const response = await apiClient.get<ApiResponse<UserProfile>>(
+      API_ENDPOINTS.USER.DETAIL(userId)
+    );
+    return response.data.data;
+  },
+
   updateProfile: async (data: UpdateProfileRequest): Promise<UserProfile> => {
     const response = await apiClient.patch<ApiResponse<UserProfile>>(
       API_ENDPOINTS.USER.ME,

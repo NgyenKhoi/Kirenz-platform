@@ -66,6 +66,12 @@ public class UserService {
             .toList();
     }
 
+    public UserProfileDTO getProfileById(UUID id) {
+        return userRepository.findById(id)
+            .map(userMapper::toUserProfileDTO)
+            .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+    }
+
     public User getCurrentUser() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 

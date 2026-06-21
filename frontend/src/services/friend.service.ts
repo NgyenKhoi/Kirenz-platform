@@ -4,6 +4,7 @@ import {
   FriendRequestResponse,
   FriendResponse,
   FriendStatusResponse,
+  FriendSuggestionResponse,
   MutualFriendResponse,
   SendFriendRequest,
   UserSearchResponse,
@@ -83,6 +84,21 @@ export const friendService = {
   getMutualFriends: async (targetUserId: string): Promise<MutualFriendResponse[]> => {
     const response = await userServiceClient.get<ApiResponse<MutualFriendResponse[]>>(
       API_ENDPOINTS.FRIENDS.MUTUAL(targetUserId)
+    );
+    return response.data.data;
+  },
+
+  getUserFriends: async (userId: string): Promise<FriendResponse[]> => {
+    const response = await userServiceClient.get<ApiResponse<FriendResponse[]>>(
+      API_ENDPOINTS.FRIENDS.USER(userId)
+    );
+    return response.data.data;
+  },
+
+  getSuggestions: async (limit = 10): Promise<FriendSuggestionResponse[]> => {
+    const response = await userServiceClient.get<ApiResponse<FriendSuggestionResponse[]>>(
+      API_ENDPOINTS.FRIENDS.SUGGESTIONS,
+      { params: { limit } }
     );
     return response.data.data;
   },

@@ -14,6 +14,7 @@ export const API_ENDPOINTS = {
   USER: {
     ME: '/users/me',
     AVATAR: '/users/me/avatar',
+    DETAIL: (userId: string) => `/users/${userId}`,
   },
   VERIFICATION: {
     SEND_OTP: '/verification/send-otp',
@@ -31,6 +32,8 @@ export const API_ENDPOINTS = {
     REMOVE: (friendId: string) => `/friends/${friendId}`,
     STATUS: (targetUserId: string) => `/friends/status/${targetUserId}`,
     MUTUAL: (targetUserId: string) => `/users/${targetUserId}/mutual-friends`,
+    USER: (userId: string) => `/friends/user/${userId}`,
+    SUGGESTIONS: '/friends/suggestions',
   },
   BLOCKS: {
     BASE: '/blocks',
@@ -41,6 +44,7 @@ export const API_ENDPOINTS = {
     BASE: '/posts',
     ME: '/posts/me',
     DETAIL: (postId: string) => `/posts/${postId}`,
+    USER: (userId: string) => `/posts/user/${userId}`,
     SHARES: (postId: string) => `/posts/${postId}/shares`,
     REACTIONS: (postId: string) => `/posts/${postId}/reactions`,
     MY_REACTION: (postId: string) => `/posts/${postId}/reactions/me`,

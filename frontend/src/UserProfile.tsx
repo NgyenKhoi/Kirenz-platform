@@ -1,29 +1,164 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { 
   Search, Bell, Heart, Mail, User, Users, UsersRound, Sparkles, 
   PlusCircle, Camera, Plus, Edit2, MapPin, Calendar, Link as LinkIcon, 
-  Image as ImageIcon, Smile, MoreHorizontal, MessageSquare, Share2, ThumbsUp
+  Image as ImageIcon, Smile, MoreHorizontal, MessageSquare, Share2, ThumbsUp,
+  UserPlus, UserMinus, Check, X, Loader2
 } from 'lucide-react';
 import Layout from './components/Layout';
 import { useAuth } from './hooks/useAuth';
 import { postService } from './services/post.service';
+import { friendService } from './services/friend.service';
+import { authService } from './services/auth.service';
 import { PostCard } from './HomeFeed';
 import { PostResponse } from './types/post.types';
 import { ReactionSummaryResponse } from './types/reaction.types';
+import { UserProfile as UserProfileType } from './types/auth.types';
+import { RelationshipStatus } from './types/friend.types';
 
 export default function UserProfile() {
-  const { user } = useAuth();
+  const { 
+    user, 
+    uploadAvatarAsync, 
+    isUploadingAvatar, 
+    updateProfileAsync, 
+    isUpdatingProfile 
+  } = useAuth();
+  const { userId } = useParams<{ userId?: string }>();
+  const isOwnProfile = !userId || userId === user?.id;
+
+  const [targetUser, setTargetUser] = useState<UserProfileType | null>(null);
+  const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('NONE');
+  const [isFetchingProfile, setIsFetchingProfile] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+
   const [posts, setPosts] = useState<PostResponse[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [postError, setPostError] = useState<string | null>(null);
+  const [friendCount, setFriendCount] = useState<number>(0);
 
-  const displayName = user?.displayName || user?.username || 'User';
-  const bio = user?.bio || 'Capturing life\'s little joys. 🌻';
-  const location = user?.location || 'Portland, Oregon';
-  const website = user?.website || 'kirenz.com';
-  const avatarUrl = user?.avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBbY_GUlw34tnkyFIMOl2BKettMEaotAsjvlMn6C_uAYu2C3nM_ijw2rr7U9XDlyBU_0LlidZUITe7OACoMYLzy0O5RdjRo0fH9NEmNkLOhjpaIoRogweGdwOQ-QcP4_RepAyayI6_jVKYnJjekbEf07QzVchgO3G2gcSWct_pYdY99tJYJchT_3k1kNmpev6u7x_QcQx94o5RYQ1tq5OVrkvJSM5IlD4Q11oyMhGIqiJ2ENgSg_Qv24OaSlAfI-ypwo4U6jlVrwoA';
-  const joinedDate = user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'September 2021';
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    displayName: '',
+    bio: '',
+    location: '',
+    website: '',
+  });
+
+  // Pre-fill the form whenever the modal is opened or the user data changes
+  useEffect(() => {
+    if (user && isEditModalOpen) {
+      setEditFormData({
+        displayName: user.displayName || '',
+        bio: user.bio || '',
+        location: user.location || '',
+        website: user.website || '',
+      });
+    }
+  }, [user, isEditModalOpen]);
+
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Please choose an image file.');
+      return;
+    }
+
+    setAvatarError(null);
+    try {
+      await uploadAvatarAsync(file);
+    } catch {
+      setAvatarError('Could not upload avatar. Please try again.');
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateProfileAsync({
+        displayName: editFormData.displayName,
+        bio: editFormData.bio,
+        location: editFormData.location,
+        website: editFormData.website,
+      });
+      setIsEditModalOpen(false);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
+    }
+  };
+
+
+  const displayedUser = isOwnProfile ? user : targetUser;
+  const displayName = displayedUser?.displayName || displayedUser?.username || 'User';
+  const bio = displayedUser?.bio || (isOwnProfile ? 'Capturing life\'s little joys. 🌻' : 'No bio yet.');
+  const location = displayedUser?.location || (isOwnProfile ? 'Portland, Oregon' : 'No location specified');
+  const website = displayedUser?.website || '';
+  const avatarUrl = displayedUser?.avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBbY_GUlw34tnkyFIMOl2BKettMEaotAsjvlMn6C_uAYu2C3nM_ijw2rr7U9XDlyBU_0LlidZUITe7OACoMYLzy0O5RdjRo0fH9NEmNkLOhjpaIoRogweGdwOQ-QcP4_RepAyayI6_jVKYnJjekbEf07QzVchgO3G2gcSWct_pYdY99tJYJchT_3k1kNmpev6u7x_QcQx94o5RYQ1tq5OVrkvJSM5IlD4Q11oyMhGIqiJ2ENgSg_Qv24OaSlAfI-ypwo4U6jlVrwoA';
+  const joinedDate = displayedUser?.createdAt ? new Date(displayedUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'September 2021';
+
+  useEffect(() => {
+    if (isOwnProfile) {
+      setTargetUser(null);
+      setRelationshipStatus('SELF');
+      return;
+    }
+
+    let isMounted = true;
+    const fetchTargetUserDetails = async () => {
+      setIsFetchingProfile(true);
+      try {
+        const [profileData, statusData] = await Promise.all([
+          authService.getUserProfile(userId!),
+          friendService.getStatus(userId!),
+        ]);
+        if (isMounted) {
+          setTargetUser(profileData);
+          setRelationshipStatus(statusData.status);
+        }
+      } catch (err) {
+        console.error('Error fetching target user details:', err);
+      } finally {
+        if (isMounted) {
+          setIsFetchingProfile(false);
+        }
+      }
+    };
+
+    void fetchTargetUserDetails();
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, isOwnProfile]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFriends = async () => {
+      try {
+        const id = isOwnProfile ? user?.id : userId;
+        if (!id) return;
+        const friendsList = isOwnProfile 
+          ? await friendService.getFriends()
+          : await friendService.getUserFriends(id);
+        if (isMounted) {
+          setFriendCount(friendsList.length);
+        }
+      } catch (err) {
+        console.error('Error fetching friends:', err);
+      }
+    };
+    void fetchFriends();
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, isOwnProfile, user?.id, relationshipStatus]);
 
   useEffect(() => {
     let isMounted = true;
@@ -32,13 +167,15 @@ export default function UserProfile() {
       setIsLoadingPosts(true);
       setPostError(null);
       try {
-        const response = await postService.listMine();
+        const response = isOwnProfile
+          ? await postService.listMine()
+          : await postService.listByUser(userId!);
         if (isMounted) {
           setPosts(response);
         }
       } catch {
         if (isMounted) {
-          setPostError('Could not load your posts. Please try again.');
+          setPostError('Could not load posts. Please try again.');
         }
       } finally {
         if (isMounted) {
@@ -51,7 +188,89 @@ export default function UserProfile() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [userId, isOwnProfile]);
+
+  const handleSendRequest = async () => {
+    if (!userId) return;
+    setIsActionLoading(true);
+    try {
+      await friendService.sendRequest({ receiverId: userId });
+      const statusRes = await friendService.getStatus(userId);
+      setRelationshipStatus(statusRes.status);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!userId) return;
+    setIsActionLoading(true);
+    try {
+      const outgoing = await friendService.getOutgoingRequests();
+      const matchingReq = outgoing.find(r => r.receiverId === userId);
+      if (matchingReq) {
+        await friendService.cancelRequest(matchingReq.id);
+      }
+      const statusRes = await friendService.getStatus(userId);
+      setRelationshipStatus(statusRes.status);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleAcceptRequest = async () => {
+    if (!userId) return;
+    setIsActionLoading(true);
+    try {
+      const incoming = await friendService.getIncomingRequests();
+      const matchingReq = incoming.find(r => r.requesterId === userId);
+      if (matchingReq) {
+        await friendService.acceptRequest(matchingReq.id);
+      }
+      const statusRes = await friendService.getStatus(userId);
+      setRelationshipStatus(statusRes.status);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleDeclineRequest = async () => {
+    if (!userId) return;
+    setIsActionLoading(true);
+    try {
+      const incoming = await friendService.getIncomingRequests();
+      const matchingReq = incoming.find(r => r.requesterId === userId);
+      if (matchingReq) {
+        await friendService.declineRequest(matchingReq.id);
+      }
+      const statusRes = await friendService.getStatus(userId);
+      setRelationshipStatus(statusRes.status);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleRemoveFriend = async () => {
+    if (!userId) return;
+    setIsActionLoading(true);
+    try {
+      await friendService.removeFriend(userId);
+      const statusRes = await friendService.getStatus(userId);
+      setRelationshipStatus(statusRes.status);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
 
   const handleUpdatePost = async (postId: string, content: string) => {
     const updated = await postService.update(postId, { content });
@@ -88,6 +307,30 @@ export default function UserProfile() {
     );
   };
 
+  if (!isOwnProfile && isFetchingProfile) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen text-primary">
+          <Loader2 size={48} className="animate-spin" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isOwnProfile && !targetUser && !isFetchingProfile) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <h2 className="text-2xl font-bold text-on-surface">User Not Found</h2>
+          <p className="text-on-surface-variant mt-2">The user you are looking for does not exist.</p>
+          <Link to="/friends" className="mt-4 px-6 py-2 bg-primary text-on-primary rounded-full font-bold">
+            Back to Friends
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="bg-surface text-on-surface min-h-screen pb-20 md:pb-0">
@@ -118,13 +361,15 @@ export default function UserProfile() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
               
-              <Link 
-                to="/edit-cover" 
-                className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/20 hover:bg-white/40 backdrop-blur-md px-4 py-2 rounded-full text-white font-bold flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all border border-white/30 hover:scale-105 active:scale-95"
-              >
-                <Camera size={18} />
-                <span className="hidden sm:inline">Edit Cover Photo</span>
-              </Link>
+              {isOwnProfile && (
+                <Link 
+                  to="/edit-cover" 
+                  className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/20 hover:bg-white/40 backdrop-blur-md px-4 py-2 rounded-full text-white font-bold flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all border border-white/30 hover:scale-105 active:scale-95"
+                >
+                  <Camera size={18} />
+                  <span className="hidden sm:inline">Edit Cover Photo</span>
+                </Link>
+              )}
             </div>
             
             {/* Profile Info Container */}
@@ -132,38 +377,123 @@ export default function UserProfile() {
               <div className="flex flex-col md:flex-row md:items-end gap-6 md:justify-between bg-surface/80 backdrop-blur-md p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
                 <div className="flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
                   <div className="relative group">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                    />
                     <img 
                       alt={displayName} 
                       src={avatarUrl}
                       className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface ring-4 ring-primary-container object-cover"
                       referrerPolicy="no-referrer"
                     />
-                    <button className="absolute bottom-2 right-2 bg-secondary-container p-2 rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center">
-                      <Camera size={20} className="text-on-secondary-container" />
-                    </button>
+                    {isOwnProfile && (
+                      <button 
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={isUploadingAvatar}
+                        className="absolute bottom-2 right-2 bg-secondary-container p-2 rounded-full shadow-lg active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-60"
+                        aria-label="Change avatar"
+                      >
+                        {isUploadingAvatar ? (
+                          <Loader2 size={20} className="text-on-secondary-container animate-spin" />
+                        ) : (
+                          <Camera size={20} className="text-on-secondary-container" />
+                        )}
+                      </button>
+                    )}
                   </div>
                   
                   <div className="pb-2">
                     <h1 className="text-3xl font-bold text-on-surface">{displayName}</h1>
+                    {avatarError && <p className="text-sm font-bold text-error mt-1">{avatarError}</p>}
                     <div className="flex gap-4 mt-2 justify-center md:justify-start text-on-surface-variant font-medium">
-                      <span><strong className="text-on-surface">1.2k</strong> Followers</span>
-                      <span><strong className="text-on-surface">840</strong> Following</span>
+                      <span><strong className="text-on-surface">{friendCount}</strong> friend{friendCount === 1 ? '' : 's'}</span>
                     </div>
                   </div>
                 </div>
                 
                 <div className="flex gap-3 justify-center mb-2 md:mb-0">
-                  <button className="bg-primary text-on-primary px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:brightness-110 transition-all">
-                    <Plus size={20} />
-                    Add Story
-                  </button>
-                   <Link 
-                    to="/settings"
-                    className="bg-surface-container-high text-on-surface-variant px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 border-2 border-outline-variant hover:bg-surface-container-highest transition-all"
-                  >
-                    <Edit2 size={20} />
-                    Edit Profile
-                  </Link>
+                  {isOwnProfile ? (
+                    <>
+                      <button className="bg-primary text-on-primary px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:brightness-110 transition-all">
+                        <Plus size={20} />
+                        Add Story
+                      </button>
+                      <button 
+                        onClick={() => setIsEditModalOpen(true)}
+                        className="bg-surface-container-high text-on-surface-variant px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 border-2 border-outline-variant hover:bg-surface-container-highest transition-all"
+                      >
+                        <Edit2 size={20} />
+                        Edit Profile
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {relationshipStatus === 'NONE' && (
+                        <button
+                          onClick={handleSendRequest}
+                          disabled={isActionLoading}
+                          className="bg-primary text-on-primary px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:brightness-110 transition-all disabled:opacity-60"
+                        >
+                          {isActionLoading ? <Loader2 size={20} className="animate-spin" /> : <UserPlus size={20} />}
+                          Add Friend
+                        </button>
+                      )}
+                      {relationshipStatus === 'OUTGOING_REQUEST' && (
+                        <button
+                          onClick={handleCancelRequest}
+                          disabled={isActionLoading}
+                          className="bg-error-container text-on-error-container px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 hover:brightness-95 transition-all disabled:opacity-60"
+                        >
+                          {isActionLoading ? <Loader2 size={20} className="animate-spin" /> : <UserMinus size={20} />}
+                          Cancel Request
+                        </button>
+                      )}
+                      {relationshipStatus === 'INCOMING_REQUEST' && (
+                        <>
+                          <button
+                            onClick={handleAcceptRequest}
+                            disabled={isActionLoading}
+                            className="bg-primary text-on-primary px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:brightness-110 transition-all disabled:opacity-60"
+                          >
+                            {isActionLoading ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                            Accept Request
+                          </button>
+                          <button
+                            onClick={handleDeclineRequest}
+                            disabled={isActionLoading}
+                            className="bg-surface-container-high text-on-surface-variant px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 border-2 border-outline-variant hover:bg-surface-container-highest transition-all disabled:opacity-60"
+                          >
+                            {isActionLoading ? <Loader2 size={20} className="animate-spin" /> : <X size={20} />}
+                            Decline
+                          </button>
+                        </>
+                      )}
+                      {relationshipStatus === 'FRIENDS' && (
+                        <button
+                          onClick={handleRemoveFriend}
+                          disabled={isActionLoading}
+                          className="bg-error-container text-on-error-container px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 hover:brightness-95 transition-all disabled:opacity-60"
+                        >
+                          {isActionLoading ? <Loader2 size={20} className="animate-spin" /> : <UserMinus size={20} />}
+                          Remove Friend
+                        </button>
+                      )}
+                      {relationshipStatus === 'BLOCKED' && (
+                        <span className="px-6 py-3 text-sm font-bold text-error bg-error-container/20 rounded-full border border-error/30">
+                          Blocked
+                        </span>
+                      )}
+                      {relationshipStatus === 'BLOCKED_BY_TARGET' && (
+                        <span className="px-6 py-3 text-sm font-bold text-on-surface-variant bg-surface-container-high rounded-full">
+                          Unavailable
+                        </span>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
               
@@ -204,12 +534,14 @@ export default function UserProfile() {
                     <span className="text-base font-medium">{bio}</span>
                   </div>
                 </div>
-                 <Link 
-                  to="/settings"
-                  className="w-full mt-6 py-3 bg-surface-container-high rounded-full font-bold text-on-surface-variant active:scale-95 hover:bg-surface-container-highest transition-all text-center flex items-center justify-center"
-                >
-                  Edit Bio
-                </Link>
+                 {isOwnProfile && (
+                   <button 
+                     onClick={() => setIsEditModalOpen(true)}
+                     className="w-full mt-6 py-3 bg-surface-container-high rounded-full font-bold text-on-surface-variant active:scale-95 hover:bg-surface-container-highest transition-all text-center flex items-center justify-center"
+                   >
+                     Edit Bio
+                   </button>
+                 )}
               </div>
 
               {/* Photos Preview Card */}
@@ -264,25 +596,27 @@ export default function UserProfile() {
             <div className="lg:col-span-7 flex flex-col gap-6">
               
               {/* Create Post (Mini) */}
-              <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container flex items-center gap-4">
-                <img 
-                  alt="Alex" 
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPNex2nR06iU5gSe9fB5C6pYwUMraBZJH0sn-mb4Nbc6v3UrxSqNURwENaMiEdA5NFQYSDMAX1Xj0x3dvsKufVXJYSGpsAtDnKg9JhETu2mX9yEb3HrxO7JYdl2YFNa3PyidnvLPqpIujp-OGY0aEWTsfwH6sasTrWsWbX4ign1bR7BHq3nCRF82VG2F4gwKVCbw_qSS8TvHs8AQZi2X9nCLgOwIzEwjI3OGstKNf98bQqwhNEwVn4rylJVICAVDzBeQSiWTMtbtc"
-                  className="w-10 h-10 rounded-full object-cover shrink-0"
-                  referrerPolicy="no-referrer"
-                />
-                <button className="flex-grow text-left px-6 py-3 bg-surface-container-low rounded-full text-on-surface-variant text-sm font-medium hover:bg-surface-container-high transition-colors outline-none border-none">
-                  What's on your mind, {user?.displayName || user?.username || 'Alex'}?
-                </button>
-                <div className="flex gap-1 shrink-0">
-                  <button className="p-2 text-primary hover:bg-primary-fixed rounded-full transition-colors hidden sm:block">
-                    <ImageIcon size={20} />
+              {isOwnProfile && (
+                <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container flex items-center gap-4">
+                  <img 
+                    alt="Alex" 
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPNex2nR06iU5gSe9fB5C6pYwUMraBZJH0sn-mb4Nbc6v3UrxSqNURwENaMiEdA5NFQYSDMAX1Xj0x3dvsKufVXJYSGpsAtDnKg9JhETu2mX9yEb3HrxO7JYdl2YFNa3PyidnvLPqpIujp-OGY0aEWTsfwH6sasTrWsWbX4ign1bR7BHq3nCRF82VG2F4gwKVCbw_qSS8TvHs8AQZi2X9nCLgOwIzEwjI3OGstKNf98bQqwhNEwVn4rylJVICAVDzBeQSiWTMtbtc"
+                    className="w-10 h-10 rounded-full object-cover shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                  <button className="flex-grow text-left px-6 py-3 bg-surface-container-low rounded-full text-on-surface-variant text-sm font-medium hover:bg-surface-container-high transition-colors outline-none border-none">
+                    What's on your mind, {user?.displayName || user?.username || 'Alex'}?
                   </button>
-                  <button className="p-2 text-secondary hover:bg-secondary-fixed rounded-full transition-colors hidden sm:block">
-                    <Smile size={20} />
-                  </button>
+                  <div className="flex gap-1 shrink-0">
+                    <button className="p-2 text-primary hover:bg-primary-fixed rounded-full transition-colors hidden sm:block">
+                      <ImageIcon size={20} />
+                    </button>
+                    <button className="p-2 text-secondary hover:bg-secondary-fixed rounded-full transition-colors hidden sm:block">
+                      <Smile size={20} />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {postError && (
                 <div className="rounded-[2rem] bg-error-container px-5 py-4 text-sm font-bold text-on-error-container">
@@ -440,6 +774,104 @@ export default function UserProfile() {
           </div>
         </main>
       </div>
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+          <div className="bg-surface-container-lowest w-full max-w-lg rounded-[2rem] border border-outline-variant/30 shadow-2xl p-6 md:p-8 space-y-6 relative max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-outline-variant/30">
+              <h3 className="text-2xl font-bold text-on-surface flex items-center gap-2">
+                <Edit2 size={24} className="text-primary" />
+                Edit Profile
+              </h3>
+              <button 
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface p-2 hover:bg-surface-container rounded-full transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveProfile} className="space-y-5">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-bold text-on-surface-variant ml-2">Full Name</label>
+                <input 
+                  type="text" 
+                  name="displayName"
+                  value={editFormData.displayName}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, displayName: e.target.value }))}
+                  required
+                  placeholder="Your full display name"
+                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-bold text-on-surface-variant ml-2">Bio</label>
+                <textarea 
+                  rows={3}
+                  name="bio"
+                  value={editFormData.bio}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, bio: e.target.value }))}
+                  placeholder="Tell us about yourself"
+                  className="bg-surface p-4 rounded-2xl border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none resize-none" 
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-bold text-on-surface-variant ml-2">Location</label>
+                <input 
+                  type="text" 
+                  name="location"
+                  value={editFormData.location}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, location: e.target.value }))}
+                  placeholder="e.g. Portland, Oregon"
+                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-bold text-on-surface-variant ml-2">Website</label>
+                <input 
+                  type="url" 
+                  name="website"
+                  value={editFormData.website}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, website: e.target.value }))}
+                  placeholder="https://example.com"
+                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-4 pt-4 border-t border-outline-variant/30">
+                <button 
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-6 py-3 rounded-full text-sm font-bold text-on-surface-variant hover:bg-surface-variant transition-colors active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isUpdatingProfile}
+                  className="px-8 py-3 rounded-full text-sm font-bold bg-primary text-on-primary shadow-lg hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 min-w-[140px]"
+                >
+                  {isUpdatingProfile ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Save</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

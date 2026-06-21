@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -61,5 +62,11 @@ public class UserController {
     public ResponseEntity<ApiResponse<List<UserProfileDTO>>> getProfilesByIds(@RequestParam List<UUID> ids) {
         List<UserProfileDTO> profiles = userService.getProfilesByIds(ids);
         return ResponseEntity.ok(ApiResponse.success("User profiles retrieved successfully", profiles));
+    }
+
+    @GetMapping("/{userId}")
+    public ResponseEntity<ApiResponse<UserProfileDTO>> getUserProfile(@PathVariable UUID userId) {
+        UserProfileDTO profile = userService.getProfileById(userId);
+        return ResponseEntity.ok(ApiResponse.success("User profile retrieved successfully", profile));
     }
 }

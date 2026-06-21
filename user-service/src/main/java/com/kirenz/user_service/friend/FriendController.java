@@ -5,6 +5,7 @@ import com.kirenz.user_service.common.dto.ApiResponse;
 import com.kirenz.user_service.friend.dto.FriendRequestResponse;
 import com.kirenz.user_service.friend.dto.FriendResponse;
 import com.kirenz.user_service.friend.dto.FriendStatusResponse;
+import com.kirenz.user_service.friend.dto.FriendSuggestionResponse;
 import com.kirenz.user_service.friend.dto.SendFriendRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -84,6 +86,24 @@ public class FriendController {
         return ResponseEntity.ok(ApiResponse.success(
             "Friends retrieved successfully",
             friendService.listFriends(currentUser.id())
+        ));
+    }
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<ApiResponse<List<FriendResponse>>> listUserFriends(@PathVariable UUID userId) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "User friends retrieved successfully",
+            friendService.listFriends(userId)
+        ));
+    }
+
+    @GetMapping("/suggestions")
+    public ResponseEntity<ApiResponse<List<FriendSuggestionResponse>>> suggestions(
+        @RequestParam(defaultValue = "10") int limit
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Friend suggestions retrieved successfully",
+            friendService.suggestFriends(currentUser.id(), Math.min(limit, 20))
         ));
     }
 
