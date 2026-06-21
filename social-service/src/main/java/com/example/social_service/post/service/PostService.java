@@ -7,19 +7,24 @@ import com.example.social_service.identity.IdentityServiceClient;
 import com.example.social_service.identity.IdentityUserProfileResponse;
 import com.example.social_service.post.dto.AuthorResponse;
 import com.example.social_service.post.dto.CreatePostRequest;
+import com.example.social_service.post.dto.PostImageResponse;
 import com.example.social_service.post.dto.PostMediaRequest;
 import com.example.social_service.post.dto.PostMediaResponse;
 import com.example.social_service.post.dto.PostResponse;
 import com.example.social_service.post.dto.SharePostRequest;
 import com.example.social_service.post.dto.SharedPostResponse;
 import com.example.social_service.post.dto.UpdatePostRequest;
+import com.example.social_service.post.model.MediaType;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostMedia;
+import com.example.social_service.post.model.PostPrivacy;
 import com.example.social_service.post.model.PostStatus;
 import com.example.social_service.post.repository.PostRepository;
 import com.example.social_service.reaction.dto.ReactionSummaryResponse;
 import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.service.ReactionService;
+import com.example.social_service.user.FriendStatusResponse;
+import com.example.social_service.user.UserServiceClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +42,7 @@ public class PostService {
 
     private final PostRepository postRepository;
     private final IdentityServiceClient identityServiceClient;
+    private final UserServiceClient userServiceClient;
     private final ReactionService reactionService;
 
     public PostResponse createPost(UUID userId, CreatePostRequest request) {
@@ -49,6 +55,7 @@ public class PostService {
             .slug("post-" + UUID.randomUUID())
             .userId(userId)
             .content(content)
+            .privacy(normalizePrivacy(request.privacy()))
             .media(media)
             .status(PostStatus.ACTIVE)
             .createdAt(now)
@@ -56,7 +63,7 @@ public class PostService {
             .build();
 
         Post saved = postRepository.save(post);
-        return toResponse(saved, fetchAuthors(List.of(userId)), emptyReactionSummary());
+        return toResponse(userId, saved, fetchAuthors(List.of(userId)), emptyReactionSummary());
     }
 
     public PostResponse sharePost(UUID userId, String postId, SharePostRequest request) {
@@ -64,6 +71,7 @@ public class PostService {
         if (originalPost.getOriginalPostId() != null) {
             originalPost = activePost(originalPost.getOriginalPostId());
         }
+        ensureVisible(userId, originalPost);
 
         Instant now = Instant.now();
         String caption = normalizeContent(request == null ? null : request.caption());
@@ -71,6 +79,7 @@ public class PostService {
             .slug("post-" + UUID.randomUUID())
             .userId(userId)
             .content(caption)
+            .privacy(PostPrivacy.PUBLIC)
             .originalPostId(originalPost.getId())
             .media(List.of())
             .status(PostStatus.ACTIVE)
@@ -80,7 +89,7 @@ public class PostService {
 
         Post saved = postRepository.save(sharedPost);
         Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(List.of(userId, originalPost.getUserId()));
-        return toResponse(saved, authors, emptyReactionSummary());
+        return toResponse(userId, saved, authors, emptyReactionSummary());
     }
 
     public List<PostResponse> listFeed(UUID userId) {
@@ -93,22 +102,47 @@ public class PostService {
         return toResponses(userId, posts);
     }
 
+    public List<PostResponse> listUserPosts(UUID viewerId, UUID profileUserId) {
+        List<Post> posts = postRepository.findByUserIdAndStatusOrderByCreatedAtDesc(profileUserId, PostStatus.ACTIVE);
+        return toResponses(viewerId, posts);
+    }
+
+    public List<PostImageResponse> listUserImages(UUID viewerId, UUID profileUserId) {
+        return postRepository.findByUserIdAndStatusOrderByCreatedAtDesc(profileUserId, PostStatus.ACTIVE)
+            .stream()
+            .filter(post -> canView(viewerId, post))
+            .flatMap(post -> post.getMedia().stream()
+                .filter(media -> media.getType() == MediaType.IMAGE)
+                .map(media -> new PostImageResponse(
+                    post.getId(),
+                    media.getUrl(),
+                    media.getPublicId(),
+                    post.getCreatedAt()
+                )))
+            .toList();
+    }
+
     private List<PostResponse> toResponses(UUID userId, List<Post> posts) {
-        Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(authorIdsFor(posts));
+        List<Post> visiblePosts = posts.stream()
+            .filter(post -> canView(userId, post))
+            .toList();
+        Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(authorIdsFor(visiblePosts));
         Map<String, ReactionSummaryResponse> reactionSummaries = reactionService.getSummaries(
             userId,
             ReactionTargetType.POST,
-            posts.stream().map(Post::getId).toList()
+            visiblePosts.stream().map(Post::getId).toList()
         );
 
-        return posts.stream()
-            .map(post -> toResponse(post, authors, reactionSummaries.getOrDefault(post.getId(), emptyReactionSummary())))
+        return visiblePosts.stream()
+            .map(post -> toResponse(userId, post, authors, reactionSummaries.getOrDefault(post.getId(), emptyReactionSummary())))
             .toList();
     }
 
     public PostResponse getPost(UUID userId, String postId) {
         Post post = activePost(postId);
+        ensureVisible(userId, post);
         return toResponse(
+            userId,
             post,
             fetchAuthors(authorIdsFor(List.of(post))),
             reactionService.getSummary(userId, ReactionTargetType.POST, postId)
@@ -125,10 +159,12 @@ public class PostService {
 
         post.setContent(content);
         post.setMedia(media);
+        post.setPrivacy(request.privacy() == null ? privacyOrDefault(post) : request.privacy());
         post.setUpdatedAt(Instant.now());
 
         Post saved = postRepository.save(post);
         return toResponse(
+            userId,
             saved,
             fetchAuthors(authorIdsFor(List.of(saved))),
             reactionService.getSummary(userId, ReactionTargetType.POST, postId)
@@ -185,6 +221,10 @@ public class PostService {
         return content == null ? "" : content.trim();
     }
 
+    private PostPrivacy normalizePrivacy(PostPrivacy privacy) {
+        return privacy == null ? PostPrivacy.PUBLIC : privacy;
+    }
+
     private String normalizePublicId(String publicId) {
         return publicId == null || publicId.isBlank() ? null : publicId.trim();
     }
@@ -219,6 +259,7 @@ public class PostService {
     }
 
     private PostResponse toResponse(
+        UUID viewerId,
         Post post,
         Map<UUID, IdentityUserProfileResponse> authors,
         ReactionSummaryResponse reactionSummary
@@ -233,8 +274,9 @@ public class PostService {
             post.getSlug(),
             author,
             post.getContent(),
+            privacyOrDefault(post),
             post.getOriginalPostId(),
-            toSharedPostResponse(post.getOriginalPostId(), authors),
+            toSharedPostResponse(viewerId, post.getOriginalPostId(), authors),
             post.getMedia().stream()
                 .map(media -> new PostMediaResponse(media.getType(), media.getUrl(), media.getPublicId()))
                 .toList(),
@@ -248,6 +290,7 @@ public class PostService {
     }
 
     private SharedPostResponse toSharedPostResponse(
+        UUID viewerId,
         String originalPostId,
         Map<UUID, IdentityUserProfileResponse> authors
     ) {
@@ -257,6 +300,9 @@ public class PostService {
 
         return postRepository.findByIdAndStatus(originalPostId, PostStatus.ACTIVE)
             .map(originalPost -> {
+                if (!canView(viewerId, originalPost)) {
+                    return unavailableSharedPost(originalPostId);
+                }
                 IdentityUserProfileResponse profile = authors.get(originalPost.getUserId());
                 AuthorResponse author = profile == null
                     ? new AuthorResponse(originalPost.getUserId(), null, "Kirenz User", null)
@@ -266,6 +312,7 @@ public class PostService {
                     originalPost.getId(),
                     author,
                     originalPost.getContent(),
+                    privacyOrDefault(originalPost),
                     originalPost.getMedia().stream()
                         .map(media -> new PostMediaResponse(media.getType(), media.getUrl(), media.getPublicId()))
                         .toList(),
@@ -273,14 +320,58 @@ public class PostService {
                     originalPost.getCreatedAt()
                 );
             })
-            .orElse(new SharedPostResponse(
-                originalPostId,
-                null,
-                null,
-                List.of(),
-                false,
-                null
-            ));
+            .orElse(unavailableSharedPost(originalPostId));
+    }
+
+    private SharedPostResponse unavailableSharedPost(String originalPostId) {
+        return new SharedPostResponse(
+            originalPostId,
+            null,
+            null,
+            null,
+            List.of(),
+            false,
+            null
+        );
+    }
+
+    private void ensureVisible(UUID viewerId, Post post) {
+        if (!canView(viewerId, post)) {
+            throw new NotFoundException("Post not found");
+        }
+    }
+
+    private boolean canView(UUID viewerId, Post post) {
+        if (post.getUserId().equals(viewerId)) {
+            return true;
+        }
+
+        PostPrivacy privacy = privacyOrDefault(post);
+        if (privacy == PostPrivacy.PUBLIC) {
+            return true;
+        }
+        if (privacy == PostPrivacy.ONLY_ME) {
+            return false;
+        }
+
+        return isFriend(viewerId, post.getUserId());
+    }
+
+    private boolean isFriend(UUID viewerId, UUID authorId) {
+        if (viewerId.equals(authorId)) {
+            return true;
+        }
+
+        try {
+            FriendStatusResponse status = userServiceClient.getFriendStatus(authorId).getData();
+            return status != null && "FRIENDS".equals(status.status());
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    private PostPrivacy privacyOrDefault(Post post) {
+        return post.getPrivacy() == null ? PostPrivacy.PUBLIC : post.getPrivacy();
     }
 
     private ReactionSummaryResponse emptyReactionSummary() {

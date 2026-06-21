@@ -1,6 +1,6 @@
 import { API_ENDPOINTS, socialServiceClient } from '../config/api.config';
 import { ApiResponse } from '../types/auth.types';
-import { CreatePostRequest, MediaUploadResponse, PostResponse, SharePostRequest, UpdatePostRequest } from '../types/post.types';
+import { CreatePostRequest, MediaUploadResponse, PostImageResponse, PostResponse, SharePostRequest, UpdatePostRequest } from '../types/post.types';
 
 export const postService = {
   uploadImages: async (files: File[]): Promise<MediaUploadResponse[]> => {
@@ -43,6 +43,13 @@ export const postService = {
   listByUser: async (userId: string): Promise<PostResponse[]> => {
     const response = await socialServiceClient.get<ApiResponse<PostResponse[]>>(
       API_ENDPOINTS.POSTS.USER(userId)
+    );
+    return response.data.data;
+  },
+
+  listUserImages: async (userId: string): Promise<PostImageResponse[]> => {
+    const response = await socialServiceClient.get<ApiResponse<PostImageResponse[]>>(
+      API_ENDPOINTS.POSTS.USER_IMAGES(userId)
     );
     return response.data.data;
   },

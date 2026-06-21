@@ -14,6 +14,7 @@ import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.model.ReactionType;
 import com.example.social_service.reaction.repository.ReactionRepository;
 import com.example.social_service.reaction.service.ReactionService;
+import com.example.social_service.user.UserServiceClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,11 +46,14 @@ class ReactionServiceTest {
     @Mock
     private CommentRepository commentRepository;
 
+    @Mock
+    private UserServiceClient userServiceClient;
+
     private ReactionService reactionService;
 
     @BeforeEach
     void setUp() {
-        reactionService = new ReactionService(reactionRepository, postRepository, commentRepository);
+        reactionService = new ReactionService(reactionRepository, postRepository, commentRepository, userServiceClient);
     }
 
     @Test

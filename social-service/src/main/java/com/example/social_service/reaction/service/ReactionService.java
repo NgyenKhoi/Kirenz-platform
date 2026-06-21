@@ -5,6 +5,7 @@ import com.example.social_service.comment.model.CommentStatus;
 import com.example.social_service.comment.repository.CommentRepository;
 import com.example.social_service.common.exception.NotFoundException;
 import com.example.social_service.post.model.Post;
+import com.example.social_service.post.model.PostPrivacy;
 import com.example.social_service.post.model.PostStatus;
 import com.example.social_service.post.repository.PostRepository;
 import com.example.social_service.reaction.dto.ReactionRequest;
@@ -13,6 +14,8 @@ import com.example.social_service.reaction.model.Reaction;
 import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.model.ReactionType;
 import com.example.social_service.reaction.repository.ReactionRepository;
+import com.example.social_service.user.FriendStatusResponse;
+import com.example.social_service.user.UserServiceClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -31,21 +34,22 @@ public class ReactionService {
     private final ReactionRepository reactionRepository;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final UserServiceClient userServiceClient;
 
     public ReactionSummaryResponse reactToPost(UUID userId, String postId, ReactionRequest request) {
-        Post post = activePost(postId);
+        Post post = visiblePost(userId, postId);
         applyReaction(userId, ReactionTargetType.POST, postId, request.type(), () -> incrementPost(post), () -> decrementPost(post));
         return getSummary(userId, ReactionTargetType.POST, postId);
     }
 
     public ReactionSummaryResponse unreactToPost(UUID userId, String postId) {
-        Post post = activePost(postId);
+        Post post = visiblePost(userId, postId);
         removeReaction(userId, ReactionTargetType.POST, postId, () -> decrementPost(post));
         return getSummary(userId, ReactionTargetType.POST, postId);
     }
 
     public ReactionSummaryResponse reactToComment(UUID userId, String commentId, ReactionRequest request) {
-        Comment comment = activeComment(commentId);
+        Comment comment = visibleComment(userId, commentId);
         applyReaction(
             userId,
             ReactionTargetType.COMMENT,
@@ -58,7 +62,7 @@ public class ReactionService {
     }
 
     public ReactionSummaryResponse unreactToComment(UUID userId, String commentId) {
-        Comment comment = activeComment(commentId);
+        Comment comment = visibleComment(userId, commentId);
         removeReaction(userId, ReactionTargetType.COMMENT, commentId, () -> decrementComment(comment));
         return getSummary(userId, ReactionTargetType.COMMENT, commentId);
     }
@@ -146,11 +150,38 @@ public class ReactionService {
             .orElseThrow(() -> new NotFoundException("Post not found"));
     }
 
-    private Comment activeComment(String commentId) {
+    private Post visiblePost(UUID viewerId, String postId) {
+        Post post = activePost(postId);
+        if (!canView(viewerId, post)) {
+            throw new NotFoundException("Post not found");
+        }
+        return post;
+    }
+
+    private Comment visibleComment(UUID viewerId, String commentId) {
         Comment comment = commentRepository.findByIdAndStatus(commentId, CommentStatus.ACTIVE)
             .orElseThrow(() -> new NotFoundException("Comment not found"));
-        activePost(comment.getPostId());
+        visiblePost(viewerId, comment.getPostId());
         return comment;
+    }
+
+    private boolean canView(UUID viewerId, Post post) {
+        if (post.getUserId().equals(viewerId)) {
+            return true;
+        }
+        PostPrivacy privacy = post.getPrivacy() == null ? PostPrivacy.PUBLIC : post.getPrivacy();
+        if (privacy == PostPrivacy.PUBLIC) {
+            return true;
+        }
+        if (privacy == PostPrivacy.ONLY_ME) {
+            return false;
+        }
+        try {
+            FriendStatusResponse status = userServiceClient.getFriendStatus(post.getUserId()).getData();
+            return status != null && "FRIENDS".equals(status.status());
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     private void incrementPost(Post post) {

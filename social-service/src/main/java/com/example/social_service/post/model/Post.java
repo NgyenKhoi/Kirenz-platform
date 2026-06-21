@@ -33,6 +33,9 @@ public class Post {
 
     private String content;
 
+    @Builder.Default
+    private PostPrivacy privacy = PostPrivacy.PUBLIC;
+
     @Indexed
     private String originalPostId;
 
