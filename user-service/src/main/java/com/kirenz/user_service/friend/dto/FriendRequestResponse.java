@@ -12,6 +12,21 @@ public record FriendRequestResponse(
     FriendRequestStatus status,
     Instant createdAt,
     Instant updatedAt,
-    Instant respondedAt
+    Instant respondedAt,
+    // Enriched profile fields for the "other" user
+    String username,
+    String displayName,
+    String avatarUrl,
+    String bio
 ) {
+    /**
+     * Backward-compatible constructor without profile fields.
+     */
+    public FriendRequestResponse(
+        UUID id, UUID requesterId, UUID receiverId,
+        FriendRequestStatus status, Instant createdAt, Instant updatedAt, Instant respondedAt
+    ) {
+        this(id, requesterId, receiverId, status, createdAt, updatedAt, respondedAt,
+             null, null, null, null);
+    }
 }

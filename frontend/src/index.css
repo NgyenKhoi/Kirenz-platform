@@ -1,10 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Quicksand", ui-sans-serif, system-ui, sans-serif;
+@custom-variant dark (&:where(.dark, .dark *));
 
-  /* Colors */
+:root {
   --color-primary: #8b4e3e;
   --color-on-primary: #ffffff;
   --color-primary-container: #ffb09c;
@@ -43,6 +42,91 @@
 
   --color-outline: #85736f;
   --color-outline-variant: #d8c2bd;
+}
+
+.dark {
+  --color-primary: #ffb4a2;
+  --color-on-primary: #561e12;
+  --color-primary-container: #72372b;
+  --color-on-primary-container: #ffdad1;
+  --color-inverse-primary: #8b4e3e;
+
+  --color-secondary: #e5c26b;
+  --color-on-secondary: #3e2e00;
+  --color-secondary-container: #5a4400;
+  --color-on-secondary-container: #ffe194;
+
+  --color-tertiary: #a1c5ff;
+  --color-on-tertiary: #00315c;
+  --color-tertiary-container: #1b477c;
+  --color-on-tertiary-container: #d6e3ff;
+
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  --color-surface: #161412;
+  --color-surface-dim: #0e0d0b;
+  --color-surface-bright: #201d1a;
+  --color-surface-container-lowest: #0f0e0c;
+  --color-surface-container-low: #1d1b18;
+  --color-surface-container: #221f1b;
+  --color-surface-container-high: #2d2925;
+  --color-surface-container-highest: #38342e;
+  --color-on-surface: #e6e2dc;
+  --color-on-surface-variant: #d8c2bd;
+  --color-surface-variant: #534340;
+
+  --color-inverse-surface: #e6e2dc;
+  --color-inverse-on-surface: #31302d;
+
+  --color-outline: #a08d8a;
+  --color-outline-variant: #534340;
+}
+
+@theme {
+  --font-sans: "Quicksand", ui-sans-serif, system-ui, sans-serif;
+
+  /* Colors mapped to CSS Variables */
+  --color-primary: var(--color-primary);
+  --color-on-primary: var(--color-on-primary);
+  --color-primary-container: var(--color-primary-container);
+  --color-on-primary-container: var(--color-on-primary-container);
+  --color-inverse-primary: var(--color-inverse-primary);
+
+  --color-secondary: var(--color-secondary);
+  --color-on-secondary: var(--color-on-secondary);
+  --color-secondary-container: var(--color-secondary-container);
+  --color-on-secondary-container: var(--color-on-secondary-container);
+
+  --color-tertiary: var(--color-tertiary);
+  --color-on-tertiary: var(--color-on-tertiary);
+  --color-tertiary-container: var(--color-tertiary-container);
+  --color-on-tertiary-container: var(--color-on-tertiary-container);
+
+  --color-error: var(--color-error);
+  --color-on-error: var(--color-on-error);
+  --color-error-container: var(--color-error-container);
+  --color-on-error-container: var(--color-on-error-container);
+
+  --color-surface: var(--color-surface);
+  --color-surface-dim: var(--color-surface-dim);
+  --color-surface-bright: var(--color-surface-bright);
+  --color-surface-container-lowest: var(--color-surface-container-lowest);
+  --color-surface-container-low: var(--color-surface-container-low);
+  --color-surface-container: var(--color-surface-container);
+  --color-surface-container-high: var(--color-surface-container-high);
+  --color-surface-container-highest: var(--color-surface-container-highest);
+  --color-on-surface: var(--color-on-surface);
+  --color-on-surface-variant: var(--color-on-surface-variant);
+  --color-surface-variant: var(--color-surface-variant);
+
+  --color-inverse-surface: var(--color-inverse-surface);
+  --color-inverse-on-surface: var(--color-inverse-on-surface);
+
+  --color-outline: var(--color-outline);
+  --color-outline-variant: var(--color-outline-variant);
 
   /* Spacing */
   --spacing-base: 8px;
@@ -66,4 +150,12 @@ body {
   background-color: var(--color-background, var(--color-surface));
   color: var(--color-on-background, var(--color-on-surface));
   font-family: var(--font-sans);
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
 }

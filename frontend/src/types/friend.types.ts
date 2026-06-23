@@ -17,6 +17,11 @@ export interface FriendRequestResponse {
   createdAt: string;
   updatedAt: string;
   respondedAt?: string | null;
+  // Enriched profile fields for the "other" user
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
 }
 
 export interface FriendResponse {

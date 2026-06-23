@@ -11,7 +11,9 @@ import { useAuth } from './hooks/useAuth';
 import { postService } from './services/post.service';
 import { friendService } from './services/friend.service';
 import { authService } from './services/auth.service';
-import { MediaViewerModal, PostCard, PostComposer } from './HomeFeed';
+import { PostCard } from './components/Post/PostCard';
+import { CreatePost } from './components/Post/CreatePost';
+import { MediaViewerModal } from './components/common/MediaViewerModal';
 import { PostImageResponse, PostPrivacy, PostResponse } from './types/post.types';
 import { ReactionSummaryResponse } from './types/reaction.types';
 import { UserProfile as UserProfileType } from './types/auth.types';
@@ -311,8 +313,8 @@ export default function UserProfile() {
     }
   };
 
-  const handleUpdatePost = async (postId: string, content: string, privacy: PostPrivacy) => {
-    const updated = await postService.update(postId, { content, privacy });
+  const handleUpdatePost = async (postId: string, data: any) => {
+    const updated = await postService.update(postId, data);
     setPosts((current) => current.map((post) => (post.id === postId ? updated : post)));
   };
 
@@ -417,39 +419,17 @@ export default function UserProfile() {
             <div className="max-w-[1000px] mx-auto px-4 -mt-16 md:-mt-24 relative z-10">
               <div className="flex flex-col md:flex-row md:items-end gap-6 md:justify-between bg-surface/80 backdrop-blur-md p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
                 <div className="flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
-                  <div className="relative group">
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
+                  <div className="relative">
                     <img 
                       alt={displayName} 
                       src={avatarUrl}
                       className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface ring-4 ring-primary-container object-cover"
                       referrerPolicy="no-referrer"
                     />
-                    {isOwnProfile && (
-                      <button 
-                        onClick={() => avatarInputRef.current?.click()}
-                        disabled={isUploadingAvatar}
-                        className="absolute bottom-2 right-2 bg-secondary-container p-2 rounded-full shadow-lg active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-60"
-                        aria-label="Change avatar"
-                      >
-                        {isUploadingAvatar ? (
-                          <Loader2 size={20} className="text-on-secondary-container animate-spin" />
-                        ) : (
-                          <Camera size={20} className="text-on-secondary-container" />
-                        )}
-                      </button>
-                    )}
                   </div>
                   
                   <div className="pb-2">
                     <h1 className="text-3xl font-bold text-on-surface">{displayName}</h1>
-                    {avatarError && <p className="text-sm font-bold text-error mt-1">{avatarError}</p>}
                     <div className="flex gap-4 mt-2 justify-center md:justify-start text-on-surface-variant font-medium">
                       <span><strong className="text-on-surface">{friendCount}</strong> friend{friendCount === 1 ? '' : 's'}</span>
                     </div>
@@ -687,7 +667,7 @@ export default function UserProfile() {
               
               {/* Create Post (Mini) */}
               {isOwnProfile && (
-                <PostComposer
+                <CreatePost
                   user={user}
                   className="border border-surface-container"
                   onCreated={(created) => {
@@ -892,8 +872,8 @@ export default function UserProfile() {
         />
       )}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
-          <div className="bg-surface-container-lowest w-full max-w-lg rounded-[2rem] border border-outline-variant/30 shadow-2xl p-6 md:p-8 space-y-6 relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-surface-container-lowest w-full max-w-lg rounded-[2rem] border border-outline-variant/30 shadow-2xl p-6 md:p-8 space-y-6 relative max-h-[90vh] overflow-y-auto hide-scrollbar">
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-outline-variant/30">
               <h3 className="text-2xl font-bold text-on-surface flex items-center gap-2">
@@ -909,7 +889,40 @@ export default function UserProfile() {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSaveProfile} className="space-y-5">
+            <form onSubmit={handleSaveProfile} className="space-y-5 animate-in fade-in duration-200">
+              {/* Avatar Section inside Edit Profile dialog */}
+              <div className="flex flex-col items-center justify-center gap-2 pb-4 border-b border-outline-variant/20">
+                <div className="relative group">
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
+                  <img 
+                    alt={displayName} 
+                    src={avatarUrl}
+                    className="w-24 h-24 rounded-full border-4 border-surface ring-4 ring-primary-container object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="absolute bottom-1 right-1 bg-secondary-container p-2 rounded-full shadow-lg active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-60 hover:brightness-105"
+                    aria-label="Change avatar"
+                  >
+                    {isUploadingAvatar ? (
+                      <Loader2 size={16} className="text-on-secondary-container animate-spin" />
+                    ) : (
+                      <Camera size={16} className="text-on-secondary-container" />
+                    )}
+                  </button>
+                </div>
+                <span className="text-sm font-bold text-on-surface-variant">Profile Picture</span>
+                {avatarError && <p className="text-xs font-bold text-error mt-1">{avatarError}</p>}
+              </div>
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-on-surface-variant ml-2">Full Name</label>
                 <input 

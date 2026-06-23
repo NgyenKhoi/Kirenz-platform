@@ -490,56 +490,63 @@ function RequestList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {requests.map((request) => {
         const otherUserId = type === 'incoming' ? request.requesterId : request.receiverId;
+        const displayName = request.displayName || request.username || 'Kirenz User';
+        const username = request.username;
         return (
-          <div key={request.id} className="rounded-2xl border border-outline-variant bg-surface-container-low p-5">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock size={16} className="text-primary" />
-                  <p className="text-xs font-bold text-primary uppercase tracking-[0.08em]">
-                    {type === 'incoming' ? 'From' : 'To'} {shortId(otherUserId)}
-                  </p>
-                </div>
-                <p className="font-mono text-sm text-on-surface break-all">{otherUserId}</p>
-                <p className="text-xs text-on-surface-variant mt-3">Requested {formatDate(request.createdAt)}</p>
+          <div key={request.id} className="rounded-2xl border border-outline-variant bg-surface-container-low p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <Link to={`/profile/${otherUserId}`} className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="h-12 w-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold shrink-0 overflow-hidden">
+                {request.avatarUrl ? (
+                  <img src={request.avatarUrl} alt={displayName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  displayName.slice(0, 1).toUpperCase()
+                )}
               </div>
+              <div className="min-w-0">
+                <p className="font-bold text-on-surface truncate">{displayName}</p>
+                {username && <p className="text-xs text-primary font-bold truncate">@{username}</p>}
+                {request.bio && <p className="text-xs text-on-surface-variant line-clamp-1 mt-1">{request.bio}</p>}
+                <p className="text-[10px] text-on-surface-variant mt-2 font-medium">
+                  {type === 'incoming' ? 'Received' : 'Sent'} {formatDate(request.createdAt)}
+                </p>
+              </div>
+            </Link>
 
-              {type === 'incoming' ? (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onAccept?.(request.id)}
-                    disabled={actionId === request.id}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-primary text-on-primary px-4 py-3 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
-                  >
-                    {actionId === request.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                    Accept
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDecline?.(request.id)}
-                    disabled={actionId === request.id}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-surface-container-high text-on-surface-variant px-4 py-3 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
-                  >
-                    <X size={16} />
-                    Decline
-                  </button>
-                </div>
-              ) : (
+            {type === 'incoming' ? (
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => onCancel?.(request.id)}
+                  onClick={() => onAccept?.(request.id)}
                   disabled={actionId === request.id}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-error-container text-on-error-container px-4 py-3 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-primary text-on-primary px-4 py-2.5 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
                 >
-                  {actionId === request.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                  Cancel
+                  {actionId === request.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  Accept
                 </button>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => onDecline?.(request.id)}
+                  disabled={actionId === request.id}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-surface-container-high text-on-surface-variant px-4 py-2.5 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                >
+                  <X size={16} />
+                  Decline
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onCancel?.(request.id)}
+                disabled={actionId === request.id}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-error-container text-on-error-container px-4 py-2.5 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+              >
+                {actionId === request.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                Cancel Request
+              </button>
+            )}
           </div>
         );
       })}

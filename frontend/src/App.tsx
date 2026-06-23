@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import Login from './Login';
 import Register from './Register';
 import ProfileSettings from './ProfileSettings';
-import PrivacySettings from './PrivacySettings';
 import UserProfile from './UserProfile';
 import HomeFeed from './HomeFeed';
 import Friends from './Friends';
@@ -17,8 +17,13 @@ import Chat from './Chat';
 import EditCover from './EditCover';
 import BlockedUsers from './BlockedUsers';
 import ProtectedRoute from './components/ProtectedRoute';
+import { initTheme } from './utils/theme';
 
 export default function App() {
+  useEffect(() => {
+    initTheme();
+  }, []);
+
   return (
     <BrowserRouter>
       <div className="fixed top-0 left-0 right-0 bg-surface-container border-b border-outline-variant p-2 flex justify-center gap-4 z-[100] text-sm hidden">
@@ -38,8 +43,6 @@ export default function App() {
         <span className="text-on-surface-variant">|</span>
         <Link to="/settings" className="text-primary font-bold hover:underline">Settings</Link>
         <span className="text-on-surface-variant">|</span>
-        <Link to="/privacy" className="text-primary font-bold hover:underline">Privacy</Link>
-        <span className="text-on-surface-variant">|</span>
         <Link to="/blocked" className="text-primary font-bold hover:underline">Blocked</Link>
       </div>
       <div>
@@ -55,7 +58,7 @@ export default function App() {
           <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
-          <Route path="/privacy" element={<ProtectedRoute><PrivacySettings /></ProtectedRoute>} />
+          <Route path="/privacy" element={<Navigate to="/settings" replace />} />
           <Route path="/blocked" element={<ProtectedRoute><BlockedUsers /></ProtectedRoute>} />
         </Routes>
       </div>

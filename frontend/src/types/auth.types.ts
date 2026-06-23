@@ -42,6 +42,8 @@ export interface UserProfile {
   emailVerified: boolean;
   createdAt: string;
   lastLoginAt?: string;
+  allowDirectMessages?: boolean;
+  profilePrivate?: boolean;
 }
 
 export interface ApiResponse<T> {
@@ -88,5 +90,7 @@ export interface UpdateProfileRequest {
   gender?: string | null;
   location?: string | null;
   website?: string | null;
+  allowDirectMessages?: boolean;
+  profilePrivate?: boolean;
 }
 
