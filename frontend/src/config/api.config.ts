@@ -16,6 +16,10 @@ export const API_ENDPOINTS = {
     AVATAR: '/users/me/avatar',
     DETAIL: (userId: string) => `/users/${userId}`,
   },
+  PRIVACY: {
+    BASE: '/privacy',
+    ME: '/privacy/me',
+  },
   VERIFICATION: {
     SEND_OTP: '/verification/send-otp',
     VERIFY_OTP: '/verification/verify-otp',

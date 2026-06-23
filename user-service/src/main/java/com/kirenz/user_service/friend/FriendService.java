@@ -72,19 +72,25 @@ public class FriendService {
 
     @Transactional(readOnly = true)
     public List<FriendRequestResponse> incomingRequests(UUID userId) {
-        return friendRequestRepository
-            .findByReceiverIdAndStatusOrderByCreatedAtDesc(userId, FriendRequestStatus.PENDING)
-            .stream()
-            .map(this::toResponse)
+        List<FriendRequest> requests = friendRequestRepository
+            .findByReceiverIdAndStatusOrderByCreatedAtDesc(userId, FriendRequestStatus.PENDING);
+        // For incoming requests, the "other" user is the requester
+        List<UUID> otherUserIds = requests.stream().map(FriendRequest::getRequesterId).toList();
+        Map<UUID, IdentityUserProfileResponse> profiles = fetchProfilesMap(otherUserIds);
+        return requests.stream()
+            .map(r -> toEnrichedResponse(r, profiles.get(r.getRequesterId())))
             .toList();
     }
 
     @Transactional(readOnly = true)
     public List<FriendRequestResponse> outgoingRequests(UUID userId) {
-        return friendRequestRepository
-            .findByRequesterIdAndStatusOrderByCreatedAtDesc(userId, FriendRequestStatus.PENDING)
-            .stream()
-            .map(this::toResponse)
+        List<FriendRequest> requests = friendRequestRepository
+            .findByRequesterIdAndStatusOrderByCreatedAtDesc(userId, FriendRequestStatus.PENDING);
+        // For outgoing requests, the "other" user is the receiver
+        List<UUID> otherUserIds = requests.stream().map(FriendRequest::getReceiverId).toList();
+        Map<UUID, IdentityUserProfileResponse> profiles = fetchProfilesMap(otherUserIds);
+        return requests.stream()
+            .map(r -> toEnrichedResponse(r, profiles.get(r.getReceiverId())))
             .toList();
     }
 
@@ -336,6 +342,39 @@ public class FriendService {
             request.getUpdatedAt(),
             request.getRespondedAt()
         );
+    }
+
+    private FriendRequestResponse toEnrichedResponse(FriendRequest request, IdentityUserProfileResponse profile) {
+        return new FriendRequestResponse(
+            request.getId(),
+            request.getRequesterId(),
+            request.getReceiverId(),
+            request.getStatus(),
+            request.getCreatedAt(),
+            request.getUpdatedAt(),
+            request.getRespondedAt(),
+            profile != null ? profile.username() : null,
+            profile != null ? profile.displayName() : "Kirenz User",
+            profile != null ? profile.avatarUrl() : null,
+            profile != null ? profile.bio() : null
+        );
+    }
+
+    private Map<UUID, IdentityUserProfileResponse> fetchProfilesMap(List<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return identityServiceClient.getProfilesByIds(userIds)
+                .getData()
+                .stream()
+                .collect(Collectors.toMap(
+                    IdentityUserProfileResponse::id,
+                    java.util.function.Function.identity()
+                ));
+        } catch (Exception e) {
+            return Map.of();
+        }
     }
 
     private FriendResponse toFriendResponse(Friendship friendship, UUID currentUserId) {

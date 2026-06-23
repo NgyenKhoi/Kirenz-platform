@@ -92,7 +92,7 @@ export default function BlockedUsers() {
       <div className="bg-background min-h-screen pb-24 md:pb-8">
         <header className="lg:hidden fixed top-0 w-full z-40 bg-surface/80 backdrop-blur-md shadow-sm h-16 flex items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/privacy')} className="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center transition-all text-primary">
+            <button onClick={() => navigate('/settings')} className="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center transition-all text-primary">
               <ArrowLeft size={24} />
             </button>
             <h1 className="text-xl font-bold text-primary tracking-tight">Blocked Users</h1>
@@ -102,7 +102,7 @@ export default function BlockedUsers() {
         <div className="max-w-4xl mx-auto px-4 md:px-8 pt-24 lg:pt-16">
           <section className="mb-8 text-center lg:text-left">
             <h2 className="hidden lg:flex items-center gap-4 text-3xl font-bold text-primary mb-3">
-              <button onClick={() => navigate('/privacy')} className="hover:bg-primary-container/20 p-2 rounded-full transition-colors active:scale-95">
+              <button onClick={() => navigate('/settings')} className="hover:bg-primary-container/20 p-2 rounded-full transition-colors active:scale-95">
                 <ArrowLeft size={28} />
               </button>
               Blocked Users
@@ -216,8 +216,8 @@ export default function BlockedUsers() {
           </section>
 
           <div className="mt-8 text-center">
-            <Link to="/privacy" className="text-sm font-bold text-primary hover:underline">
-              Back to privacy settings
+            <Link to="/settings" className="text-sm font-bold text-primary hover:underline">
+              Back to settings
             </Link>
           </div>
         </div>

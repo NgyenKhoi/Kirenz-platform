@@ -5,6 +5,7 @@ import com.kirenz.identity_service.auth.dto.LoginResponseDTO;
 import com.kirenz.identity_service.auth.dto.RefreshTokenRequestDTO;
 import com.kirenz.identity_service.auth.dto.RegisterRequestDTO;
 import com.kirenz.identity_service.auth.dto.RegisterResponseDTO;
+import com.kirenz.identity_service.auth.event.UserCreatedEvent;
 import com.kirenz.identity_service.auth.security.JWTService;
 import com.kirenz.identity_service.common.exception.AccountBannedException;
 import com.kirenz.identity_service.common.exception.AccountDeactivatedException;
@@ -23,6 +24,7 @@ import com.kirenz.identity_service.verification.exception.EmailSendingException;
 import com.kirenz.identity_service.verification.service.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,6 +46,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserMapper userMapper;
     private final VerificationService verificationService;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Transactional
     public RegisterResponseDTO register(RegisterRequestDTO request) {
@@ -78,6 +81,20 @@ public class AuthService {
         user.setEmailVerified(false);
 
         User savedUser = userRepository.save(user);
+
+        // Publish user-created event
+        try {
+            UserCreatedEvent event = UserCreatedEvent.builder()
+                .userId(savedUser.getId())
+                .email(savedUser.getEmail())
+                .username(savedUser.getUsername())
+                .build();
+            kafkaTemplate.send("user-created", event);
+            log.info("Published user-created event for user: {}", savedUser.getId());
+        } catch (Exception e) {
+            log.error("Failed to publish user-created event for user: {}. Error: {}", savedUser.getId(), e.getMessage());
+            // We don't throw exception here to avoid rolling back registration if Kafka is down
+        }
 
         // Attempt to send OTP automatically after registration
         boolean otpSent = false;
