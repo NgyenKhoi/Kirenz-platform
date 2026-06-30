@@ -33,6 +33,7 @@ spring:
       properties:
         spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.trusted.packages: "*"
+        spring.json.type.mapping: "com.example.social_service.event.NotificationEvent:com.example.notification_service.event.NotificationEvent,com.kirenz.user_service.event.NotificationEvent:com.example.notification_service.event.NotificationEvent,com.kirenz.identity_service.auth.event.UserCreatedEvent:com.example.notification_service.event.UserCreatedEvent"
 
 eureka:
   client:
