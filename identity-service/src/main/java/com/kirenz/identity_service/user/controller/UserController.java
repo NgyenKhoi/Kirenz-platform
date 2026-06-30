@@ -64,6 +64,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("User profiles retrieved successfully", profiles));
     }
 
+    @GetMapping("/internal/birthdays")
+    public ResponseEntity<ApiResponse<List<UserProfileDTO>>> getBirthdaysToday() {
+        List<UserProfileDTO> profiles = userService.getBirthdaysToday();
+        return ResponseEntity.ok(ApiResponse.success("Birthdays retrieved successfully", profiles));
+    }
+
     @GetMapping("/{userId}")
     public ResponseEntity<ApiResponse<UserProfileDTO>> getUserProfile(@PathVariable UUID userId) {
         UserProfileDTO profile = userService.getProfileById(userId);

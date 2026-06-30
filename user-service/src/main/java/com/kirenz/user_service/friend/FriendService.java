@@ -17,6 +17,8 @@ import com.kirenz.user_service.friend.repository.FriendRequestRepository;
 import com.kirenz.user_service.friend.repository.FriendshipRepository;
 import com.kirenz.user_service.identity.IdentityServiceClient;
 import com.kirenz.user_service.identity.IdentityUserProfileResponse;
+import com.kirenz.user_service.event.NotificationEvent;
+import com.kirenz.user_service.event.NotificationProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +41,7 @@ public class FriendService {
     private final FriendshipRepository friendshipRepository;
     private final BlockRepository blockRepository;
     private final IdentityServiceClient identityServiceClient;
+    private final NotificationProducer notificationProducer;
 
     @Transactional
     public FriendRequestResponse sendRequest(UUID requesterId, UUID receiverId) {
@@ -67,7 +70,18 @@ public class FriendService {
             .status(FriendRequestStatus.PENDING)
             .build();
 
-        return toResponse(friendRequestRepository.save(request));
+        FriendRequest saved = friendRequestRepository.save(request);
+        NotificationEvent event = NotificationEvent.builder()
+            .type("FRIEND_REQUEST")
+            .actorId(requesterId)
+            .receiverId(receiverId)
+            .targetId(saved.getId().toString())
+            .message("sent you a friend request.")
+            .createdAt(Instant.now())
+            .build();
+        notificationProducer.sendNotification(event);
+
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -109,6 +123,17 @@ public class FriendService {
             friendRequestRepository.save(request);
             Friendship existing = friendshipRepository.findByUserId1AndUserId2(pair.userId1(), pair.userId2())
                 .orElseThrow(() -> new NotFoundException("Friendship not found"));
+
+            NotificationEvent event = NotificationEvent.builder()
+                .type("FRIEND_ACCEPT")
+                .actorId(userId)
+                .receiverId(request.getRequesterId())
+                .targetId(existing.getId().toString())
+                .message("accepted your friend request.")
+                .createdAt(Instant.now())
+                .build();
+            notificationProducer.sendNotification(event);
+
             return toFriendResponse(existing, userId);
         }
 
@@ -121,7 +146,19 @@ public class FriendService {
             .userId2(pair.userId2())
             .build();
 
-        return toFriendResponse(friendshipRepository.save(friendship), userId);
+        Friendship savedFriendship = friendshipRepository.save(friendship);
+
+        NotificationEvent event = NotificationEvent.builder()
+            .type("FRIEND_ACCEPT")
+            .actorId(userId)
+            .receiverId(request.getRequesterId())
+            .targetId(savedFriendship.getId().toString())
+            .message("accepted your friend request.")
+            .createdAt(Instant.now())
+            .build();
+        notificationProducer.sendNotification(event);
+
+        return toFriendResponse(savedFriendship, userId);
     }
 
     @Transactional

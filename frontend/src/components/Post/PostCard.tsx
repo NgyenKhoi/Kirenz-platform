@@ -7,6 +7,7 @@ import { ConfirmDialog } from "../common/ConfirmDialog";
 import { commentService } from "../../services/comment.service";
 import { postService } from "../../services/post.service";
 import { reactionService } from "../../services/reaction.service";
+import { friendService } from "../../services/friend.service";
 import {
   displayName,
   formatPostTime,
@@ -220,8 +221,23 @@ export function PostCard({
 
     setIsSubmittingComment(true);
     try {
+      let taggedUserIds: string[] = [];
+      try {
+        const myFriends = await friendService.getFriends();
+        const matches = commentDraft.match(/@(\w+)/g);
+        if (matches) {
+          const mentionedUsernames = matches.map(m => m.substring(1).toLowerCase());
+          taggedUserIds = myFriends
+            .filter(f => f.username && mentionedUsernames.includes(f.username.toLowerCase()))
+            .map(f => f.friendId);
+        }
+      } catch (err) {
+        console.error("Error matching tags in comment:", err);
+      }
+
       const created = await commentService.create(post.id, {
         content: commentDraft,
+        taggedUserIds,
       });
       setComments((current) => [...current, created]);
       setCommentDraft("");
@@ -239,9 +255,24 @@ export function PostCard({
   ) => {
     setCommentError(null);
     try {
+      let taggedUserIds: string[] = [];
+      try {
+        const myFriends = await friendService.getFriends();
+        const matches = content.match(/@(\w+)/g);
+        if (matches) {
+          const mentionedUsernames = matches.map(m => m.substring(1).toLowerCase());
+          taggedUserIds = myFriends
+            .filter(f => f.username && mentionedUsernames.includes(f.username.toLowerCase()))
+            .map(f => f.friendId);
+        }
+      } catch (err) {
+        console.error("Error matching tags in reply:", err);
+      }
+
       const created = await commentService.create(post.id, {
         content,
         parentCommentId,
+        taggedUserIds,
       });
       setComments((current) => [...current, created]);
       onCommentCountChange(post.id, 1);

@@ -13,6 +13,7 @@ export interface CommentResponse {
   parentCommentId?: string | null;
   author: CommentAuthorResponse;
   content: string;
+  taggedUserIds?: string[];
   reactionsCount: number;
   reactionSummary?: ReactionSummaryResponse;
   status: 'ACTIVE' | 'INACTIVE' | 'DELETED';
@@ -23,6 +24,7 @@ export interface CommentResponse {
 export interface CreateCommentRequest {
   content: string;
   parentCommentId?: string | null;
+  taggedUserIds?: string[];
 }
 
 export interface UpdateCommentRequest {

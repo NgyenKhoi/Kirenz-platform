@@ -13,12 +13,14 @@ export interface CreatePostRequest {
   content: string;
   media?: PostMediaRequest[];
   privacy?: PostPrivacy;
+  taggedUserIds?: string[];
 }
 
 export interface UpdatePostRequest {
   content: string;
   media?: PostMediaRequest[];
   privacy?: PostPrivacy;
+  taggedUserIds?: string[];
 }
 
 export interface SharePostRequest {
@@ -57,6 +59,7 @@ export interface PostResponse {
   originalPostId?: string | null;
   sharedPost?: SharedPostResponse | null;
   media: PostMediaResponse[];
+  taggedUserIds?: string[];
   reactionsCount: number;
   reactionSummary?: ReactionSummaryResponse;
   commentsCount: number;

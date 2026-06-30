@@ -14,6 +14,8 @@ import com.example.social_service.reaction.model.Reaction;
 import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.model.ReactionType;
 import com.example.social_service.reaction.repository.ReactionRepository;
+import com.example.social_service.event.NotificationEvent;
+import com.example.social_service.event.NotificationProducer;
 import com.example.social_service.user.FriendStatusResponse;
 import com.example.social_service.user.UserServiceClient;
 import lombok.RequiredArgsConstructor;
@@ -35,10 +37,24 @@ public class ReactionService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final UserServiceClient userServiceClient;
+    private final NotificationProducer notificationProducer;
 
     public ReactionSummaryResponse reactToPost(UUID userId, String postId, ReactionRequest request) {
         Post post = visiblePost(userId, postId);
-        applyReaction(userId, ReactionTargetType.POST, postId, request.type(), () -> incrementPost(post), () -> decrementPost(post));
+        applyReaction(userId, ReactionTargetType.POST, postId, request.type(), () -> {
+            incrementPost(post);
+            if (!post.getUserId().equals(userId)) {
+                NotificationEvent event = NotificationEvent.builder()
+                    .type("POST_LIKE")
+                    .actorId(userId)
+                    .receiverId(post.getUserId())
+                    .targetId(post.getId())
+                    .message("liked your post.")
+                    .createdAt(Instant.now())
+                    .build();
+                notificationProducer.sendNotification(event);
+            }
+        }, () -> decrementPost(post));
         return getSummary(userId, ReactionTargetType.POST, postId);
     }
 

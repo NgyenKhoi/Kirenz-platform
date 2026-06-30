@@ -10,6 +10,8 @@ import com.example.social_service.comment.repository.CommentRepository;
 import com.example.social_service.common.exception.BadRequestException;
 import com.example.social_service.common.exception.ForbiddenException;
 import com.example.social_service.common.exception.NotFoundException;
+import com.example.social_service.event.NotificationEvent;
+import com.example.social_service.event.NotificationProducer;
 import com.example.social_service.identity.IdentityServiceClient;
 import com.example.social_service.identity.IdentityUserProfileResponse;
 import com.example.social_service.post.model.Post;
@@ -40,22 +42,26 @@ public class CommentService {
     private final IdentityServiceClient identityServiceClient;
     private final ReactionService reactionService;
     private final UserServiceClient userServiceClient;
+    private final NotificationProducer notificationProducer;
 
     public CommentResponse createComment(UUID userId, String postId, CreateCommentRequest request) {
         Post post = visiblePost(userId, postId);
         String content = normalizeContent(request.content());
         validateContent(content);
         String parentCommentId = normalizeParentCommentId(request.parentCommentId());
+        Comment parentComment = null;
         if (parentCommentId != null) {
-            activeComment(postId, parentCommentId);
+            parentComment = activeComment(postId, parentCommentId);
         }
 
+        List<UUID> taggedUserIds = request.taggedUserIds() != null ? request.taggedUserIds() : List.of();
         Instant now = Instant.now();
         Comment comment = Comment.builder()
             .postId(postId)
             .userId(userId)
             .parentCommentId(parentCommentId)
             .content(content)
+            .taggedUserIds(taggedUserIds)
             .status(CommentStatus.ACTIVE)
             .createdAt(now)
             .updatedAt(now)
@@ -65,6 +71,43 @@ public class CommentService {
         post.setCommentsCount(post.getCommentsCount() + 1);
         post.setUpdatedAt(now);
         postRepository.save(post);
+
+        // Publish events to Kafka
+        if (parentComment != null && !parentComment.getUserId().equals(userId)) {
+            NotificationEvent replyEvent = NotificationEvent.builder()
+                .type("COMMENT_REPLY")
+                .actorId(userId)
+                .receiverId(parentComment.getUserId())
+                .targetId(postId)
+                .message("replied to your comment.")
+                .createdAt(now)
+                .build();
+            notificationProducer.sendNotification(replyEvent);
+        } else if (parentComment == null && !post.getUserId().equals(userId)) {
+            NotificationEvent commentEvent = NotificationEvent.builder()
+                .type("POST_COMMENT")
+                .actorId(userId)
+                .receiverId(post.getUserId())
+                .targetId(postId)
+                .message("commented on your post.")
+                .createdAt(now)
+                .build();
+            notificationProducer.sendNotification(commentEvent);
+        }
+
+        for (UUID taggedUserId : taggedUserIds) {
+            if (!taggedUserId.equals(userId)) {
+                NotificationEvent mentionEvent = NotificationEvent.builder()
+                    .type("COMMENT_MENTION")
+                    .actorId(userId)
+                    .receiverId(taggedUserId)
+                    .targetId(postId)
+                    .message("mentioned you in a comment.")
+                    .createdAt(now)
+                    .build();
+                notificationProducer.sendNotification(mentionEvent);
+            }
+        }
 
         return toResponse(saved, fetchAuthors(List.of(userId)), emptyReactionSummary());
     }
@@ -234,6 +277,7 @@ public class CommentService {
             comment.getParentCommentId(),
             author,
             comment.getContent(),
+            comment.getTaggedUserIds() != null ? comment.getTaggedUserIds() : List.of(),
             reactionsCount(comment.getReactionsCount()),
             reactionSummary,
             comment.getStatus(),

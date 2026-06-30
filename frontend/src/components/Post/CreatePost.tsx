@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
-import { Image as ImageIcon, X } from "lucide-react";
+import { Image as ImageIcon, X, UserPlus } from "lucide-react";
 import { postService } from "../../services/post.service";
+import { friendService } from "../../services/friend.service";
 import { getErrorMessage } from "../../utils/post.utils";
 import { fallbackAvatar } from "../../constants/post.constants";
 import { PrivacyDropdown } from "../common/PrivacyDropdown";
@@ -43,6 +44,18 @@ export function CreatePost({
     "PUBLIC" | "FRIENDS" | "PRIVATE"
   >("PUBLIC");
   const [showCreateConfirm, setShowCreateConfirm] = useState(false);
+
+  // Tagging State
+  const [friends, setFriends] = useState<any[]>([]);
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+  const [showTagFriends, setShowTagFriends] = useState(false);
+  const [tagSearchQuery, setTagSearchQuery] = useState("");
+
+  useEffect(() => {
+    friendService.getFriends()
+      .then((res) => setFriends(res || []))
+      .catch((err) => console.error("Error loading friends list for tagging:", err));
+  }, []);
 
   const effectiveProfileName = profileName || user?.displayName || user?.username || "there";
 
@@ -122,12 +135,15 @@ export function CreatePost({
           url: media.url,
           publicId: media.publicId,
         })),
+        taggedUserIds: selectedFriends,
       });
       onPostCreated?.(created);
       onCreated?.(created);
       setContent("");
       selectedImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
       setSelectedImages([]);
+      setSelectedFriends([]);
+      setShowTagFriends(false);
       onMessage?.("Post created successfully.");
       onSuccess?.("Post created successfully.");
     } catch (err) {
@@ -194,8 +210,64 @@ export function CreatePost({
         </div>
       )}
 
+      {showTagFriends && (
+        <div className="mt-4 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/30">
+          <div className="text-sm font-bold text-on-surface mb-2">Tag Friends</div>
+          <input
+            type="text"
+            placeholder="Search friends to tag..."
+            value={tagSearchQuery}
+            onChange={(e) => setTagSearchQuery(e.target.value)}
+            className="w-full bg-surface-container-high px-4 py-2 rounded-xl text-sm font-medium border-none outline-none focus:ring-2 focus:ring-primary-container mb-3"
+          />
+          <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
+            {friends
+              .filter(f => {
+                const name = f.displayName || f.username || "";
+                return name.toLowerCase().includes(tagSearchQuery.toLowerCase());
+              })
+              .map(f => {
+                const isSelected = selectedFriends.includes(f.friendId);
+                return (
+                  <button
+                    key={f.friendId}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedFriends(selectedFriends.filter(id => id !== f.friendId));
+                      } else {
+                        setSelectedFriends([...selectedFriends, f.friendId]);
+                      }
+                    }}
+                    className="flex items-center justify-between p-2 rounded-xl hover:bg-surface-container-high text-left w-full text-sm transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={f.avatarUrl || fallbackAvatar}
+                        alt=""
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                      <span className="font-semibold text-on-surface text-xs">
+                        {f.displayName || f.username || "Kirenz Friend"}
+                      </span>
+                    </div>
+                    {isSelected && (
+                      <span className="text-primary font-bold text-[10px] bg-primary-container/30 px-2 py-0.5 rounded-md">
+                        Tagged
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            {friends.length === 0 && (
+              <div className="text-xs text-on-surface-variant text-center py-4">No friends found</div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 justify-between items-center pt-2 border-t border-outline-variant/30 mt-4">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -207,6 +279,17 @@ export function CreatePost({
             value={postPrivacy}
             onChange={(val) => setPostPrivacy(val)}
           />
+          <button
+            type="button"
+            onClick={() => setShowTagFriends(!showTagFriends)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-full active:scale-95 transition-colors ${
+              selectedFriends.length > 0
+                ? "bg-secondary-container text-on-secondary-container font-black"
+                : "text-secondary hover:bg-secondary-fixed"
+            }`}
+          >
+            <UserPlus size={20} /> Tag {selectedFriends.length > 0 && `(${selectedFriends.length})`}
+          </button>
         </div>
         <button
           type="submit"
