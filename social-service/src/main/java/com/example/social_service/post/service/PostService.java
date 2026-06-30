@@ -82,7 +82,7 @@ public class PostService {
             notificationProducer.sendNotification(event);
         }
 
-        return toResponse(userId, saved, fetchAuthors(List.of(userId)), emptyReactionSummary());
+        return toResponse(userId, saved, fetchAuthors(authorIdsFor(List.of(saved))), emptyReactionSummary());
     }
 
     public PostResponse sharePost(UUID userId, String postId, SharePostRequest request) {

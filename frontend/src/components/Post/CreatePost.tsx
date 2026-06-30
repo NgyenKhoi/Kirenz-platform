@@ -135,6 +135,7 @@ export function CreatePost({
           url: media.url,
           publicId: media.publicId,
         })),
+        privacy: postPrivacy === "PRIVATE" ? "ONLY_ME" : postPrivacy,
         taggedUserIds: selectedFriends,
       });
       onPostCreated?.(created);
