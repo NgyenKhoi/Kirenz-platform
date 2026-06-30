@@ -49,7 +49,7 @@ public class ReactionService {
                     .actorId(userId)
                     .receiverId(post.getUserId())
                     .targetId(post.getId())
-                    .message("liked your post.")
+                    .message("send a reaction to your post.")
                     .createdAt(Instant.now())
                     .build();
                 notificationProducer.sendNotification(event);

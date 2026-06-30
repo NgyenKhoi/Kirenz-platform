@@ -18,6 +18,7 @@ public record PostResponse(
     SharedPostResponse sharedPost,
     List<PostMediaResponse> media,
     List<UUID> taggedUserIds,
+    List<AuthorResponse> taggedUsers,
     Integer reactionsCount,
     ReactionSummaryResponse reactionSummary,
     Integer commentsCount,

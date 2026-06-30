@@ -61,7 +61,7 @@ class NotificationWebSocketService {
     }
 
     this.notificationSubscription = this.client.subscribe(
-      `/user/${userId}/queue/notifications`,
+      `/user/queue/notifications`,
       (message: IMessage) => {
         onNotification(JSON.parse(message.body));
       }
@@ -69,7 +69,7 @@ class NotificationWebSocketService {
 
     if (onUnreadCount) {
       this.unreadCountSubscription = this.client.subscribe(
-        `/user/${userId}/queue/notifications/unread-count`,
+        `/user/queue/notifications/unread-count`,
         (message: IMessage) => {
           const body = JSON.parse(message.body);
           onUnreadCount(body.count);
