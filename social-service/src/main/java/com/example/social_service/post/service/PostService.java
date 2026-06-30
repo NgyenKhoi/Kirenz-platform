@@ -233,6 +233,13 @@ public class PostService {
             .filter(authorId -> !authorIds.contains(authorId))
             .forEach(authorIds::add);
 
+        posts.stream()
+            .filter(post -> post.getTaggedUserIds() != null)
+            .flatMap(post -> post.getTaggedUserIds().stream())
+            .distinct()
+            .filter(taggedId -> !authorIds.contains(taggedId))
+            .forEach(authorIds::add);
+
         return authorIds;
     }
 
@@ -300,6 +307,14 @@ public class PostService {
                 .map(media -> new PostMediaResponse(media.getType(), media.getUrl(), media.getPublicId()))
                 .toList(),
             post.getTaggedUserIds() != null ? post.getTaggedUserIds() : List.of(),
+            (post.getTaggedUserIds() != null ? post.getTaggedUserIds() : List.<UUID>of()).stream()
+                .map(id -> {
+                    IdentityUserProfileResponse p = authors.get(id);
+                    return p == null
+                        ? new AuthorResponse(id, null, "Kirenz User", null)
+                        : new AuthorResponse(p.id(), p.username(), p.displayName(), p.avatarUrl());
+                })
+                .toList(),
             reactionsCount(post.getReactionsCount()),
             reactionSummary,
             post.getCommentsCount(),
