@@ -10,6 +10,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
 
 @Document(collection = "comments")
@@ -31,6 +33,9 @@ public class Comment {
     private String parentCommentId;
 
     private String content;
+
+    @Builder.Default
+    private List<UUID> taggedUserIds = new ArrayList<>();
 
     @Builder.Default
     private Integer reactionsCount = 0;

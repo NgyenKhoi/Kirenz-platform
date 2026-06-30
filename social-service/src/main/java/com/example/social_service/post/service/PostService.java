@@ -5,6 +5,8 @@ import com.example.social_service.common.exception.ForbiddenException;
 import com.example.social_service.common.exception.NotFoundException;
 import com.example.social_service.identity.IdentityServiceClient;
 import com.example.social_service.identity.IdentityUserProfileResponse;
+import com.example.social_service.event.NotificationEvent;
+import com.example.social_service.event.NotificationProducer;
 import com.example.social_service.post.dto.AuthorResponse;
 import com.example.social_service.post.dto.CreatePostRequest;
 import com.example.social_service.post.dto.PostImageResponse;
@@ -44,11 +46,13 @@ public class PostService {
     private final IdentityServiceClient identityServiceClient;
     private final UserServiceClient userServiceClient;
     private final ReactionService reactionService;
+    private final NotificationProducer notificationProducer;
 
     public PostResponse createPost(UUID userId, CreatePostRequest request) {
         List<PostMedia> media = toMedia(request.media());
         String content = normalizeContent(request.content());
         validatePostBody(content, media);
+        List<UUID> taggedUserIds = request.taggedUserIds() != null ? request.taggedUserIds() : List.of();
 
         Instant now = Instant.now();
         Post post = Post.builder()
@@ -57,12 +61,27 @@ public class PostService {
             .content(content)
             .privacy(normalizePrivacy(request.privacy()))
             .media(media)
+            .taggedUserIds(taggedUserIds)
             .status(PostStatus.ACTIVE)
             .createdAt(now)
             .updatedAt(now)
             .build();
 
         Post saved = postRepository.save(post);
+
+        // Publish POST_MENTION events to Kafka
+        for (UUID taggedUserId : taggedUserIds) {
+            NotificationEvent event = NotificationEvent.builder()
+                .type("POST_MENTION")
+                .actorId(userId)
+                .receiverId(taggedUserId)
+                .targetId(saved.getId())
+                .message("mentioned you in a post.")
+                .createdAt(now)
+                .build();
+            notificationProducer.sendNotification(event);
+        }
+
         return toResponse(userId, saved, fetchAuthors(List.of(userId)), emptyReactionSummary());
     }
 
@@ -280,6 +299,7 @@ public class PostService {
             post.getMedia().stream()
                 .map(media -> new PostMediaResponse(media.getType(), media.getUrl(), media.getPublicId()))
                 .toList(),
+            post.getTaggedUserIds() != null ? post.getTaggedUserIds() : List.of(),
             reactionsCount(post.getReactionsCount()),
             reactionSummary,
             post.getCommentsCount(),

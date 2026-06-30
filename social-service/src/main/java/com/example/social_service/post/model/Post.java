@@ -43,6 +43,9 @@ public class Post {
     private List<PostMedia> media = new ArrayList<>();
 
     @Builder.Default
+    private List<UUID> taggedUserIds = new ArrayList<>();
+
+    @Builder.Default
     private Integer reactionsCount = 0;
 
     @Builder.Default

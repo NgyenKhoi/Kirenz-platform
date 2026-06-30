@@ -6,6 +6,7 @@ import com.example.social_service.reaction.dto.ReactionSummaryResponse;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public record PostResponse(
     String id,
@@ -16,6 +17,7 @@ public record PostResponse(
     String originalPostId,
     SharedPostResponse sharedPost,
     List<PostMediaResponse> media,
+    List<UUID> taggedUserIds,
     Integer reactionsCount,
     ReactionSummaryResponse reactionSummary,
     Integer commentsCount,
