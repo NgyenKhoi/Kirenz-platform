@@ -33,4 +33,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
         order by u.displayName asc nulls last, u.username asc
         """)
     List<User> searchProfiles(@Param("query") String query, @Param("excludeId") UUID excludeId, Pageable pageable);
+
+    @Query("""
+        select u from User u
+        where u.birthDate is not null
+          and extract(month from u.birthDate) = :month
+          and extract(day from u.birthDate) = :day
+        """)
+    List<User> findByBirthdayMonthAndDay(@Param("month") int month, @Param("day") int day);
 }

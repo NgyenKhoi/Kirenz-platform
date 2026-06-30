@@ -72,6 +72,14 @@ public class UserService {
             .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
     }
 
+    public List<UserProfileDTO> getBirthdaysToday() {
+        java.time.LocalDate today = java.time.LocalDate.now();
+        return userRepository.findByBirthdayMonthAndDay(today.getMonthValue(), today.getDayOfMonth())
+            .stream()
+            .map(userMapper::toUserProfileDTO)
+            .toList();
+    }
+
     public User getCurrentUser() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
