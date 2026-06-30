@@ -50,11 +50,14 @@ class PostServiceTest {
     @Mock
     private ReactionService reactionService;
 
+    @Mock
+    private com.example.social_service.event.NotificationProducer notificationProducer;
+
     private PostService postService;
 
     @BeforeEach
     void setUp() {
-        postService = new PostService(postRepository, identityServiceClient, userServiceClient, reactionService);
+        postService = new PostService(postRepository, identityServiceClient, userServiceClient, reactionService, notificationProducer);
         lenient().when(identityServiceClient.getProfilesByIds(any())).thenReturn(ApiResponse.success("ok", List.of()));
         lenient().when(reactionService.getSummary(any(), any(), any()))
             .thenReturn(new ReactionSummaryResponse(0, null, Map.of()));
@@ -71,7 +74,7 @@ class PostServiceTest {
             return post;
         });
 
-        PostResponse response = postService.createPost(ownerId, new CreatePostRequest(" Hello world ", List.of(), null));
+        PostResponse response = postService.createPost(ownerId, new CreatePostRequest(" Hello world ", List.of(), null, List.of()));
 
         assertThat(response.id()).isEqualTo("post-1");
         assertThat(response.content()).isEqualTo("Hello world");
@@ -83,7 +86,7 @@ class PostServiceTest {
     void doesNotCreateEmptyPost() {
         UUID ownerId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> postService.createPost(ownerId, new CreatePostRequest("   ", List.of(), null)))
+        assertThatThrownBy(() -> postService.createPost(ownerId, new CreatePostRequest("   ", List.of(), null, List.of())))
             .isInstanceOf(BadRequestException.class)
             .hasMessage("Post content or media is required");
     }

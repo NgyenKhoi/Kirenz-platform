@@ -85,6 +85,10 @@
 			<artifactId>spring-dotenv</artifactId>
 			<version>4.0.0</version>
 		</dependency>
+		<dependency>
+			<groupId>org.liquibase</groupId>
+			<artifactId>liquibase-core</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.postgresql</groupId>
@@ -168,6 +172,18 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.liquibase</groupId>
+				<artifactId>liquibase-maven-plugin</artifactId>
+				<version>4.31.1</version>
+				<configuration>
+					<changeLogFile>src/main/resources/db/changelog/db.changelog-master.yml</changeLogFile>
+					<url>${env.DATABASE_URL}</url>
+					<username>${env.DATABASE_USERNAME}</username>
+					<password>${env.DATABASE_PASSWORD}</password>
+					<driver>org.postgresql.Driver</driver>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

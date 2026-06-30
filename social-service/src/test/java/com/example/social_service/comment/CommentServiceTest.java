@@ -56,11 +56,14 @@ class CommentServiceTest {
     @Mock
     private UserServiceClient userServiceClient;
 
+    @Mock
+    private com.example.social_service.event.NotificationProducer notificationProducer;
+
     private CommentService commentService;
 
     @BeforeEach
     void setUp() {
-        commentService = new CommentService(commentRepository, postRepository, identityServiceClient, reactionService, userServiceClient);
+        commentService = new CommentService(commentRepository, postRepository, identityServiceClient, reactionService, userServiceClient, notificationProducer);
         lenient().when(identityServiceClient.getProfilesByIds(any())).thenReturn(ApiResponse.success("ok", List.of()));
         lenient().when(reactionService.getSummary(any(), any(), any()))
             .thenReturn(new ReactionSummaryResponse(0, null, Map.of()));
@@ -83,7 +86,7 @@ class CommentServiceTest {
         CommentResponse response = commentService.createComment(
             ownerId,
             "post-1",
-            new CreateCommentRequest(" First! ", null)
+            new CreateCommentRequest(" First! ", null, List.of())
         );
 
         assertThat(response.id()).isEqualTo("comment-1");
@@ -100,7 +103,7 @@ class CommentServiceTest {
         assertThatThrownBy(() -> commentService.createComment(
             UUID.randomUUID(),
             "post-1",
-            new CreateCommentRequest("   ", null)
+            new CreateCommentRequest("   ", null, List.of())
         ))
             .isInstanceOf(BadRequestException.class)
             .hasMessage("Comment content is required");
@@ -123,7 +126,7 @@ class CommentServiceTest {
         CommentResponse response = commentService.createComment(
             ownerId,
             "post-1",
-            new CreateCommentRequest(" Reply! ", "comment-1")
+            new CreateCommentRequest(" Reply! ", "comment-1", List.of())
         );
 
         assertThat(response.id()).isEqualTo("reply-1");
@@ -140,7 +143,7 @@ class CommentServiceTest {
         assertThatThrownBy(() -> commentService.createComment(
             UUID.randomUUID(),
             "missing",
-            new CreateCommentRequest("Hello", null)
+            new CreateCommentRequest("Hello", null, List.of())
         ))
             .isInstanceOf(NotFoundException.class)
             .hasMessage("Post not found");

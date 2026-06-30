@@ -49,11 +49,14 @@ class ReactionServiceTest {
     @Mock
     private UserServiceClient userServiceClient;
 
+    @Mock
+    private com.example.social_service.event.NotificationProducer notificationProducer;
+
     private ReactionService reactionService;
 
     @BeforeEach
     void setUp() {
-        reactionService = new ReactionService(reactionRepository, postRepository, commentRepository, userServiceClient);
+        reactionService = new ReactionService(reactionRepository, postRepository, commentRepository, userServiceClient, notificationProducer);
     }
 
     @Test
