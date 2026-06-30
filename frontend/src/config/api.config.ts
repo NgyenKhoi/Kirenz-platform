@@ -4,6 +4,7 @@ import { ApiResponse, ErrorResponse, LoginResponse } from '../types/auth.types';
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api';
 export const USER_SERVICE_BASE_URL = import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:8082/api';
 export const SOCIAL_SERVICE_BASE_URL = import.meta.env.VITE_SOCIAL_SERVICE_BASE_URL || 'http://localhost:8083/api';
+export const NOTIFICATION_SERVICE_BASE_URL = import.meta.env.VITE_NOTIFICATION_SERVICE_BASE_URL || 'http://localhost:8085/api';
 
 export const API_ENDPOINTS = {
   AUTH: {
@@ -92,6 +93,13 @@ export const socialServiceClient = axios.create({
   },
 });
 
+export const notificationServiceClient = axios.create({
+  baseURL: NOTIFICATION_SERVICE_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value?: unknown) => void;
@@ -132,6 +140,17 @@ userServiceClient.interceptors.request.use(
 );
 
 socialServiceClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+notificationServiceClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     if (token && config.headers) {
@@ -203,5 +222,6 @@ const addRefreshInterceptor = (client: AxiosInstance) => {
 addRefreshInterceptor(apiClient);
 addRefreshInterceptor(userServiceClient);
 addRefreshInterceptor(socialServiceClient);
+addRefreshInterceptor(notificationServiceClient);
 
 export default apiClient;
