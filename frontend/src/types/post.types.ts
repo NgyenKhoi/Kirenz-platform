@@ -60,6 +60,7 @@ export interface PostResponse {
   sharedPost?: SharedPostResponse | null;
   media: PostMediaResponse[];
   taggedUserIds?: string[];
+  taggedUsers?: AuthorResponse[];
   reactionsCount: number;
   reactionSummary?: ReactionSummaryResponse;
   commentsCount: number;

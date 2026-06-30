@@ -478,8 +478,19 @@ export function PostCard({
                 />
               </div>
               <div className="min-w-0">
-                <h3 className="text-xl font-bold text-on-surface leading-tight truncate">
+                <h3 className="text-xl font-bold text-on-surface leading-tight">
                   {authorName}
+                  {post.taggedUsers && post.taggedUsers.length > 0 && (
+                    <span className="text-sm font-medium text-on-surface-variant">
+                      {" "}is with{" "}
+                      {post.taggedUsers.map((u, i) => (
+                        <span key={u.id}>
+                          {i > 0 && (i === post.taggedUsers!.length - 1 ? " and " : ", ")}
+                          <span className="font-bold text-on-surface">{u.displayName || u.username || "Kirenz User"}</span>
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs font-bold text-on-surface-variant flex items-center gap-1">
                   {post.originalPostId
