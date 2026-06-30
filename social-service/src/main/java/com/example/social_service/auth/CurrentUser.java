@@ -10,8 +10,8 @@ import java.util.UUID;
 public class CurrentUser {
 
     public UUID id() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (principal instanceof JwtPrincipal jwtPrincipal) {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof JwtPrincipal jwtPrincipal) {
             return jwtPrincipal.userId();
         }
         throw new ForbiddenException("Authenticated user is required");
