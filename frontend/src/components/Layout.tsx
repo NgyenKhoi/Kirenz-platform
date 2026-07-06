@@ -148,6 +148,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const totalUnreadMessages = Object.values(unreadCountMap).reduce<number>((sum, count) => sum + Number(count || 0), 0);
 
+  const formatNotificationTime = (createdAt: string) => {
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return '';
+
+    return new Intl.DateTimeFormat(undefined, {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
+
   return (
     <div className="bg-surface-bright text-on-surface min-h-screen font-body-md">
       {/* Desktop Navigation Shell */}
@@ -253,59 +265,90 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Floating Notifications Drawer Overlay */}
       {showNotifications && (
-        <div className="fixed inset-y-0 right-0 z-50 flex justify-end bg-black/20 backdrop-blur-xs w-full">
-          <div className="w-full max-w-[380px] bg-surface-container-lowest border-l border-outline-variant/30 flex flex-col shadow-2xl h-full animate-in slide-in-from-right duration-200">
-            <div className="p-5 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
-              <span className="font-bold text-lg text-on-surface">Notifications</span>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleMarkAllAsRead}
-                  className="text-xs text-primary font-bold hover:underline"
-                >
-                  Mark all read
-                </button>
+        <div className="fixed inset-y-0 right-0 md:left-[280px] z-[90] flex justify-end bg-on-surface/25 backdrop-blur-sm">
+          <button
+            type="button"
+            aria-label="Close notifications"
+            className="absolute inset-0 cursor-default"
+            onClick={() => setShowNotifications(false)}
+          />
+          <aside className="relative z-10 flex h-full w-full max-w-[440px] flex-col border-l border-outline-variant/20 bg-surface-container-lowest shadow-[-18px_0_48px_-28px_rgba(28,28,24,0.45)]">
+            <header className="flex items-center justify-between gap-4 border-b border-outline-variant/15 bg-surface-container-lowest px-5 py-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Bell size={20} className="text-primary" />
+                  <h2 className="text-lg font-bold text-on-surface">Notifications</h2>
+                </div>
+                <p className="mt-0.5 text-xs font-medium text-on-surface-variant">
+                  {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {notifications.length > 0 && (
+                  <button
+                    onClick={handleMarkAllAsRead}
+                    className="rounded-full px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary-container/30 disabled:opacity-40"
+                    disabled={unreadCount === 0}
+                  >
+                    Mark read
+                  </button>
+                )}
                 <button
                   onClick={() => setShowNotifications(false)}
-                  className="p-1 rounded-full hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                  aria-label="Close notifications"
                 >
                   <X size={20} />
                 </button>
               </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {notifications.map(n => (
-                <div
-                  key={n.id}
-                  onClick={() => handleNotificationClick(n)}
-                  className={`flex gap-3 p-3 rounded-2xl cursor-pointer hover:bg-surface-container-low transition-colors ${!n.isRead ? 'bg-primary-container/10 border-l-4 border-primary' : 'bg-surface-container-lowest'}`}
-                >
-                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-surface-container-high">
-                    <img
-                      src={n.actorAvatar || fallbackAvatar}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-on-surface leading-normal">
-                      <span className="font-bold text-on-surface">{n.actorName || "Kirenz User"}</span> {n.message}
-                    </p>
-                    <span className="text-[10px] text-on-surface-variant font-medium mt-1 block">
-                      {new Date(n.createdAt).toLocaleDateString() + " " + new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              {notifications.length > 0 ? (
+                <div className="space-y-2">
+                  {notifications.map(n => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => handleNotificationClick(n)}
+                      className={`group flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md ${!n.isRead ? 'border-primary-container bg-primary-container/20' : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-low'}`}
+                    >
+                      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-surface-container-high ring-1 ring-outline-variant/20">
+                        <img
+                          src={n.actorAvatar || fallbackAvatar}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                        {!n.isRead && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface-container-lowest bg-primary" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm leading-5 text-on-surface">
+                          <span className="font-bold">{n.actorName || 'Kirenz User'}</span>
+                          <span className="text-on-surface-variant"> {n.message}</span>
+                        </p>
+                        <span className="mt-1 block text-xs font-medium text-on-surface-variant">
+                          {formatNotificationTime(n.createdAt)}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              ))}
-              {notifications.length === 0 && (
-                <div className="text-sm text-on-surface-variant text-center py-20 font-bold">
-                  No notifications yet.
+              ) : (
+                <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-container/40 text-primary">
+                    <Bell size={24} />
+                  </div>
+                  <p className="text-sm font-bold text-on-surface">No notifications yet</p>
+                  <p className="mt-1 max-w-56 text-xs font-medium text-on-surface-variant">
+                    New reactions, comments, friend updates, and mentions will appear here.
+                  </p>
                 </div>
               )}
             </div>
-          </div>
+          </aside>
         </div>
       )}
-
       {/* Main Content Area */}
       <div className="md:ml-[280px]">
         {children}

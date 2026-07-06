@@ -13,7 +13,7 @@ class NotificationWebSocketService {
 
     this.connectionPromise = new Promise((resolve, reject) => {
       this.client = new Client({
-        webSocketFactory: () => new SockJS(`${import.meta.env.VITE_NOTIFICATION_API_URL || 'http://localhost:8085'}/ws`),
+        webSocketFactory: () => new SockJS(import.meta.env.VITE_NOTIFICATION_WS_URL || `${import.meta.env.VITE_NOTIFICATION_API_URL || 'http://localhost:8080'}/ws/notifications`),
         connectHeaders: {
           Authorization: `Bearer ${token}`,
         },

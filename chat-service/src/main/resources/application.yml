@@ -2,6 +2,11 @@ spring:
   application:
     name: chat-service
 
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
@@ -27,8 +32,30 @@ eureka:
 jwt:
   secret: ${JWT_SECRET}
 
-services:
-  identity:
-    url: ${IDENTITY_SERVICE_URL}
-  user:
-    url: ${USER_SERVICE_URL}
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+    instances:
+      identity-service:
+        base-config: default
+      user-service:
+        base-config: default
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 300ms
+        retry-exceptions:
+          - feign.RetryableException
+          - java.io.IOException
+    instances:
+      identity-service:
+        base-config: default
+      user-service:
+        base-config: default

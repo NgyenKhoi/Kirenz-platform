@@ -5,6 +5,11 @@ spring:
   application:
     name: user-service
 
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -47,10 +52,34 @@ eureka:
 jwt:
   secret: ${JWT_SECRET}
 
-services:
-  identity:
-    url: ${IDENTITY_SERVICE_URL}
 
 logging:
   level:
     com.kirenz.user_service: INFO
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+    instances:
+      identity-service:
+        base-config: default
+      user-service:
+        base-config: default
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 300ms
+        retry-exceptions:
+          - feign.RetryableException
+          - java.io.IOException
+    instances:
+      identity-service:
+        base-config: default
+      user-service:
+        base-config: default

@@ -1,6 +1,11 @@
 spring:
   application:
     name: social-service
+
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
   servlet:
     multipart:
       max-file-size: 500MB
@@ -26,11 +31,6 @@ eureka:
 jwt:
   secret: ${JWT_SECRET}
 
-services:
-  identity:
-    url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
-  user:
-    url: ${USER_SERVICE_URL:http://localhost:8082}
 
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME}
@@ -42,3 +42,30 @@ cloudinary:
   folders:
     posts: ${CLOUDINARY_POST_FOLDER:kirenz/posts}
     chat: ${CLOUDINARY_CHAT_FOLDER:kirenz/chat}
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+    instances:
+      identity-service:
+        base-config: default
+      user-service:
+        base-config: default
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 300ms
+        retry-exceptions:
+          - feign.RetryableException
+          - java.io.IOException
+    instances:
+      identity-service:
+        base-config: default
+      user-service:
+        base-config: default

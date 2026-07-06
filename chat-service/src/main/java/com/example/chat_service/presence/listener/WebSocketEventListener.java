@@ -36,11 +36,13 @@ public class WebSocketEventListener {
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         UUID userId = extractUserId(headerAccessor);
+        String sessionId = headerAccessor.getSessionId();
         if (userId != null) {
-            presenceService.markOffline(userId, headerAccessor.getSessionId());
+            presenceService.markOffline(userId, sessionId);
+        } else {
+            presenceService.markOffline(sessionId);
         }
     }
-
     private UUID extractUserId(StompHeaderAccessor accessor) {
         if (accessor.getUser() instanceof UsernamePasswordAuthenticationToken auth) {
             if (auth.getPrincipal() instanceof JwtPrincipal principal) {

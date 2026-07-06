@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "user-service", url = "${services.user.url}", configuration = FeignAuthForwardingConfig.class)
+@FeignClient(name = "user-service", configuration = FeignAuthForwardingConfig.class)
 public interface UserServiceClient {
 
     @GetMapping("/api/friends/user/{userId}")

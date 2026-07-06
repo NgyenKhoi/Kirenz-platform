@@ -8,6 +8,7 @@ import com.example.chat_service.conversation.model.Conversation;
 import com.example.chat_service.conversation.model.LastMessage;
 import com.example.chat_service.conversation.repository.ConversationRepository;
 import com.example.chat_service.conversation.service.ConversationService;
+import com.example.chat_service.event.MessageEventProducer;
 import com.example.chat_service.message.dto.MessageResponse;
 import com.example.chat_service.message.dto.SendMessageRequest;
 import com.example.chat_service.message.model.*;
@@ -34,6 +35,7 @@ public class ChatService {
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
     private final MessageBroadcastService broadcastService;
+    private final MessageEventProducer messageEventProducer;
     private final ConversationService conversationService;
     private final org.springframework.data.mongodb.core.MongoTemplate mongoTemplate;
 
@@ -97,6 +99,7 @@ public class ChatService {
         String senderName = conversation.getLastMessage().getSenderName();
         String senderAvatar = ""; // In a real app, find this from current participant list
         broadcastService.broadcastMessage(savedMessage, conversation, senderName, senderAvatar);
+        messageEventProducer.publishMessageSent(savedMessage, conversation);
     }
 
     public List<MessageResponse> getMessageHistory(String conversationId, UUID userId, int page, int size) {

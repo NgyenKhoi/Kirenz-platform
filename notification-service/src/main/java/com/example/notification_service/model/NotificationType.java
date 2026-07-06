@@ -9,5 +9,6 @@ public enum NotificationType {
     POST_MENTION,
     COMMENT_MENTION,
     BIRTHDAY,
-    WELCOME
+    WELCOME,
+    MESSAGE
 }

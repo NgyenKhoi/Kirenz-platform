@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "identity-service", url = "${services.identity.url}", configuration = FeignAuthForwardingConfig.class)
+@FeignClient(name = "identity-service", configuration = FeignAuthForwardingConfig.class)
 public interface IdentityServiceClient {
 
     @GetMapping("/api/users/internal/profiles")

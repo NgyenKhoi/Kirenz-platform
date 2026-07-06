@@ -181,7 +181,17 @@ services:
         SERVICE_DIR: api-gateway
     container_name: kirenz-api-gateway
     environment:
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-key-local-dev-secret-key-123456}
+      EUREKA_ENABLED: ${EUREKA_ENABLED:-true}
+      EUREKA_DEFAULT_ZONE: ${DOCKER_EUREKA_DEFAULT_ZONE:-http://discovery-service:8761/eureka/}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${DOCKER_EUREKA_DEFAULT_ZONE:-http://discovery-service:8761/eureka/}
+      IDENTITY_SERVICE_URI: ${DOCKER_GATEWAY_IDENTITY_SERVICE_URI:-http://identity-service:8081}
+      USER_SERVICE_URI: ${DOCKER_GATEWAY_USER_SERVICE_URI:-http://user-service:8082}
+      SOCIAL_SERVICE_URI: ${DOCKER_GATEWAY_SOCIAL_SERVICE_URI:-http://social-service:8083}
+      CHAT_SERVICE_URI: ${DOCKER_GATEWAY_CHAT_SERVICE_URI:-http://chat-service:8084}
+      NOTIFICATION_SERVICE_URI: ${DOCKER_GATEWAY_NOTIFICATION_SERVICE_URI:-http://notification-service:8085}
+      CHAT_WS_SERVICE_URI: ${DOCKER_GATEWAY_CHAT_WS_SERVICE_URI:-http://chat-service:8084}
+      NOTIFICATION_WS_SERVICE_URI: ${DOCKER_GATEWAY_NOTIFICATION_WS_SERVICE_URI:-http://notification-service:8085}
       SERVER_PORT: 8080
     ports:
       - "${API_GATEWAY_PORT:-8080}:8080"
@@ -204,13 +214,15 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_BASE_API_URL: ${VITE_BASE_API_URL:-http://localhost:8081/api}
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8081/api}
-        VITE_USER_SERVICE_BASE_URL: ${VITE_USER_SERVICE_BASE_URL:-http://localhost:8082/api}
-        VITE_SOCIAL_SERVICE_BASE_URL: ${VITE_SOCIAL_SERVICE_BASE_URL:-http://localhost:8083/api}
-        VITE_CHAT_API_URL: ${VITE_CHAT_API_URL:-http://localhost:8084}
-        VITE_NOTIFICATION_API_URL: ${VITE_NOTIFICATION_API_URL:-http://localhost:8085}
-        VITE_NOTIFICATION_SERVICE_BASE_URL: ${VITE_NOTIFICATION_SERVICE_BASE_URL:-http://localhost:8085/api}
+        VITE_BASE_API_URL: ${VITE_BASE_API_URL:-http://localhost:8080/api}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+        VITE_USER_SERVICE_BASE_URL: ${VITE_USER_SERVICE_BASE_URL:-http://localhost:8080/api}
+        VITE_SOCIAL_SERVICE_BASE_URL: ${VITE_SOCIAL_SERVICE_BASE_URL:-http://localhost:8080/api}
+        VITE_CHAT_API_URL: ${VITE_CHAT_API_URL:-http://localhost:8080}
+        VITE_NOTIFICATION_API_URL: ${VITE_NOTIFICATION_API_URL:-http://localhost:8080}
+        VITE_NOTIFICATION_SERVICE_BASE_URL: ${VITE_NOTIFICATION_SERVICE_BASE_URL:-http://localhost:8080/api}
+        VITE_CHAT_WS_URL: ${VITE_CHAT_WS_URL:-http://localhost:8080/ws/chat}
+        VITE_NOTIFICATION_WS_URL: ${VITE_NOTIFICATION_WS_URL:-http://localhost:8080/ws/notifications}
     container_name: kirenz-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:80"

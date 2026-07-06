@@ -1,10 +1,10 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { ApiResponse, ErrorResponse, LoginResponse } from '../types/auth.types';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api';
-export const USER_SERVICE_BASE_URL = import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:8082/api';
-export const SOCIAL_SERVICE_BASE_URL = import.meta.env.VITE_SOCIAL_SERVICE_BASE_URL || 'http://localhost:8083/api';
-export const NOTIFICATION_SERVICE_BASE_URL = import.meta.env.VITE_NOTIFICATION_SERVICE_BASE_URL || 'http://localhost:8085/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+export const USER_SERVICE_BASE_URL = import.meta.env.VITE_USER_SERVICE_BASE_URL || API_BASE_URL;
+export const SOCIAL_SERVICE_BASE_URL = import.meta.env.VITE_SOCIAL_SERVICE_BASE_URL || API_BASE_URL;
+export const NOTIFICATION_SERVICE_BASE_URL = import.meta.env.VITE_NOTIFICATION_SERVICE_BASE_URL || API_BASE_URL;
 
 export const API_ENDPOINTS = {
   AUTH: {

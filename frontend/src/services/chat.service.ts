@@ -3,7 +3,7 @@ import { API_ENDPOINTS, socialServiceClient } from '../config/api.config';
 import { MediaUploadResponse } from '../types/post.types';
 import { Conversation, Message, ConversationType } from '../types/chat';
 
-const API_BASE_URL = `${import.meta.env.VITE_CHAT_API_URL || 'http://localhost:8084'}/api`;
+const API_BASE_URL = `${import.meta.env.VITE_CHAT_API_URL || 'http://localhost:8080'}/api`;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token'); // Changed from 'token' to 'access_token'

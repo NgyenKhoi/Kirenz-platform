@@ -30,7 +30,7 @@ class WebSocketService {
 
     this.connectionPromise = new Promise((resolve, reject) => {
       this.client = new Client({
-        webSocketFactory: () => new SockJS(`${import.meta.env.VITE_CHAT_API_URL || 'http://localhost:8084'}/ws`),
+        webSocketFactory: () => new SockJS(import.meta.env.VITE_CHAT_WS_URL || `${import.meta.env.VITE_CHAT_API_URL || 'http://localhost:8080'}/ws/chat`),
         connectHeaders: {
           Authorization: `Bearer ${token}`,
         },

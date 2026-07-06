@@ -55,6 +55,30 @@ public class PresenceService {
             return;
         }
 
+        UUID ownerId = resolveSessionOwner(sessionId);
+        if (ownerId != null && !ownerId.equals(userId)) {
+            log.debug("WebSocket session {} belongs to {}, disconnect event carried {}", sessionId, ownerId, userId);
+            userId = ownerId;
+        }
+
+        removeSessionAndMaybeMarkOffline(userId, sessionId);
+    }
+
+    public void markOffline(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return;
+        }
+
+        UUID userId = resolveSessionOwner(sessionId);
+        if (userId == null) {
+            log.debug("Ignoring disconnect for unknown WebSocket session {}", sessionId);
+            return;
+        }
+
+        removeSessionAndMaybeMarkOffline(userId, sessionId);
+    }
+
+    private void removeSessionAndMaybeMarkOffline(UUID userId, String sessionId) {
         String sessionsKey = sessionsKey(userId);
         redisTemplate.opsForSet().remove(sessionsKey, sessionId);
         redisTemplate.delete(sessionKey(sessionId));
@@ -71,6 +95,18 @@ public class PresenceService {
         log.info("User {} is now OFFLINE", userId);
     }
 
+    private UUID resolveSessionOwner(String sessionId) {
+        String userId = redisTemplate.opsForValue().get(sessionKey(sessionId));
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            log.debug("Invalid session owner value for session {}: {}", sessionId, userId);
+            return null;
+        }
+    }
     public boolean isOnline(UUID userId) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(presenceKey(userId))) && activeSessionCount(userId) > 0;
     }

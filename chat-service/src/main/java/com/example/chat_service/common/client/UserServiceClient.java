@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
-@FeignClient(name = "user-service", url = "${services.user.url}", configuration = FeignAuthForwardingConfig.class)
+@FeignClient(name = "user-service", configuration = FeignAuthForwardingConfig.class)
 public interface UserServiceClient {
 
     @GetMapping("/api/privacy/internal/check-dm")
