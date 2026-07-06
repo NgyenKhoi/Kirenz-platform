@@ -29,7 +29,7 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
 
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
             String authHeader = accessor.getFirstNativeHeader("Authorization");
-            
+
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
                 try {
@@ -38,7 +38,12 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
                         principal,
                         null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + principal.role()))
-                    );
+                    ) {
+                        @Override
+                        public String getName() {
+                            return principal.userId().toString();
+                        }
+                    };
                     accessor.setUser(authentication);
                     log.info("WebSocket connection authenticated for user: {}", principal.username());
                 } catch (Exception e) {

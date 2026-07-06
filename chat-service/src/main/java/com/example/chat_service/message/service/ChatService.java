@@ -35,6 +35,7 @@ public class ChatService {
     private final ConversationRepository conversationRepository;
     private final MessageBroadcastService broadcastService;
     private final ConversationService conversationService;
+    private final org.springframework.data.mongodb.core.MongoTemplate mongoTemplate;
 
     @Transactional
     public void processAndBroadcastMessage(SendMessageRequest request, UUID senderId) {
@@ -102,6 +103,8 @@ public class ChatService {
             throw new BadRequestException("You are not a participant in this conversation");
         }
 
+        markMessagesAsRead(conversationId, userId);
+
         Pageable pageable = PageRequest.of(page, size);
         Page<Message> messagePage = messageRepository.findByConversationIdAndStatusOrderBySentAtDesc(
             conversationId, "ACTIVE", pageable);
@@ -128,5 +131,34 @@ public class ChatService {
             .sentAt(message.getSentAt())
             .status(message.getStatus())
             .build();
+    }
+
+    @Transactional
+    public void markMessagesAsRead(String conversationId, UUID userId) {
+        org.springframework.data.mongodb.core.query.Query query = new org.springframework.data.mongodb.core.query.Query(
+            org.springframework.data.mongodb.core.query.Criteria.where("conversationId").is(conversationId)
+                .and("status").is("ACTIVE")
+                .and("statusList").elemMatch(
+                    org.springframework.data.mongodb.core.query.Criteria.where("userId").is(userId)
+                        .and("status").ne(DeliveryStatus.READ.name())
+                )
+        );
+
+        org.springframework.data.mongodb.core.query.Update update = new org.springframework.data.mongodb.core.query.Update()
+            .set("statusList.$.status", DeliveryStatus.READ)
+            .set("statusList.$.timestamp", Instant.now());
+
+        // Use updateMulti with positional operator - updates first matching element per document
+        // Run in a loop until no more documents match
+        long modified;
+        do {
+            var result = mongoTemplate.updateMulti(query, update, Message.class);
+            modified = result.getModifiedCount();
+        } while (modified > 0);
+
+        Conversation conversation = conversationRepository.findById(conversationId).orElse(null);
+        if (conversation != null) {
+            broadcastService.broadcastConversationRead(conversation, userId, 0);
+        }
     }
 }

@@ -12,6 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ParticipantInfo {
+    @com.fasterxml.jackson.annotation.JsonAlias({"id", "userId"})
     private UUID userId;
     private String username;
     private String displayName;

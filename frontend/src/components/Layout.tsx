@@ -6,6 +6,8 @@ import { useAuthStore } from '../store/authStore';
 import { notificationService, NotificationResponse } from '../services/notification.service';
 import { notificationWebsocketService } from '../services/notificationWebsocket.service';
 import { fallbackAvatar } from '../constants/post.constants';
+import { chatService } from '../services/chat.service';
+import { websocketService } from '../services/websocket.service';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -17,6 +19,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCountMap, setUnreadCountMap] = useState<Record<string, number>>({});
 
   // Load initial notifications and unread count
   useEffect(() => {
@@ -33,7 +36,45 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       }
     };
 
+    const loadConversations = async () => {
+      try {
+        const list = await chatService.getConversations();
+        const map: Record<string, number> = {};
+        list.forEach(c => {
+          map[c.id] = c.unreadCount || 0;
+        });
+        setUnreadCountMap(map);
+      } catch (err) {
+        console.error("Failed to load conversations:", err);
+      }
+    };
+
     loadData();
+    loadConversations();
+  }, [user]);
+
+  // Connect to Chat WebSocket and subscribe to updates
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    let userQueueSub: { unsubscribe: () => void } | undefined;
+
+    websocketService.connect(token, user.id)
+      .then(() => {
+        userQueueSub = websocketService.subscribeToUserQueue(user.id, (update) => {
+          setUnreadCountMap(prev => ({
+            ...prev,
+            [update.conversationId]: update.unreadCount
+          }));
+        });
+      })
+      .catch(err => console.error("Error connecting to chat websocket in Layout:", err));
+
+    return () => {
+      userQueueSub?.unsubscribe();
+    };
   }, [user]);
 
   // Connect to WebSocket and subscribe to notifications
@@ -105,6 +146,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     navigate('/');
   };
 
+  const totalUnreadMessages = Object.values(unreadCountMap).reduce((sum, count) => sum + count, 0);
+
   return (
     <div className="bg-surface-bright text-on-surface min-h-screen font-body-md">
       {/* Desktop Navigation Shell */}
@@ -154,7 +197,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             to="/chat" 
             className={`flex items-center gap-3 rounded-full px-6 py-3 transition-all active:scale-[0.98] hover:translate-x-1 duration-200 ${path === '/chat' ? 'bg-secondary-container text-on-secondary-container font-bold' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
           >
-            <MessageSquare size={24} className={path === '/chat' ? 'fill-current' : ''} />
+            <div className="relative shrink-0">
+              <MessageSquare size={24} className={path === '/chat' ? 'fill-current' : ''} />
+              {totalUnreadMessages > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black rounded-full h-4 w-4 flex items-center justify-center animate-pulse">
+                  {totalUnreadMessages}
+                </span>
+              )}
+            </div>
             <span className="text-sm font-bold">Messages</span>
           </Link>
           <Link 

@@ -25,7 +25,10 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         UUID userId = extractUserId(headerAccessor);
         if (userId != null) {
-            presenceService.markOnline(userId);
+            if (headerAccessor.getSessionAttributes() != null) {
+                headerAccessor.getSessionAttributes().put("userId", userId);
+            }
+            presenceService.markOnline(userId, headerAccessor.getSessionId());
         }
     }
 
@@ -34,7 +37,7 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         UUID userId = extractUserId(headerAccessor);
         if (userId != null) {
-            presenceService.markOffline(userId);
+            presenceService.markOffline(userId, headerAccessor.getSessionId());
         }
     }
 
@@ -44,6 +47,20 @@ public class WebSocketEventListener {
                 return principal.userId();
             }
         }
+
+        if (accessor.getSessionAttributes() == null) {
+            return null;
+        }
+
+        Object sessionUserId = accessor.getSessionAttributes().get("userId");
+        if (sessionUserId instanceof UUID userId) {
+            return userId;
+        }
+        if (sessionUserId instanceof String userId) {
+            return UUID.fromString(userId);
+        }
+
         return null;
     }
 }
+
