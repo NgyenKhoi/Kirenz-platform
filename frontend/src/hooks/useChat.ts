@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { chatService } from '../services/chat.service';
 import { websocketService } from '../services/websocket.service';
 import { Conversation, Message, ConversationUpdateMessage } from '../types/chat';
@@ -7,7 +7,7 @@ import { Conversation, Message, ConversationUpdateMessage } from '../types/chat'
 export const useChat = (userId: string | undefined) => {
   const queryClient = useQueryClient();
   const token = localStorage.getItem('access_token'); // Changed from 'token' to 'access_token'
-  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, { isOnline: boolean, lastSeen?: number }>>({});
 
   // 1. Fetch Conversations
   const { data: conversations, isLoading: loadingConversations } = useQuery({
@@ -30,19 +30,27 @@ export const useChat = (userId: string | undefined) => {
   useEffect(() => {
     if (!userId || !token) return;
 
+    let presenceSub: { unsubscribe: () => void } | undefined;
+    let userQueueSub: { unsubscribe: () => void } | undefined;
+
     const connect = async () => {
       try {
         await websocketService.connect(token, userId);
         
         // Subscribe to presence updates
-        websocketService.subscribeToPresence((data) => {
-          setOnlineUsers(prev => ({ ...prev, [data.userId]: data.status === 'ONLINE' }));
+        presenceSub = websocketService.subscribeToPresence((data) => {
+          setOnlineUsers(prev => ({ 
+            ...prev, 
+            [data.userId]: { 
+              isOnline: data.status === 'ONLINE', 
+              lastSeen: data.lastSeen 
+            } 
+          }));
         });
 
-        websocketService.subscribeToUserQueue(userId, (update: ConversationUpdateMessage) => {
-          // ... (existing update logic)
+        userQueueSub = websocketService.subscribeToUserQueue(userId, (update: ConversationUpdateMessage) => {
           queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) => {
-            if (!old) return [update];
+            if (!old) return old;
             
             const index = old.findIndex(c => c.id === update.conversationId);
             if (index !== -1) {
@@ -51,7 +59,7 @@ export const useChat = (userId: string | undefined) => {
                 ...updated[index], 
                 lastMessage: update.lastMessage, 
                 updatedAt: update.updatedAt,
-                unreadCount: updated[index].unreadCount + 1 
+                unreadCount: update.unreadCount 
               };
               return updated.sort((a, b) => 
                 new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -70,7 +78,8 @@ export const useChat = (userId: string | undefined) => {
     connect();
 
     return () => {
-      websocketService.disconnect();
+      presenceSub?.unsubscribe();
+      userQueueSub?.unsubscribe();
     };
   }, [userId, token, queryClient]);
 
@@ -82,7 +91,6 @@ export const useChat = (userId: string | undefined) => {
 };
 
 export const useConversationMessages = (conversationId: string | null, userId: string | undefined) => {
-  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
 
@@ -114,7 +122,7 @@ export const useConversationMessages = (conversationId: string | null, userId: s
     });
 
     return () => {
-      websocketService.unsubscribeFromConversation(conversationId);
+      sub.unsubscribe();
       typingSub?.unsubscribe();
     };
   }, [conversationId, userId]);

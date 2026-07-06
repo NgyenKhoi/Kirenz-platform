@@ -26,6 +26,7 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final IdentityServiceClient identityServiceClient;
     private final com.example.chat_service.common.client.UserServiceClient userServiceClient;
+    private final com.example.chat_service.message.repository.MessageRepository messageRepository;
 
     public ConversationResponse createConversation(CreateConversationRequest request, UUID createdBy) {
         if (request.getType() == ConversationType.GROUP && (request.getName() == null || request.getName().isBlank())) {
@@ -186,7 +187,6 @@ public class ConversationService {
     }
 
     private int calculateUnreadCount(String conversationId, UUID userId) {
-        // Placeholder: in a real app, you'd check MessageStatus in MongoDB where status != READ
-        return 0;
+        return (int) messageRepository.countUnreadMessages(conversationId, userId);
     }
 }

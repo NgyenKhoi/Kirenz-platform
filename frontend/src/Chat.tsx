@@ -20,6 +20,34 @@ export default function Chat() {
   const [messageText, setMessageText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{isOpen: boolean, message: string}>({isOpen: false, message: ''});
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [timeTick, setTimeTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeTick(prev => prev + 1);
+    }, 60000); // 1 minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Mark selected conversation as read on select
+  useEffect(() => {
+    if (!selectedConversationId) return;
+
+    const markRead = async () => {
+      try {
+        const { chatService } = await import('./services/chat.service');
+        await chatService.markAsRead(selectedConversationId);
+      } catch (err) {
+        console.error("Failed to mark conversation as read:", err);
+      }
+    };
+    markRead();
+
+    queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) => {
+      if (!old) return old;
+      return old.map(c => c.id === selectedConversationId ? { ...c, unreadCount: 0 } : c);
+    });
+  }, [selectedConversationId, queryClient]);
 
   // Group Chat Creation state
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -37,6 +65,35 @@ export default function Chat() {
 
   const { messages, loadingHistory, sendMessage, sendTyping, typingUsers } = 
     useConversationMessages(selectedConversationId, user?.id);
+
+  // Mark conversation as read when new message is received in active view
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
+  useEffect(() => {
+    if (selectedConversationId && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.senderId !== user?.id) {
+        const markRead = async () => {
+          try {
+            const { chatService } = await import('./services/chat.service');
+            await chatService.markAsRead(selectedConversationId);
+          } catch (err) {
+            console.error("Failed to mark conversation as read on message:", err);
+          }
+        };
+        markRead();
+
+        queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) => {
+          if (!old) return old;
+          return old.map(c => c.id === selectedConversationId ? { ...c, unreadCount: 0 } : c);
+        });
+      }
+    }
+  }, [lastMessageId, selectedConversationId, user?.id, queryClient]);
+
+  const totalUnreadMessages = useMemo(() => 
+    conversations?.reduce((sum, c) => sum + (c.unreadCount || 0), 0) || 0,
+    [conversations]
+  );
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,7 +117,28 @@ export default function Chat() {
       });
   }, [typingUsers, selectedConversation]);
 
-  const isUserOnline = (userId: string) => !!onlineUsers[userId];
+  const isUserOnline = (userId: string) => !!onlineUsers[userId]?.isOnline;
+
+  const formatLastSeen = (userId: string) => {
+    const presence = onlineUsers[userId];
+    if (!presence) return 'Offline';
+    if (presence.isOnline) return 'Online';
+    if (!presence.lastSeen) return 'Offline';
+    
+    const diffMs = Date.now() - presence.lastSeen;
+    if (diffMs < 0) return 'Offline';
+    
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Active just now';
+    if (diffMins < 60) return `Active ${diffMins}m ago`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `Active ${diffHours}h ago`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return 'Active 1d ago';
+    return `Active ${diffDays}d ago`;
+  };
 
   const getConversationTitle = (conv: Conversation) => {
     if (conv.type === 'GROUP') return conv.name || 'Group Chat';
@@ -215,8 +293,13 @@ export default function Chat() {
             <button className="p-2 text-on-surface-variant hover:bg-primary-container/20 rounded-full transition-colors active:scale-95">
               <Bell size={24} />
             </button>
-            <button className="p-2 text-primary font-bold bg-primary-container/20 rounded-full transition-colors active:scale-95">
+             <button className="p-2 text-primary font-bold bg-primary-container/20 rounded-full transition-colors active:scale-95 relative">
               <MessageSquare size={24} className="fill-current" />
+              {totalUnreadMessages > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[9px] font-black rounded-full h-4 w-4 flex items-center justify-center animate-pulse">
+                  {totalUnreadMessages}
+                </span>
+              )}
             </button>
           </div>
         </header>
@@ -238,9 +321,11 @@ export default function Chat() {
             <button className="p-2.5 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200 rounded-full active:scale-95">
               <Bell size={22} />
             </button>
-            <button className="p-2.5 text-primary font-bold bg-primary-container/20 hover:bg-surface-container-high transition-colors duration-200 rounded-full active:scale-95 relative">
+             <button className="p-2.5 text-primary font-bold bg-primary-container/20 hover:bg-surface-container-high transition-colors duration-200 rounded-full active:scale-95 relative">
               <MessageSquare size={22} className="fill-current" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
+              {totalUnreadMessages > 0 && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-error rounded-full animate-pulse"></span>
+              )}
             </button>
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container shrink-0 ml-2">
               <img 
@@ -381,8 +466,11 @@ export default function Chat() {
                       <h3 className="text-xl font-bold text-on-surface tracking-tight leading-none mb-1">
                         {getConversationTitle(selectedConversation!)}
                       </h3>
-                      <p className={`text-xs font-bold ${selectedConversation!.type === 'DIRECT' && isUserOnline(selectedConversation!.participants.find(p => p.userId !== user?.id)?.userId || '') ? 'text-tertiary' : 'text-outline'}`}>
-                        {selectedConversation!.type === 'DIRECT' ? (isUserOnline(selectedConversation!.participants.find(p => p.userId !== user?.id)?.userId || '') ? 'Online' : 'Offline') : `${selectedConversation!.participants.length} members`}
+                       <p className={`text-xs font-bold ${selectedConversation!.type === 'DIRECT' && isUserOnline(selectedConversation!.participants.find(p => p.userId !== user?.id)?.userId || '') ? 'text-tertiary' : 'text-outline'}`}>
+                        {selectedConversation!.type === 'DIRECT' 
+                          ? formatLastSeen(selectedConversation!.participants.find(p => p.userId !== user?.id)?.userId || '')
+                          : `${selectedConversation!.participants.length} members`
+                        }
                       </p>
                     </div>
                   </div>

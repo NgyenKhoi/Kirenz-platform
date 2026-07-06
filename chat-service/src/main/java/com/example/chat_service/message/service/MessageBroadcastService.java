@@ -17,6 +17,7 @@ import java.util.UUID;
 public class MessageBroadcastService {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final com.example.chat_service.message.repository.MessageRepository messageRepository;
 
     public void broadcastMessage(Message message, Conversation conversation, String senderName, String senderAvatar) {
         // 1. Broadcast FULL message to conversation topic
@@ -38,15 +39,16 @@ public class MessageBroadcastService {
         log.debug("Broadcasted full message to topic: {}", topicDestination);
 
         // 2. Broadcast SUMMARY to each participant's personal queue
-        ConversationUpdateMessage summary = ConversationUpdateMessage.builder()
-            .conversationId(conversation.getId())
-            .conversationName(conversation.getName())
-            .lastMessage(conversation.getLastMessage())
-            .updatedAt(conversation.getUpdatedAt())
-            .unreadCount(1) // Placeholder logic for now
-            .build();
-
         for (UUID participantId : conversation.getParticipantIds()) {
+            long unread = messageRepository.countUnreadMessages(conversation.getId(), participantId);
+            ConversationUpdateMessage summary = ConversationUpdateMessage.builder()
+                .conversationId(conversation.getId())
+                .conversationName(conversation.getName())
+                .lastMessage(conversation.getLastMessage())
+                .updatedAt(conversation.getUpdatedAt())
+                .unreadCount((int) unread)
+                .build();
+
             // Spring's convertAndSendToUser prefixes destination with /user/{participantId}
             messagingTemplate.convertAndSendToUser(
                 participantId.toString(),
@@ -55,6 +57,22 @@ public class MessageBroadcastService {
             );
         }
         log.debug("Broadcasted summary to {} participants", conversation.getParticipantIds().size());
+    }
+
+    public void broadcastConversationRead(Conversation conversation, UUID userId, int unreadCount) {
+        ConversationUpdateMessage summary = ConversationUpdateMessage.builder()
+            .conversationId(conversation.getId())
+            .conversationName(conversation.getName())
+            .lastMessage(conversation.getLastMessage())
+            .updatedAt(conversation.getUpdatedAt())
+            .unreadCount(unreadCount)
+            .build();
+
+        messagingTemplate.convertAndSendToUser(
+            userId.toString(),
+            "/queue/messages",
+            summary
+        );
     }
 
     public void broadcastTyping(String conversationId, UUID userId, boolean isTyping) {

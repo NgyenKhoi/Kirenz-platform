@@ -11,4 +11,7 @@ public interface MessageRepository extends MongoRepository<Message, String> {
 
     Page<Message> findByConversationIdAndStatusOrderBySentAtDesc(
         String conversationId, String status, Pageable pageable);
+
+    @org.springframework.data.mongodb.repository.Query("{ 'conversationId': ?0, 'status': 'ACTIVE', 'statusList': { '$elemMatch': { 'userId': ?1, 'status': { '$ne': 'READ' } } } }")
+    long countUnreadMessages(String conversationId, java.util.UUID userId);
 }

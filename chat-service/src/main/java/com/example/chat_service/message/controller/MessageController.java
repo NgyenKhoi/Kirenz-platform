@@ -27,4 +27,10 @@ public class MessageController {
         List<MessageResponse> history = chatService.getMessageHistory(conversationId, currentUser.id(), page, size);
         return ResponseEntity.ok(ApiResponse.success("Message history retrieved", history));
     }
+
+    @PostMapping("/{conversationId}/read")
+    public ResponseEntity<ApiResponse<Void>> markAsRead(@PathVariable String conversationId) {
+        chatService.markMessagesAsRead(conversationId, currentUser.id());
+        return ResponseEntity.ok(ApiResponse.success("Conversation marked as read", null));
+    }
 }

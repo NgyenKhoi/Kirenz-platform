@@ -64,11 +64,17 @@ export const chatService = {
     });
   },
 
-  getPresence: async (userIds: string[]): Promise<Record<string, boolean>> => {
+  getPresence: async (userIds: string[]): Promise<Record<string, { isOnline: boolean, lastSeen?: number }>> => {
     const response = await axios.get(`${API_BASE_URL}/presence/status`, {
       params: { userIds: userIds.join(',') },
       headers: getAuthHeaders(),
     });
     return response.data.data;
+  },
+
+  markAsRead: async (conversationId: string): Promise<void> => {
+    await axios.post(`${API_BASE_URL}/messages/${conversationId}/read`, {}, {
+      headers: getAuthHeaders(),
+    });
   },
 };
