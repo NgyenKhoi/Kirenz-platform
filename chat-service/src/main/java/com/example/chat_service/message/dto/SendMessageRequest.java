@@ -17,8 +17,6 @@ public class SendMessageRequest {
 
     @NotBlank
     private String conversationId;
-
-    @NotBlank
     private String content;
 
     private List<Attachment> attachments;

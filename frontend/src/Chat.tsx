@@ -2,15 +2,19 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Search, Bell, Menu, Phone, Video, Info, 
   MessageSquare, PlusCircle, Smile, Send, X, Edit3, Loader2,
-  Users, UserPlus, Check
+  Users, UserPlus, Check, Image as ImageIcon
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from './components/Layout';
 import { useAuthStore } from './store/authStore';
 import { useChat, useConversationMessages } from './hooks/useChat';
-import { Conversation, ParticipantInfo } from './types/chat';
+import { Attachment, Conversation, PendingChatMedia } from './types/chat';
 import { ConfirmDialog } from './components/common/ConfirmDialog';
 import { UserSearchResponse } from './types/friend.types';
+
+const MAX_IMAGE_COUNT = 10;
+const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 
 export default function Chat() {
   const { user } = useAuthStore();
@@ -18,6 +22,11 @@ export default function Chat() {
   const { conversations, loadingConversations, onlineUsers } = useChat(user?.id);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
+  const [selectedMedia, setSelectedMedia] = useState<PendingChatMedia[]>([]);
+  const selectedMediaRef = useRef<PendingChatMedia[]>([]);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [errorDialog, setErrorDialog] = useState<{isOpen: boolean, message: string}>({isOpen: false, message: ''});
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [timeTick, setTimeTick] = useState(0);
@@ -99,12 +108,119 @@ export default function Chat() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typingUsers]);
 
-  const handleSendMessage = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!messageText.trim() || !selectedConversationId) return;
+  useEffect(() => {
+    selectedMediaRef.current = selectedMedia;
+  }, [selectedMedia]);
 
-    sendMessage(messageText);
-    setMessageText('');
+  useEffect(() => {
+    return () => {
+      selectedMediaRef.current.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
+    };
+  }, []);
+
+  const showError = (message: string) => {
+    setErrorDialog({ isOpen: true, message });
+  };
+
+  const handleMediaSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files: File[] = event.currentTarget.files ? Array.from(event.currentTarget.files) : [];
+    event.currentTarget.value = '';
+    if (files.length === 0) return;
+
+    const currentImageCount = selectedMedia.filter(item => item.type === 'IMAGE').length;
+    let nextImageCount = currentImageCount;
+    const accepted: PendingChatMedia[] = [];
+
+    for (const file of files) {
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+
+      if (!isImage && !isVideo) {
+        showError('Only image and video files can be sent in chat.');
+        continue;
+      }
+
+      if (isImage) {
+        if (file.size > MAX_IMAGE_BYTES) {
+          showError('Images must be 50MB or smaller.');
+          continue;
+        }
+        if (nextImageCount >= MAX_IMAGE_COUNT) {
+          showError('You can send up to 10 images in one message.');
+          continue;
+        }
+        nextImageCount += 1;
+      }
+
+      if (isVideo && file.size > MAX_VIDEO_BYTES) {
+        showError('Videos must be 500MB or smaller.');
+        continue;
+      }
+
+      accepted.push({
+        id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+        file,
+        type: isImage ? 'IMAGE' : 'VIDEO',
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
+
+    if (accepted.length > 0) {
+      setSelectedMedia(prev => [...prev, ...accepted]);
+    }
+  };
+
+  const removeSelectedMedia = (mediaId: string) => {
+    setSelectedMedia(prev => {
+      const item = prev.find(media => media.id === mediaId);
+      if (item) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter(media => media.id !== mediaId);
+    });
+  };
+
+  const handleMessageChange = (value: string) => {
+    setMessageText(value);
+    sendTyping(value.length > 0);
+    if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
+    if (value.length > 0) {
+      typingIdleRef.current = setTimeout(() => sendTyping(false), 1500);
+    }
+  };
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!selectedConversationId || isSendingMessage) return;
+    if (!messageText.trim() && selectedMedia.length === 0) return;
+
+    setIsSendingMessage(true);
+    try {
+      const attachments: Attachment[] = selectedMedia.length > 0
+        ? (await (await import('./services/chat.service')).chatService.uploadMedia(selectedMedia.map(item => item.file))).map(upload => ({
+            type: upload.type,
+            url: upload.url,
+            cloudinaryPublicId: upload.publicId || undefined,
+            metadata: {
+              width: upload.width,
+              height: upload.height,
+              format: upload.format,
+              bytes: upload.bytes,
+            },
+          }))
+        : [];
+
+      sendMessage(messageText, attachments);
+      sendTyping(false);
+      setMessageText('');
+      setSelectedMedia(prev => {
+        prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
+        return [];
+      });
+    } catch (err: any) {
+      showError(err.response?.data?.message || 'Could not send media. Please try again.');
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   const typingUserNames = useMemo(() => {
@@ -422,7 +538,7 @@ export default function Chat() {
                       </span>
                     </div>
                     <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'font-bold text-primary' : 'font-medium text-on-surface-variant'}`}>
-                      {conv.lastMessage ? `${conv.lastMessage.senderId === user?.id ? 'You: ' : ''}${conv.lastMessage.content}` : 'No messages yet'}
+                      {conv.lastMessage ? `${conv.lastMessage.senderId === user?.id ? 'You: ' : ''}${conv.lastMessage.content || (conv.lastMessage.type === 'VIDEO' ? 'Sent a video' : conv.lastMessage.type === 'IMAGE' ? 'Sent media' : '')}` : 'No messages yet'}
                     </p>
                   </div>
                   {conv.unreadCount > 0 && (
@@ -522,14 +638,31 @@ export default function Chat() {
                           }
                           ${msg.attachments?.[0] ? 'p-2' : ''}
                         `}>
-                          {msg.attachments?.[0] ? (
-                            <div className="rounded-xl overflow-hidden shadow-sm">
-                              <img 
-                                src={msg.attachments[0].url} 
-                                alt="Shared memory" 
-                                className="w-full max-h-[300px] object-cover"
-                                referrerPolicy="no-referrer"
-                              />
+                          {msg.attachments?.length ? (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-3 gap-1.5 max-w-[360px]">
+                                {msg.attachments.map((attachment, index) => (
+                                  <div key={`${attachment.url}-${index}`} className="aspect-square rounded-xl overflow-hidden bg-surface-container-high shadow-sm">
+                                    {attachment.type === 'VIDEO' ? (
+                                      <video
+                                        src={attachment.url}
+                                        controls
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <img
+                                        src={attachment.url}
+                                        alt="Shared media"
+                                        className="w-full h-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              {msg.content?.trim() && (
+                                <p className="text-sm md:text-base font-medium leading-relaxed px-2 pb-1">{msg.content}</p>
+                              )}
                             </div>
                           ) : (
                             <p className="text-sm md:text-base font-medium leading-relaxed">{msg.content}</p>
@@ -566,44 +699,75 @@ export default function Chat() {
 
                 {/* Input Area */}
                 <div className="p-4 md:p-6 border-t border-surface-container bg-surface-container-lowest shrink-0 absolute bottom-0 left-0 right-0 z-20 md:relative">
-                  <form 
+                  {selectedMedia.length > 0 && (
+                    <div className="mb-3 grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-44 overflow-y-auto pr-1">
+                      {selectedMedia.map(media => (
+                        <div key={media.id} className="relative aspect-square rounded-xl overflow-hidden bg-surface-container-high border border-outline-variant/20">
+                          {media.type === 'VIDEO' ? (
+                            <video src={media.previewUrl} className="w-full h-full object-cover" muted />
+                          ) : (
+                            <img src={media.previewUrl} alt="Selected media" className="w-full h-full object-cover" />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeSelectedMedia(media.id)}
+                            className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded-full hover:bg-error transition-colors"
+                            title="Remove media"
+                          >
+                            <X size={14} />
+                          </button>
+                          <span className="absolute left-1 bottom-1 p-1 bg-black/50 text-white rounded-full">
+                            {media.type === 'VIDEO' ? <Video size={13} /> : <ImageIcon size={13} />}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <form
                     onSubmit={handleSendMessage}
                     className="flex items-center gap-2 md:gap-4 bg-surface-container-low p-2 pr-2.5 rounded-full border-2 border-transparent focus-within:border-primary-container focus-within:bg-surface-container-lowest transition-all shadow-sm"
                   >
-                    <button 
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      onChange={handleMediaSelect}
+                      className="hidden"
+                    />
+                    <button
                       type="button"
+                      onClick={() => fileInputRef.current?.click()}
                       className="p-2.5 text-primary hover:bg-primary-container/20 rounded-full transition-colors shrink-0"
+                      title="Attach media"
                     >
                       <PlusCircle size={22} />
                     </button>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={messageText}
-                      onChange={(e) => {
-                        setMessageText(e.target.value);
-                        sendTyping(e.target.value.length > 0);
-                      }}
+                      onChange={(e) => handleMessageChange(e.target.value)}
                       onBlur={() => sendTyping(false)}
-                      placeholder="Write a warm message..." 
+                      placeholder="Write a warm message..."
                       className="flex-1 bg-transparent border-none focus:ring-0 text-sm md:text-base font-medium py-2 px-1 outline-none text-on-surface placeholder:text-on-surface-variant/70 min-w-0"
                     />
                     <div className="flex items-center gap-1 md:gap-2 shrink-0">
-                      <button 
+                      <button
                         type="button"
                         className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors hidden sm:block"
                       >
                         <Smile size={22} />
                       </button>
-                      <button 
+                      <button
                         type="submit"
-                        disabled={!messageText.trim()}
+                        disabled={isSendingMessage || (!messageText.trim() && selectedMedia.length === 0)}
                         className={`p-3 rounded-full transition-all flex items-center justify-center shrink-0 ${
-                          messageText.trim() 
-                            ? 'bg-primary text-white shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:-translate-y-0.5 active:scale-95' 
+                          !isSendingMessage && (messageText.trim() || selectedMedia.length > 0)
+                            ? 'bg-primary text-white shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:-translate-y-0.5 active:scale-95'
                             : 'bg-primary-container text-on-primary-container/50 shadow-sm cursor-not-allowed'
                         }`}
                       >
-                        <Send size={18} className="ml-0.5" />
+                        {isSendingMessage ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="ml-0.5" />}
                       </button>
                     </div>
                   </form>

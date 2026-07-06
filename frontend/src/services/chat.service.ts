@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { API_ENDPOINTS, socialServiceClient } from '../config/api.config';
+import { MediaUploadResponse } from '../types/post.types';
 import { Conversation, Message, ConversationType } from '../types/chat';
 
 const API_BASE_URL = `${import.meta.env.VITE_CHAT_API_URL || 'http://localhost:8084'}/api`;
@@ -72,6 +74,21 @@ export const chatService = {
     return response.data.data;
   },
 
+  uploadMedia: async (files: File[]): Promise<MediaUploadResponse[]> => {
+    return Promise.all(
+      files.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await socialServiceClient.post(
+          API_ENDPOINTS.MEDIA.CHAT,
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+        return response.data.data;
+      })
+    );
+  },
   markAsRead: async (conversationId: string): Promise<void> => {
     await axios.post(`${API_BASE_URL}/messages/${conversationId}/read`, {}, {
       headers: getAuthHeaders(),

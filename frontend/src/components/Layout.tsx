@@ -146,7 +146,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     navigate('/');
   };
 
-  const totalUnreadMessages = Object.values(unreadCountMap).reduce((sum, count) => sum + count, 0);
+  const totalUnreadMessages = Object.values(unreadCountMap).reduce<number>((sum, count) => sum + Number(count || 0), 0);
 
   return (
     <div className="bg-surface-bright text-on-surface min-h-screen font-body-md">

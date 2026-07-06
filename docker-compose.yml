@@ -20,37 +20,6 @@ x-spring-build: &spring-build
   dockerfile: docker/spring-service.Dockerfile
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: kirenz-postgres
-    environment:
-      POSTGRES_USER: ${LOCAL_POSTGRES_USERNAME:-kirenz}
-      POSTGRES_PASSWORD: ${LOCAL_POSTGRES_PASSWORD:-kirenz}
-      POSTGRES_DB: postgres
-    ports:
-      - "${LOCAL_POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./docker/postgres/01-init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  mongo:
-    image: mongo:7
-    container_name: kirenz-mongo
-    ports:
-      - "${LOCAL_MONGO_PORT:-27017}:27017"
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' | grep 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7.2
     container_name: kirenz-redis
@@ -110,8 +79,6 @@ services:
     ports:
       - "${IDENTITY_SERVICE_PORT:-8081}:8081"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -133,8 +100,6 @@ services:
     ports:
       - "${USER_SERVICE_PORT:-8082}:8082"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_started
       discovery-service:
@@ -154,8 +119,6 @@ services:
     ports:
       - "${SOCIAL_SERVICE_PORT:-8083}:8083"
     depends_on:
-      mongo:
-        condition: service_healthy
       kafka:
         condition: service_started
       discovery-service:
@@ -177,8 +140,6 @@ services:
     ports:
       - "${CHAT_SERVICE_PORT:-8084}:8084"
     depends_on:
-      mongo:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -204,8 +165,6 @@ services:
     ports:
       - "${NOTIFICATION_SERVICE_PORT:-8085}:8085"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_started
       discovery-service:
@@ -261,7 +220,3 @@ services:
       - social-service
       - chat-service
       - notification-service
-
-volumes:
-  postgres-data:
-  mongo-data:

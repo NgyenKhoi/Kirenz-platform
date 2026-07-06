@@ -3,8 +3,8 @@ spring:
     name: social-service
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 50MB
+      max-file-size: 500MB
+      max-request-size: 500MB
   data:
     mongodb:
       uri: ${MONGODB_URI}
@@ -37,5 +37,8 @@ cloudinary:
   api-key: ${CLOUDINARY_API_KEY}
   api-secret: ${CLOUDINARY_API_SECRET}
   max-image-bytes: ${CLOUDINARY_MAX_IMAGE_BYTES:10485760}
+  max-chat-image-bytes: ${CLOUDINARY_MAX_CHAT_IMAGE_BYTES:52428800}
+  max-chat-video-bytes: ${CLOUDINARY_MAX_CHAT_VIDEO_BYTES:524288000}
   folders:
     posts: ${CLOUDINARY_POST_FOLDER:kirenz/posts}
+    chat: ${CLOUDINARY_CHAT_FOLDER:kirenz/chat}

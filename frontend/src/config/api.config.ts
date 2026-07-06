@@ -59,6 +59,7 @@ export const API_ENDPOINTS = {
   },
   MEDIA: {
     POSTS: '/media/posts',
+    CHAT: '/media/chat',
   },
   COMMENTS: {
     REACTIONS: (commentId: string) => `/comments/${commentId}/reactions`,

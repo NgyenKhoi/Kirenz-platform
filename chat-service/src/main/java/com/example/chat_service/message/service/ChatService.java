@@ -47,7 +47,11 @@ public class ChatService {
             throw new BadRequestException("You are not a participant in this conversation");
         }
 
-        // 2. Determine message type
+        // 2. Validate payload and determine message type
+        validateMessageRequest(request);
+        String content = request.getContent() == null ? "" : request.getContent().trim();
+
+        // 3. Determine message type
         MessageType type = MessageType.TEXT;
         if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
             String primaryType = request.getAttachments().get(0).getType();
@@ -55,7 +59,7 @@ public class ChatService {
             else if ("VIDEO".equalsIgnoreCase(primaryType)) type = MessageType.VIDEO;
         }
 
-        // 3. Create & Save Message
+        // 4. Create & Save Message
         List<MessageStatus> statusList = conversation.getParticipantIds().stream()
             .map(pid -> MessageStatus.builder()
                 .userId(pid)
@@ -67,7 +71,7 @@ public class ChatService {
         Message message = Message.builder()
             .conversationId(request.getConversationId())
             .senderId(senderId)
-            .content(request.getContent())
+            .content(content)
             .type(type)
             .attachments(request.getAttachments())
             .sentAt(Instant.now())
@@ -77,10 +81,10 @@ public class ChatService {
 
         Message savedMessage = messageRepository.save(message);
 
-        // 4. Update Conversation's last message
+        // 5. Update Conversation's last message
         conversation.setLastMessage(LastMessage.builder()
             .messageId(savedMessage.getId())
-            .content(savedMessage.getContent())
+            .content(lastMessageContent(savedMessage))
             .senderId(senderId)
             .senderName(getSenderName(conversation, senderId))
             .type(savedMessage.getType())
@@ -89,7 +93,7 @@ public class ChatService {
         conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
 
-        // 5. Broadcast via WebSocket
+        // 6. Broadcast via WebSocket
         String senderName = conversation.getLastMessage().getSenderName();
         String senderAvatar = ""; // In a real app, find this from current participant list
         broadcastService.broadcastMessage(savedMessage, conversation, senderName, senderAvatar);
@@ -113,6 +117,50 @@ public class ChatService {
         return messagePage.getContent().stream()
             .map(m -> convertToResponse(m, conversation))
             .collect(Collectors.toList());
+    }
+
+    private void validateMessageRequest(SendMessageRequest request) {
+        boolean hasContent = request.getContent() != null && !request.getContent().trim().isEmpty();
+        boolean hasAttachments = request.getAttachments() != null && !request.getAttachments().isEmpty();
+
+        if (!hasContent && !hasAttachments) {
+            throw new BadRequestException("Message must include text or media");
+        }
+
+        if (!hasAttachments) {
+            return;
+        }
+
+        long imageCount = request.getAttachments().stream()
+            .filter(attachment -> "IMAGE".equalsIgnoreCase(attachment.getType()))
+            .count();
+
+        if (imageCount > 10) {
+            throw new BadRequestException("You can send up to 10 images in one message");
+        }
+
+        request.getAttachments().forEach(attachment -> {
+            if (attachment.getUrl() == null || attachment.getUrl().isBlank()) {
+                throw new BadRequestException("Attachment url is required");
+            }
+            if (!"IMAGE".equalsIgnoreCase(attachment.getType()) && !"VIDEO".equalsIgnoreCase(attachment.getType())) {
+                throw new BadRequestException("Only image and video attachments are supported");
+            }
+        });
+    }
+
+    private String lastMessageContent(Message message) {
+        if (message.getContent() != null && !message.getContent().isBlank()) {
+            return message.getContent();
+        }
+        if (message.getType() == MessageType.VIDEO) {
+            return "Sent a video";
+        }
+        if (message.getType() == MessageType.IMAGE) {
+            int count = message.getAttachments() == null ? 0 : message.getAttachments().size();
+            return count > 1 ? "Sent " + count + " media files" : "Sent media";
+        }
+        return "";
     }
 
     private String getSenderName(Conversation conversation, UUID senderId) {

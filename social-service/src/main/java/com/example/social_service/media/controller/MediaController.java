@@ -23,4 +23,9 @@ public class MediaController {
     public ResponseEntity<ApiResponse<MediaUploadResponse>> uploadPostImage(@RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success("Image uploaded successfully", mediaService.uploadPostImage(file)));
     }
+
+    @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<MediaUploadResponse>> uploadChatMedia(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.success("Media uploaded successfully", mediaService.uploadChatMedia(file)));
+    }
 }

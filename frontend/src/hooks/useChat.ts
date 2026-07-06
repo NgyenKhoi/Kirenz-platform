@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { chatService } from '../services/chat.service';
 import { websocketService } from '../services/websocket.service';
-import { Conversation, Message, ConversationUpdateMessage } from '../types/chat';
+import { Attachment, Conversation, Message, ConversationUpdateMessage } from '../types/chat';
 
 export const useChat = (userId: string | undefined) => {
   const queryClient = useQueryClient();
@@ -22,7 +22,9 @@ export const useChat = (userId: string | undefined) => {
       const allParticipants = new Set<string>();
       conversations.forEach(c => c.participants.forEach(p => allParticipants.add(p.userId)));
       
-      chatService.getPresence(Array.from(allParticipants)).then(setOnlineUsers);
+      chatService.getPresence(Array.from(allParticipants)).then((presence) => {
+        setOnlineUsers(prev => ({ ...prev, ...presence }));
+      });
     }
   }, [conversations]);
 
@@ -36,6 +38,13 @@ export const useChat = (userId: string | undefined) => {
     const connect = async () => {
       try {
         await websocketService.connect(token, userId);
+
+        if (conversations && conversations.length > 0) {
+          const participantIds = Array.from(new Set(conversations.flatMap(c => c.participants.map(p => p.userId))));
+          chatService.getPresence(participantIds).then((presence) => {
+            setOnlineUsers(prev => ({ ...prev, ...presence }));
+          });
+        }
         
         // Subscribe to presence updates
         presenceSub = websocketService.subscribeToPresence((data) => {
@@ -81,7 +90,7 @@ export const useChat = (userId: string | undefined) => {
       presenceSub?.unsubscribe();
       userQueueSub?.unsubscribe();
     };
-  }, [userId, token, queryClient]);
+  }, [userId, token, queryClient, conversations]);
 
   return {
     conversations,
@@ -93,6 +102,7 @@ export const useChat = (userId: string | undefined) => {
 export const useConversationMessages = (conversationId: string | null, userId: string | undefined) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
+  const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Fetch History
   const { data: history, isLoading: loadingHistory } = useQuery({
@@ -117,19 +127,33 @@ export const useConversationMessages = (conversationId: string | null, userId: s
 
     const typingSub = websocketService.subscribeToTyping(conversationId, (data) => {
       if (data.userId !== userId) {
+        if (typingTimers.current[data.userId]) {
+          clearTimeout(typingTimers.current[data.userId]);
+        }
+
         setTypingUsers(prev => ({ ...prev, [data.userId]: data.isTyping }));
+
+        if (data.isTyping) {
+          typingTimers.current[data.userId] = setTimeout(() => {
+            setTypingUsers(prev => ({ ...prev, [data.userId]: false }));
+            delete typingTimers.current[data.userId];
+          }, 3000);
+        }
       }
     });
 
     return () => {
       sub.unsubscribe();
       typingSub?.unsubscribe();
+      Object.values(typingTimers.current).forEach(clearTimeout);
+      typingTimers.current = {};
+      setTypingUsers({});
     };
   }, [conversationId, userId]);
 
-  const sendMessage = useCallback((content: string) => {
-    if (conversationId && content.trim()) {
-      websocketService.sendMessage(conversationId, content);
+  const sendMessage = useCallback((content: string, attachments: Attachment[] = []) => {
+    if (conversationId && (content.trim() || attachments.length > 0)) {
+      websocketService.sendMessage(conversationId, content, attachments);
     }
   }, [conversationId]);
 

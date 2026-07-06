@@ -1,6 +1,6 @@
 import { Client, IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import { ConversationUpdateMessage, Message } from '../types/chat';
+import { Attachment, ConversationUpdateMessage, Message } from '../types/chat';
 
 type SubscriptionHandle = { unsubscribe: () => void };
 type PresenceUpdate = { userId: string, status: 'ONLINE' | 'OFFLINE', lastSeen?: number };
@@ -147,7 +147,7 @@ class WebSocketService {
     this.conversationCallbacks.delete(conversationId);
   }
 
-  sendMessage(conversationId: string, content: string, attachments: any[] = []) {
+  sendMessage(conversationId: string, content: string, attachments: Attachment[] = []) {
     if (!this.client?.connected) return;
 
     this.client.publish({

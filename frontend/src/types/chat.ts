@@ -64,3 +64,10 @@ export interface ConversationUpdateMessage {
   unreadCount: number;
   updatedAt: string;
 }
+
+export interface PendingChatMedia {
+  id: string;
+  file: File;
+  type: 'IMAGE' | 'VIDEO';
+  previewUrl: string;
+}
