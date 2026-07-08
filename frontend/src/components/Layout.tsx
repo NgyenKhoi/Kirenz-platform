@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Users, Sparkles, User, UserCircle, Bell, Menu, Plus, Settings, MessageSquare, LogOut, X } from 'lucide-react';
+import { Compass, Home, UserCircle, Bell, Plus, Settings, MessageSquare, LogOut, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthStore } from '../store/authStore';
 import { notificationService, NotificationResponse } from '../services/notification.service';
@@ -112,7 +112,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       setShowNotifications(false);
 
       if (notif.type === 'FRIEND_REQUEST') {
-        navigate('/friends');
+        navigate('/profile?tab=friends');
       } else if (notif.type === 'FRIEND_ACCEPT' || notif.type === 'BIRTHDAY') {
         navigate(`/profile/${notif.targetId}`);
       } else if (
@@ -199,11 +199,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-sm font-bold">HomeFeed</span>
           </Link>
           <Link 
-            to="/stories" 
-            className={`flex items-center gap-3 rounded-full px-6 py-3 transition-all active:scale-[0.98] hover:translate-x-1 duration-200 ${path === '/stories' ? 'bg-primary-container text-on-primary-container font-bold' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+            to="/explore" 
+            className={`flex items-center gap-3 rounded-full px-6 py-3 transition-all active:scale-[0.98] hover:translate-x-1 duration-200 ${path === '/explore' ? 'bg-primary-container text-on-primary-container font-bold' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
           >
-            <Sparkles size={24} className={path === '/stories' ? 'fill-current' : ''} />
-            <span className="text-sm font-bold">Stories</span>
+            <Compass size={24} className={path === '/explore' ? 'fill-current' : ''} />
+            <span className="text-sm font-bold">Explore</span>
           </Link>
           <Link 
             to="/chat" 
@@ -218,13 +218,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               )}
             </div>
             <span className="text-sm font-bold">Messages</span>
-          </Link>
-          <Link 
-            to="/friends" 
-            className={`flex items-center gap-3 rounded-full px-6 py-3 transition-all active:scale-[0.98] hover:translate-x-1 duration-200 ${path === '/friends' ? 'bg-primary-container text-on-primary-container font-bold' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
-          >
-            <Users size={24} className={path === '/friends' ? 'fill-current' : ''} />
-            <span className="text-sm font-bold">Friends</span>
           </Link>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
@@ -287,7 +280,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {notifications.length > 0 && (
                   <button
                     onClick={handleMarkAllAsRead}
-                    className="rounded-full px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary-container/30 disabled:opacity-40"
+                    className="rounded-full bg-primary-container/30 px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary-container/50 disabled:opacity-40"
                     disabled={unreadCount === 0}
                   >
                     Mark read
@@ -311,9 +304,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       key={n.id}
                       type="button"
                       onClick={() => handleNotificationClick(n)}
-                      className={`group flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md ${!n.isRead ? 'border-primary-container bg-primary-container/20' : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-low'}`}
+                      className={`group flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_26px_-18px_rgba(28,28,24,0.5)] ${!n.isRead ? 'border-primary-container bg-primary-container/25 shadow-sm' : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-low'}`}
                     >
-                      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-surface-container-high ring-1 ring-outline-variant/20">
+                      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-surface-container-high ring-2 ring-surface-container-lowest shadow-sm">
                         <img
                           src={n.actorAvatar || fallbackAvatar}
                           alt=""
@@ -327,7 +320,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                           <span className="font-bold">{n.actorName || 'Kirenz User'}</span>
                           <span className="text-on-surface-variant"> {n.message}</span>
                         </p>
-                        <span className="mt-1 block text-xs font-medium text-on-surface-variant">
+                        <span className="mt-2 inline-flex rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-bold text-on-surface-variant">
                           {formatNotificationTime(n.createdAt)}
                         </span>
                       </div>
@@ -360,9 +353,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <Home size={24} className={path === '/home' ? 'fill-current' : ''} />
           <span className="text-[10px] font-bold">Home</span>
         </Link>
-        <Link to="/friends" className={`${path === '/friends' ? 'text-primary' : 'text-on-surface-variant'} flex flex-col items-center gap-1`}>
-          <Users size={24} className={path === '/friends' ? 'fill-current' : ''} />
-          <span className="text-[10px] font-bold">Friends</span>
+        <Link to="/explore" className={`${path === '/explore' ? 'text-primary' : 'text-on-surface-variant'} flex flex-col items-center gap-1`}>
+          <Compass size={24} className={path === '/explore' ? 'fill-current' : ''} />
+          <span className="text-[10px] font-bold">Explore</span>
         </Link>
         <button className="bg-primary-container text-on-primary-container p-4 rounded-full -mt-10 shadow-[0_8px_16px_rgba(255,176,156,0.4)] active:scale-90 transition-transform">
           <Plus size={24} />
@@ -389,3 +382,4 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+

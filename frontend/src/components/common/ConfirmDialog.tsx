@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { X, AlertTriangle, Trash2, HelpCircle } from 'lucide-react';
 
 interface ConfirmDialogProps {
@@ -22,6 +23,8 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  useEscapeKey(isOpen, onCancel);
+
   if (!isOpen) return null;
 
   const getIcon = () => {

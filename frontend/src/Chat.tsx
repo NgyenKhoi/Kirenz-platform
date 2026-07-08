@@ -2,19 +2,92 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Search, Bell, Menu, Phone, Video, Info, 
   MessageSquare, PlusCircle, Smile, Send, X, Edit3, Loader2,
-  Users, UserPlus, Check, Image as ImageIcon
+  Users, UserPlus, Check, Image as ImageIcon, Download, FileText, Shield, UserMinus, LogOut, Trash2
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from './components/Layout';
 import { useAuthStore } from './store/authStore';
 import { useChat, useConversationMessages } from './hooks/useChat';
-import { Attachment, Conversation, PendingChatMedia } from './types/chat';
+import { Attachment, Conversation, MessageType, PendingChatMedia } from './types/chat';
 import { ConfirmDialog } from './components/common/ConfirmDialog';
 import { UserSearchResponse } from './types/friend.types';
+import { useEscapeKey } from './hooks/useEscapeKey';
+import { chatService } from './services/chat.service';
+import { blockService } from './services/block.service';
 
 const MAX_IMAGE_COUNT = 10;
 const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
+
+type PreviewMedia = {
+  url: string;
+  type: 'IMAGE' | 'VIDEO';
+  name?: string;
+};
+
+const isDocxFile = (file: File) =>
+  file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+  file.name.toLowerCase().endsWith('.docx');
+
+const getSelectedMediaType = (file: File): PendingChatMedia['type'] | null => {
+  if (file.type.startsWith('image/')) return 'IMAGE';
+  if (file.type.startsWith('video/')) return 'VIDEO';
+  if (file.type === 'application/pdf' || isDocxFile(file)) return 'FILE';
+  return null;
+};
+
+const formatBytes = (bytes?: number | null) => {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const getAttachmentName = (attachment: Attachment) => {
+  const metadataName = attachment.metadata?.name;
+  if (typeof metadataName === 'string' && metadataName.trim()) return metadataName;
+  return attachment.type === 'FILE' ? 'Document' : 'Shared media';
+};
+
+const isPreviewableAttachment = (attachment: Attachment) =>
+  attachment.type === 'IMAGE' || attachment.type === 'VIDEO';
+
+const attachmentGridClass = (count: number) => {
+  if (count <= 1) return 'grid-cols-1 max-w-[260px]';
+  if (count === 2) return 'grid-cols-2 max-w-[320px]';
+  return 'grid-cols-3 max-w-[360px]';
+};
+
+const sanitizeFileName = (name: string) =>
+  name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'download';
+
+const cloudinaryAttachmentUrl = (url: string, fileName: string) => {
+  const uploadMarker = '/upload/';
+  const markerIndex = url.indexOf(uploadMarker);
+  if (markerIndex === -1) return url;
+  const encodedName = encodeURIComponent(sanitizeFileName(fileName));
+  return `${url.slice(0, markerIndex + uploadMarker.length)}fl_attachment:${encodedName}/${url.slice(markerIndex + uploadMarker.length)}`;
+};
+
+const downloadOriginalFile = async (url: string, fileName: string) => {
+  const safeName = sanitizeFileName(fileName);
+  try {
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) throw new Error('Download failed');
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = safeName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  } catch {
+    window.open(cloudinaryAttachmentUrl(url, safeName), '_blank', 'noopener,noreferrer');
+  }
+};
 
 export default function Chat() {
   const { user } = useAuthStore();
@@ -30,6 +103,7 @@ export default function Chat() {
   const [errorDialog, setErrorDialog] = useState<{isOpen: boolean, message: string}>({isOpen: false, message: ''});
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [timeTick, setTimeTick] = useState(0);
+  const [previewMedia, setPreviewMedia] = useState<PreviewMedia | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -66,14 +140,77 @@ export default function Chat() {
   const [isGroupSearching, setIsGroupSearching] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<UserSearchResponse[]>([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [showConversationSettings, setShowConversationSettings] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+  const [nicknameDrafts, setNicknameDrafts] = useState<Record<string, string>>({});
+  const [isConversationActionLoading, setIsConversationActionLoading] = useState(false);
+  const [blockWarningDialog, setBlockWarningDialog] = useState<{ isOpen: boolean; names: string[]; conversationId?: string }>({ isOpen: false, names: [] });
+  const [leaveGroupConfirmOpen, setLeaveGroupConfirmOpen] = useState(false);
+  const [destructiveConfirm, setDestructiveConfirm] = useState<{
+    isOpen: boolean;
+    action: 'deleteGroup' | 'kickParticipant' | null;
+    participantId?: string;
+    participantName?: string;
+  }>({ isOpen: false, action: null });
+  const [addMemberQuery, setAddMemberQuery] = useState('');
+  const [addMemberResults, setAddMemberResults] = useState<UserSearchResponse[]>([]);
+  const [isAddMemberSearching, setIsAddMemberSearching] = useState(false);
+  const acknowledgedBlockWarningsRef = useRef<Set<string>>(new Set());
 
   const selectedConversation = useMemo(() => 
     conversations?.find(c => c.id === selectedConversationId),
     [conversations, selectedConversationId]
   );
 
+  useEffect(() => {
+    if (!selectedConversation) return;
+    setGroupNameDraft(selectedConversation.name || '');
+    setNicknameDrafts(Object.fromEntries(
+      selectedConversation.participants.map(participant => [
+        participant.userId,
+        participant.nickname || participant.displayName || participant.username || '',
+      ])
+    ));
+    setAddMemberQuery('');
+    setAddMemberResults([]);
+  }, [selectedConversation]);
+
   const { messages, loadingHistory, sendMessage, sendTyping, typingUsers } = 
     useConversationMessages(selectedConversationId, user?.id);
+
+  useEffect(() => {
+    if (!selectedConversation || selectedConversation.type !== 'GROUP' || !user?.id) return;
+    if (acknowledgedBlockWarningsRef.current.has(selectedConversation.id)) return;
+
+    let isMounted = true;
+    const checkBlockedParticipants = async () => {
+      const otherParticipants = selectedConversation.participants.filter(participant => participant.userId !== user.id);
+      const statuses = await Promise.all(
+        otherParticipants.map(async participant => {
+          try {
+            const status = await blockService.getBlockStatus(participant.userId);
+            return status.blockedByViewer ? participant : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const blockedParticipants = statuses.filter(Boolean) as Conversation['participants'];
+      if (isMounted && blockedParticipants.length > 0) {
+        acknowledgedBlockWarningsRef.current.add(selectedConversation.id);
+        setBlockWarningDialog({
+          isOpen: true,
+          conversationId: selectedConversation.id,
+          names: blockedParticipants.map(participant => participantName(participant)),
+        });
+      }
+    };
+
+    void checkBlockedParticipants();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedConversation, user?.id]);
 
   // Mark conversation as read when new message is received in active view
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
@@ -133,15 +270,14 @@ export default function Chat() {
     const accepted: PendingChatMedia[] = [];
 
     for (const file of files) {
-      const isImage = file.type.startsWith('image/');
-      const isVideo = file.type.startsWith('video/');
+      const mediaType = getSelectedMediaType(file);
 
-      if (!isImage && !isVideo) {
-        showError('Only image and video files can be sent in chat.');
+      if (!mediaType) {
+        showError('Only images, videos, PDF, and DOCX files can be sent in chat. Examples: project-brief.pdf or meeting-notes.docx.');
         continue;
       }
 
-      if (isImage) {
+      if (mediaType === 'IMAGE') {
         if (file.size > MAX_IMAGE_BYTES) {
           showError('Images must be 50MB or smaller.');
           continue;
@@ -153,15 +289,20 @@ export default function Chat() {
         nextImageCount += 1;
       }
 
-      if (isVideo && file.size > MAX_VIDEO_BYTES) {
+      if (mediaType === 'VIDEO' && file.size > MAX_VIDEO_BYTES) {
         showError('Videos must be 500MB or smaller.');
+        continue;
+      }
+
+      if (mediaType === 'FILE' && file.size > MAX_FILE_BYTES) {
+        showError('PDF and DOCX files must be 50MB or smaller.');
         continue;
       }
 
       accepted.push({
         id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
         file,
-        type: isImage ? 'IMAGE' : 'VIDEO',
+        type: mediaType,
         previewUrl: URL.createObjectURL(file),
       });
     }
@@ -196,17 +337,22 @@ export default function Chat() {
     setIsSendingMessage(true);
     try {
       const attachments: Attachment[] = selectedMedia.length > 0
-        ? (await (await import('./services/chat.service')).chatService.uploadMedia(selectedMedia.map(item => item.file))).map(upload => ({
-            type: upload.type,
-            url: upload.url,
-            cloudinaryPublicId: upload.publicId || undefined,
-            metadata: {
-              width: upload.width,
-              height: upload.height,
-              format: upload.format,
-              bytes: upload.bytes,
-            },
-          }))
+        ? (await (await import('./services/chat.service')).chatService.uploadMedia(selectedMedia.map(item => item.file))).map((upload, index) => {
+            const source = selectedMedia[index];
+            return {
+              type: upload.type,
+              url: upload.url,
+              cloudinaryPublicId: upload.publicId || undefined,
+              metadata: {
+                width: upload.width,
+                height: upload.height,
+                format: upload.format,
+                bytes: upload.bytes ?? source?.file.size,
+                name: source?.file.name,
+                contentType: source?.file.type,
+              },
+            };
+          })
         : [];
 
       sendMessage(messageText, attachments);
@@ -256,10 +402,14 @@ export default function Chat() {
     return `Active ${diffDays}d ago`;
   };
 
+  const participantName = (participant?: Conversation['participants'][number]) => (
+    participant?.nickname || participant?.displayName || participant?.username || 'Unknown'
+  );
+
   const getConversationTitle = (conv: Conversation) => {
     if (conv.type === 'GROUP') return conv.name || 'Group Chat';
     const otherParticipant = conv.participants.find(p => p.userId !== user?.id);
-    return otherParticipant?.displayName || otherParticipant?.username || 'Unknown';
+    return participantName(otherParticipant);
   };
 
   const getConversationAvatar = (conv: Conversation) => {
@@ -320,6 +470,37 @@ export default function Chat() {
     return () => clearTimeout(timer);
   }, [groupSearchQuery, selectedMembers, user?.id]);
 
+  useEffect(() => {
+    if (!showConversationSettings || !selectedConversation || selectedConversation.type !== 'GROUP' || !selectedConversation.currentUserAdmin) {
+      setAddMemberResults([]);
+      setIsAddMemberSearching(false);
+      return;
+    }
+
+    const query = addMemberQuery.trim();
+    if (query.length < 2) {
+      setAddMemberResults([]);
+      setIsAddMemberSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsAddMemberSearching(true);
+      try {
+        const { friendService } = await import('./services/friend.service');
+        const results = await friendService.searchUsers(query);
+        const existingIds = new Set(selectedConversation.participants.map(participant => participant.userId));
+        setAddMemberResults(results.filter(result => !existingIds.has(result.id) && result.id !== user?.id));
+      } catch (err) {
+        console.error('Add member search error', err);
+        setAddMemberResults([]);
+      } finally {
+        setIsAddMemberSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [addMemberQuery, selectedConversation, showConversationSettings, user?.id]);
   const handleAddMember = (member: UserSearchResponse) => {
     setSelectedMembers(prev => [...prev, member]);
     setGroupSearchQuery('');
@@ -366,6 +547,128 @@ export default function Chat() {
     setGroupSearchQuery('');
     setGroupSearchResults([]);
   };
+
+  const closeConversationSettings = () => setShowConversationSettings(false);
+
+  const updateConversationCache = (conversation: Conversation) => {
+    queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) => {
+      if (!old) return [conversation];
+      return old.map(item => item.id === conversation.id ? conversation : item);
+    });
+  };
+
+  const removeConversationFromCache = (conversationId: string) => {
+    queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) => old?.filter(item => item.id !== conversationId) || []);
+    if (selectedConversationId === conversationId) {
+      setSelectedConversationId(null);
+    }
+  };
+
+  const runConversationAction = async (action: () => Promise<void>) => {
+    setIsConversationActionLoading(true);
+    try {
+      await action();
+    } catch (err: any) {
+      showError(err.response?.data?.message || 'Could not update this conversation. Please try again.');
+    } finally {
+      setIsConversationActionLoading(false);
+    }
+  };
+
+  const handleRenameGroup = () => {
+    if (!selectedConversation || selectedConversation.type !== 'GROUP') return;
+    void runConversationAction(async () => {
+      const updated = await chatService.updateGroupName(selectedConversation.id, groupNameDraft);
+      updateConversationCache(updated);
+    });
+  };
+
+  const handleDeleteGroup = () => {
+    if (!selectedConversation || selectedConversation.type !== 'GROUP') return;
+    setDestructiveConfirm({ isOpen: true, action: 'deleteGroup' });
+  };
+
+  const handleLeaveGroup = () => {
+    if (!selectedConversation || selectedConversation.type !== 'GROUP') return;
+    setLeaveGroupConfirmOpen(true);
+  };
+
+  const confirmLeaveGroup = () => {
+    if (!selectedConversation || selectedConversation.type !== 'GROUP') return;
+    const conversationId = selectedConversation.id;
+    setLeaveGroupConfirmOpen(false);
+    void runConversationAction(async () => {
+      await chatService.leaveGroup(conversationId);
+      removeConversationFromCache(conversationId);
+      closeConversationSettings();
+    });
+  };
+
+  const handleMakeAdmin = (participantId: string) => {
+    if (!selectedConversation) return;
+    void runConversationAction(async () => {
+      const updated = await chatService.makeAdmin(selectedConversation.id, participantId);
+      updateConversationCache(updated);
+    });
+  };
+
+  const handleKickParticipant = (participantId: string) => {
+    if (!selectedConversation) return;
+    const participant = selectedConversation.participants.find(item => item.userId === participantId);
+    setDestructiveConfirm({
+      isOpen: true,
+      action: 'kickParticipant',
+      participantId,
+      participantName: participantName(participant),
+    });
+  };
+
+  const confirmDestructiveAction = () => {
+    if (!selectedConversation || !destructiveConfirm.action) return;
+    const conversationId = selectedConversation.id;
+    const action = destructiveConfirm.action;
+    const participantId = destructiveConfirm.participantId;
+    setDestructiveConfirm({ isOpen: false, action: null });
+
+    void runConversationAction(async () => {
+      if (action === 'deleteGroup') {
+        await chatService.deleteGroup(conversationId);
+        removeConversationFromCache(conversationId);
+        closeConversationSettings();
+        return;
+      }
+
+      if (action === 'kickParticipant' && participantId) {
+        const updated = await chatService.removeParticipant(conversationId, participantId);
+        updateConversationCache(updated);
+      }
+    });
+  };
+
+  const handleAddGroupParticipant = (member: UserSearchResponse) => {
+    if (!selectedConversation || selectedConversation.type !== 'GROUP') return;
+    void runConversationAction(async () => {
+      const updated = await chatService.addParticipant(selectedConversation.id, member.id);
+      updateConversationCache(updated);
+      setAddMemberQuery('');
+      setAddMemberResults([]);
+    });
+  };
+
+  const handleDownloadAttachment = async (url: string, fileName: string) => {
+    await downloadOriginalFile(url, fileName);
+  };
+  const handleSaveNickname = (participantId: string) => {
+    if (!selectedConversation) return;
+    void runConversationAction(async () => {
+      const updated = await chatService.updateNickname(selectedConversation.id, participantId, nicknameDrafts[participantId] || '');
+      updateConversationCache(updated);
+    });
+  };
+
+  useEscapeKey(showCreateGroup, handleCloseCreateGroup);
+  useEscapeKey(showConversationSettings, closeConversationSettings);
+  useEscapeKey(!!previewMedia, () => setPreviewMedia(null));
 
   const handleStartConversation = async (otherUser: any) => {
     try {
@@ -597,7 +900,12 @@ export default function Chat() {
                     <button className="p-2 md:p-3 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full active:scale-95">
                       <Video size={20} />
                     </button>
-                    <button className="hidden md:block p-3 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full active:scale-95">
+                    <button
+                      type="button"
+                      onClick={() => setShowConversationSettings(true)}
+                      className="hidden md:block p-3 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full active:scale-95"
+                      title="Conversation details"
+                    >
                       <Info size={20} />
                     </button>
                   </div>
@@ -613,8 +921,21 @@ export default function Chat() {
 
                   {messages.map((msg) => {
                     const sender = selectedConversation?.participants.find(p => p.userId === msg.senderId);
-                    const senderName = msg.senderName || sender?.displayName || sender?.username || 'Unknown';
+                    const senderName = sender ? participantName(sender) : msg.senderName || 'Unknown';
                     const senderAvatar = msg.senderAvatar || sender?.avatarUrl || `https://ui-avatars.com/api/?name=${senderName}`;
+
+                    if (msg.type === MessageType.SYSTEM) {
+                      return (
+                        <div key={msg.id} className="mx-auto flex max-w-[90%] flex-col items-center gap-1 text-center">
+                          <div className="rounded-full bg-surface-container-high px-3 py-1.5 text-xs font-bold text-on-surface-variant shadow-sm">
+                            {msg.content}
+                          </div>
+                          <span className="text-[11px] font-semibold text-outline-variant">
+                            {new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div key={msg.id} className={`flex gap-3 max-w-[85%] md:max-w-[70%] ${msg.senderId === user?.id ? 'flex-row-reverse ml-auto' : ''}`}>
@@ -639,26 +960,74 @@ export default function Chat() {
                           ${msg.attachments?.[0] ? 'p-2' : ''}
                         `}>
                           {msg.attachments?.length ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-3 gap-1.5 max-w-[360px]">
-                                {msg.attachments.map((attachment, index) => (
-                                  <div key={`${attachment.url}-${index}`} className="aspect-square rounded-xl overflow-hidden bg-surface-container-high shadow-sm">
-                                    {attachment.type === 'VIDEO' ? (
-                                      <video
-                                        src={attachment.url}
-                                        controls
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <img
-                                        src={attachment.url}
-                                        alt="Shared media"
-                                        className="w-full h-full object-cover"
-                                        referrerPolicy="no-referrer"
-                                      />
-                                    )}
-                                  </div>
-                                ))}
+                            <div className="space-y-2 w-fit max-w-full">
+                              <div className={`grid gap-1.5 ${attachmentGridClass(msg.attachments.length)}`}>
+                                {msg.attachments.map((attachment, index) => {
+                                  const attachmentName = getAttachmentName(attachment);
+                                  const attachmentBytes = formatBytes(attachment.metadata?.bytes);
+
+                                  if (attachment.type === 'FILE') {
+                                    return (
+                                      <div key={`${attachment.url}-${index}`} className="col-span-full flex min-w-[220px] max-w-[320px] items-center gap-3 rounded-xl bg-surface-container-high p-3 shadow-sm">
+                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-container text-primary">
+                                          <FileText size={22} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="truncate text-sm font-bold">{attachmentName}</p>
+                                          {attachmentBytes && <p className="text-xs font-semibold opacity-70">{attachmentBytes}</p>}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => void handleDownloadAttachment(attachment.url, attachmentName)}
+                                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-container-lowest/80 hover:bg-surface-container-lowest"
+                                          title="Download file"
+                                          aria-label={`Download ${attachmentName}`}
+                                        >
+                                          <Download size={17} />
+                                        </button>
+                                      </div>
+                                    );
+                                  }
+
+                                  const previewType = attachment.type === 'VIDEO' ? 'VIDEO' : 'IMAGE';
+                                  return (
+                                    <div key={`${attachment.url}-${index}`} className="group relative aspect-square overflow-hidden bg-surface-container-high shadow-sm">
+                                      <button
+                                        type="button"
+                                        onClick={() => setPreviewMedia({ url: attachment.url, type: previewType, name: attachmentName })}
+                                        className="h-full w-full"
+                                        aria-label={`Preview ${attachmentName}`}
+                                      >
+                                        {attachment.type === 'VIDEO' ? (
+                                          <video
+                                            src={attachment.url}
+                                            className="w-full h-full object-cover"
+                                            muted
+                                          />
+                                        ) : (
+                                          <img
+                                            src={attachment.url}
+                                            alt={attachmentName}
+                                            className="w-full h-full object-cover"
+                                            referrerPolicy="no-referrer"
+                                          />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          void handleDownloadAttachment(attachment.url, attachmentName);
+                                        }}
+                                        className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/75 group-hover:opacity-100 focus:opacity-100"
+                                        title="Download media"
+                                        aria-label={`Download ${attachmentName}`}
+                                      >
+                                        <Download size={14} />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
                               </div>
                               {msg.content?.trim() && (
                                 <p className="text-sm md:text-base font-medium leading-relaxed px-2 pb-1">{msg.content}</p>
@@ -700,13 +1069,23 @@ export default function Chat() {
                 {/* Input Area */}
                 <div className="p-4 md:p-6 border-t border-surface-container bg-surface-container-lowest shrink-0 absolute bottom-0 left-0 right-0 z-20 md:relative">
                   {selectedMedia.length > 0 && (
-                    <div className="mb-3 grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-44 overflow-y-auto pr-1">
+                    <div className="mb-3 grid grid-cols-2 sm:grid-cols-5 gap-2 max-h-44 overflow-y-auto pr-1">
                       {selectedMedia.map(media => (
-                        <div key={media.id} className="relative aspect-square rounded-xl overflow-hidden bg-surface-container-high border border-outline-variant/20">
+                        <div key={media.id} className="relative min-h-24 overflow-hidden bg-surface-container-high border border-outline-variant/20">
                           {media.type === 'VIDEO' ? (
-                            <video src={media.previewUrl} className="w-full h-full object-cover" muted />
+                            <video src={media.previewUrl} className="h-full min-h-24 w-full object-cover" muted />
+                          ) : media.type === 'IMAGE' ? (
+                            <img src={media.previewUrl} alt="Selected media" className="h-full min-h-24 w-full object-cover" />
                           ) : (
-                            <img src={media.previewUrl} alt="Selected media" className="w-full h-full object-cover" />
+                            <div className="flex h-full min-h-24 items-center gap-3 p-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-container text-primary">
+                                <FileText size={20} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-bold text-on-surface">{media.file.name}</p>
+                                <p className="text-[11px] font-semibold text-on-surface-variant">{formatBytes(media.file.size)}</p>
+                              </div>
+                            </div>
                           )}
                           <button
                             type="button"
@@ -717,7 +1096,7 @@ export default function Chat() {
                             <X size={14} />
                           </button>
                           <span className="absolute left-1 bottom-1 p-1 bg-black/50 text-white rounded-full">
-                            {media.type === 'VIDEO' ? <Video size={13} /> : <ImageIcon size={13} />}
+                            {media.type === 'VIDEO' ? <Video size={13} /> : media.type === 'IMAGE' ? <ImageIcon size={13} /> : <FileText size={13} />}
                           </span>
                         </div>
                       ))}
@@ -730,7 +1109,7 @@ export default function Chat() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*,video/*"
+                      accept="image/*,video/*,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                       multiple
                       onChange={handleMediaSelect}
                       className="hidden"
@@ -739,7 +1118,7 @@ export default function Chat() {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="p-2.5 text-primary hover:bg-primary-container/20 rounded-full transition-colors shrink-0"
-                      title="Attach media"
+                      title="Attach images, videos, PDF, or DOCX files"
                     >
                       <PlusCircle size={22} />
                     </button>
@@ -942,7 +1321,218 @@ export default function Chat() {
           </div>
         )}
       </div>
-      
+        {/* Conversation Details Modal */}
+        {showConversationSettings && selectedConversation && (
+          <div className="fixed inset-0 z-[105] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeConversationSettings} />
+            <div className="relative flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-outline-variant/20 bg-surface-container-lowest shadow-2xl">
+              <div className="flex items-center justify-between border-b border-outline-variant/10 px-6 py-5">
+                <div>
+                  <h3 className="text-xl font-bold text-on-surface">Conversation details</h3>
+                  <p className="text-sm font-semibold text-on-surface-variant">{getConversationTitle(selectedConversation)}</p>
+                </div>
+                <button type="button" onClick={closeConversationSettings} className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+                {selectedConversation.type === 'GROUP' && (
+                  <div className="rounded-2xl bg-surface-container-low p-4">
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-on-surface-variant">Group name</label>
+                    <div className="flex gap-2">
+                      <input
+                        value={groupNameDraft}
+                        onChange={(event) => setGroupNameDraft(event.target.value)}
+                        disabled={!selectedConversation.currentUserAdmin || isConversationActionLoading}
+                        className="min-w-0 flex-1 rounded-xl border-2 border-transparent bg-surface-container-lowest px-4 py-2.5 text-sm font-bold text-on-surface outline-none focus:border-primary disabled:opacity-60"
+                      />
+                      {selectedConversation.currentUserAdmin && (
+                        <button type="button" onClick={handleRenameGroup} disabled={isConversationActionLoading || !groupNameDraft.trim()} className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+                          Save
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedConversation.type === 'GROUP' && selectedConversation.currentUserAdmin && (
+                  <div className="rounded-2xl bg-surface-container-low p-4">
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-on-surface-variant">Add members</label>
+                    <div className="relative">
+                      <input
+                        value={addMemberQuery}
+                        onChange={(event) => setAddMemberQuery(event.target.value)}
+                        placeholder="Search people to add..."
+                        className="w-full rounded-xl border-2 border-transparent bg-surface-container-lowest px-4 py-2.5 pl-10 text-sm font-semibold text-on-surface outline-none focus:border-primary"
+                      />
+                      <Search size={17} className="absolute left-3.5 top-3 text-outline-variant" />
+                    </div>
+
+                    {addMemberQuery.trim().length >= 2 && (
+                      <div className="mt-2 max-h-52 overflow-y-auto rounded-xl border border-outline-variant/10 bg-surface-container-high">
+                        {isAddMemberSearching ? (
+                          <div className="flex justify-center p-4">
+                            <Loader2 className="animate-spin text-primary" size={20} />
+                          </div>
+                        ) : addMemberResults.length > 0 ? (
+                          addMemberResults.map(result => (
+                            <button
+                              key={result.id}
+                              type="button"
+                              onClick={() => handleAddGroupParticipant(result)}
+                              disabled={isConversationActionLoading}
+                              className="flex w-full items-center gap-3 border-b border-outline-variant/5 p-3 text-left transition-colors last:border-0 hover:bg-primary-container/20 disabled:opacity-60"
+                            >
+                              <img
+                                src={result.avatarUrl || `https://ui-avatars.com/api/?name=${result.username}&background=random`}
+                                alt={result.displayName || result.username}
+                                className="h-9 w-9 shrink-0 rounded-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-bold text-on-surface">{result.displayName || result.username}</p>
+                                <p className="truncate text-xs font-semibold text-on-surface-variant">@{result.username}</p>
+                              </div>
+                              <UserPlus size={17} className="shrink-0 text-primary" />
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center text-sm font-semibold text-on-surface-variant">No users found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-on-surface-variant">Members</h4>
+                  <div className="space-y-2">
+                    {selectedConversation.participants.map(participant => {
+                      const isSelf = participant.userId === user?.id;
+                      const isAdmin = Boolean(participant.admin);
+                      return (
+                        <div key={participant.userId} className="rounded-2xl bg-surface-container-low p-3">
+                          <div className="flex items-center gap-3">
+                            <img src={participant.avatarUrl || `https://ui-avatars.com/api/?name=${participant.username || 'User'}`} alt={participantName(participant)} className="h-10 w-10 rounded-full object-cover" referrerPolicy="no-referrer" />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="truncate text-sm font-bold text-on-surface">{participantName(participant)}</p>
+                                {isAdmin && <span className="inline-flex items-center gap-1 rounded-full bg-primary-container px-2 py-0.5 text-[10px] font-bold text-primary"><Shield size={12} /> Admin</span>}
+                                {isSelf && <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">You</span>}
+                              </div>
+                              <p className="truncate text-xs font-semibold text-on-surface-variant">@{participant.username || participant.userId}</p>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <input
+                              value={nicknameDrafts[participant.userId] ?? ''}
+                              onChange={(event) => setNicknameDrafts(prev => ({ ...prev, [participant.userId]: event.target.value }))}
+                              placeholder="Set nickname"
+                              className="min-w-0 flex-1 rounded-xl bg-surface-container-lowest px-3 py-2 text-sm font-semibold text-on-surface outline-none focus:ring-2 focus:ring-primary-container"
+                            />
+                            <button type="button" onClick={() => handleSaveNickname(participant.userId)} disabled={isConversationActionLoading} className="rounded-full bg-surface-container-high px-4 py-2 text-xs font-bold text-on-surface hover:bg-surface-container-highest disabled:opacity-50">
+                              Save nickname
+                            </button>
+                            {selectedConversation.type === 'GROUP' && selectedConversation.currentUserAdmin && !isSelf && !isAdmin && (
+                              <button type="button" onClick={() => handleMakeAdmin(participant.userId)} disabled={isConversationActionLoading} className="inline-flex items-center justify-center gap-1 rounded-full bg-tertiary-container px-4 py-2 text-xs font-bold text-on-tertiary-container disabled:opacity-50">
+                                <Shield size={14} /> Make admin
+                              </button>
+                            )}
+                            {selectedConversation.type === 'GROUP' && selectedConversation.currentUserAdmin && !isSelf && (
+                              <button type="button" onClick={() => handleKickParticipant(participant.userId)} disabled={isConversationActionLoading} className="inline-flex items-center justify-center gap-1 rounded-full bg-error-container px-4 py-2 text-xs font-bold text-on-error-container disabled:opacity-50">
+                                <UserMinus size={14} /> Kick
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {selectedConversation.type === 'GROUP' && (
+                <div className="flex flex-wrap justify-end gap-3 border-t border-outline-variant/10 px-6 py-4">
+                  <button type="button" onClick={handleLeaveGroup} disabled={isConversationActionLoading} className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-bold text-on-surface disabled:opacity-50">
+                    <LogOut size={16} /> Leave group
+                  </button>
+                  {selectedConversation.currentUserAdmin && (
+                    <button type="button" onClick={handleDeleteGroup} disabled={isConversationActionLoading} className="inline-flex items-center gap-2 rounded-full bg-error px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50">
+                      <Trash2 size={16} /> Delete group
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {previewMedia && (
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm"
+            onClick={() => setPreviewMedia(null)}
+          >
+            <div className="absolute right-6 top-6 z-10 flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => void handleDownloadAttachment(previewMedia.url, previewMedia.name || 'media')}
+                className="flex h-11 w-11 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                title="Download"
+                aria-label="Download media"
+              >
+                <Download size={23} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewMedia(null)}
+                className="flex h-11 w-11 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="Close preview"
+              >
+                <X size={26} />
+              </button>
+            </div>
+            <div className="flex max-h-[90vh] max-w-[92vw] items-center justify-center" onClick={(event) => event.stopPropagation()}>
+              {previewMedia.type === 'VIDEO' ? (
+                <video src={previewMedia.url} controls autoPlay className="max-h-[90vh] max-w-full object-contain" />
+              ) : (
+                <img src={previewMedia.url} alt={previewMedia.name || 'Preview media'} className="max-h-[90vh] max-w-full object-contain shadow-2xl" referrerPolicy="no-referrer" />
+              )}
+            </div>
+          </div>
+        )}
+      <ConfirmDialog
+        isOpen={destructiveConfirm.isOpen}
+        title={destructiveConfirm.action === 'deleteGroup' ? 'Delete group?' : 'Remove member?'}
+        message={destructiveConfirm.action === 'deleteGroup'
+          ? 'Are you sure you want to delete this group? This action cannot be undone.'
+          : `Are you sure you want to remove ${destructiveConfirm.participantName || 'this member'} from this group?`}
+        confirmLabel={destructiveConfirm.action === 'deleteGroup' ? 'Delete group' : 'Remove'}
+        cancelLabel="Cancel"
+        type="danger"
+        onConfirm={confirmDestructiveAction}
+        onCancel={() => setDestructiveConfirm({ isOpen: false, action: null })}
+      />
+      <ConfirmDialog
+        isOpen={leaveGroupConfirmOpen}
+        title="Leave group?"
+        message="Are you sure you want to leave this group? You will no longer see new messages from this conversation."
+        confirmLabel="Leave group"
+        cancelLabel="Cancel"
+        type="danger"
+        onConfirm={confirmLeaveGroup}
+        onCancel={() => setLeaveGroupConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        isOpen={blockWarningDialog.isOpen}
+        title="Blocked user in this group"
+        message={`This group includes blocked user(s): ${blockWarningDialog.names.join(', ')}. You can continue chatting after acknowledging this notice.`}
+        confirmLabel="Continue"
+        cancelLabel="Close"
+        type="warning"
+        onConfirm={() => setBlockWarningDialog({ isOpen: false, names: [] })}
+        onCancel={() => setBlockWarningDialog({ isOpen: false, names: [] })}
+      />
       <ConfirmDialog
         isOpen={errorDialog.isOpen}
         title="Attention"

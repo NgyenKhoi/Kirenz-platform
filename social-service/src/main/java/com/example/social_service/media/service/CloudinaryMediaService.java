@@ -30,6 +30,9 @@ public class CloudinaryMediaService {
     @Value("${cloudinary.max-chat-video-bytes:524288000}")
     private long maxChatVideoBytes;
 
+    @Value("${cloudinary.max-chat-file-bytes:52428800}")
+    private long maxChatFileBytes;
+
     @Value("${cloudinary.folders.chat:kirenz/chat}")
     private String chatFolder;
 
@@ -62,7 +65,7 @@ public class CloudinaryMediaService {
         try {
             Map<?, ?> result = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
                 "folder", chatFolder,
-                "resource_type", mediaType == MediaType.VIDEO ? "video" : "image"
+                "resource_type", mediaType == MediaType.VIDEO ? "video" : mediaType == MediaType.FILE ? "raw" : "image"
             ));
 
             return new MediaUploadResponse(
@@ -116,7 +119,17 @@ public class CloudinaryMediaService {
             return MediaType.VIDEO;
         }
 
-        throw new BadRequestException("Only image and video uploads are supported");
+        boolean isPdf = "application/pdf".equals(contentType);
+        boolean isDocx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equals(contentType);
+        boolean looksLikeDocx = file.getOriginalFilename() != null && file.getOriginalFilename().toLowerCase().endsWith(".docx");
+        if (isPdf || isDocx || looksLikeDocx) {
+            if (file.getSize() > maxChatFileBytes) {
+                throw new BadRequestException("Files must be 50MB or smaller");
+            }
+            return MediaType.FILE;
+        }
+
+        throw new BadRequestException("Only image, video, PDF, and DOCX uploads are supported");
     }
 
     private String stringValue(Object value) {

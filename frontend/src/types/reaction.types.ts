@@ -9,3 +9,12 @@ export interface ReactionSummaryResponse {
 export interface ReactionRequest {
   type: ReactionType;
 }
+
+export interface ReactionUserResponse {
+  userId: string;
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  type: ReactionType;
+  reactedAt: string;
+}

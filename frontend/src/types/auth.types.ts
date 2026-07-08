@@ -3,6 +3,10 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface GoogleLoginRequest {
+  idToken: string;
+}
+
 export interface RegisterRequest {
   email: string;
   password: string;
@@ -32,6 +36,7 @@ export interface UserProfile {
   username: string;
   displayName?: string;
   avatarUrl?: string;
+  coverPhotoUrl?: string;
   bio?: string;
   birthDate?: string;
   gender?: string;
@@ -93,4 +98,5 @@ export interface UpdateProfileRequest {
   allowDirectMessages?: boolean;
   profilePrivate?: boolean;
 }
+
 

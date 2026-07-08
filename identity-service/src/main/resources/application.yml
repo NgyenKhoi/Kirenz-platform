@@ -54,6 +54,10 @@ jwt:
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
 
+google:
+  oauth:
+    client-id: ${GOOGLE_OAUTH_CLIENT_ID:720577131634-ijrdshbfrhacsi8b00gipuj06fjkhr16.apps.googleusercontent.com}
+
 brevo:
   api-key: ${BREVO_API_KEY}
   base-url: https://api.brevo.com/v3/smtp/email

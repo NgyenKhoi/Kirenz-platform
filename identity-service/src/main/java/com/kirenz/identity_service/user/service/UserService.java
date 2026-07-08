@@ -45,6 +45,14 @@ public class UserService {
         return userMapper.toUserProfileDTO(user);
     }
 
+
+    public UserProfileDTO updateCoverPhoto(MultipartFile file) {
+        User user = getCurrentUser();
+        String coverPhotoUrl = mediaService.uploadCover(file).url();
+        user.setCoverPhotoUrl(coverPhotoUrl);
+        user = userRepository.save(user);
+        return userMapper.toUserProfileDTO(user);
+    }
     public List<UserProfileDTO> searchProfiles(String query, UUID excludeId, Integer limit) {
         String normalizedQuery = query == null ? "" : query.trim();
         int normalizedLimit = limit == null ? 10 : Math.max(1, Math.min(limit, 20));

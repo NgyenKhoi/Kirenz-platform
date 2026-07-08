@@ -48,6 +48,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Avatar updated successfully", profile));
     }
 
+    @PostMapping(value = "/me/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<UserProfileDTO>> updateCoverPhoto(@RequestParam("file") MultipartFile file) {
+        UserProfileDTO profile = userService.updateCoverPhoto(file);
+        return ResponseEntity.ok(ApiResponse.success("Cover photo updated successfully", profile));
+    }
+
     @GetMapping("/internal/search")
     public ResponseEntity<ApiResponse<List<UserProfileDTO>>> searchProfiles(
         @RequestParam("q") String query,

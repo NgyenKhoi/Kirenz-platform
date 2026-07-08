@@ -20,7 +20,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "users", indexes = {
     @Index(name = "idx_users_email", columnList = "email"),
-    @Index(name = "idx_users_username", columnList = "username")
+    @Index(name = "idx_users_username", columnList = "username"),
+    @Index(name = "idx_users_google_id", columnList = "google_id")
 })
 @Data
 @Builder
@@ -35,6 +36,9 @@ public class User implements UserDetails {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
+    @Column(name = "google_id", unique = true, length = 255)
+    private String googleId;
+
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
@@ -46,6 +50,9 @@ public class User implements UserDetails {
 
     @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl;
+
+    @Column(name = "cover_photo_url", columnDefinition = "TEXT")
+    private String coverPhotoUrl;
 
     @Column(length = 255)
     private String bio;
@@ -122,3 +129,4 @@ public class User implements UserDetails {
         return status != AccountStatus.DEACTIVATED;
     }
 }
+

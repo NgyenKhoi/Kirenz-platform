@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -19,6 +20,8 @@ public class ConversationResponse {
     private ConversationType type;
     private String name;
     private List<ParticipantInfo> participants;
+    private List<UUID> adminIds;
+    private boolean currentUserAdmin;
     private LastMessage lastMessage;
     private Instant createdAt;
     private Instant updatedAt;

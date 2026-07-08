@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 
 interface PostMediaGalleryProps {
   media: { url: string; type: string }[];
@@ -8,6 +9,9 @@ interface PostMediaGalleryProps {
 
 export function PostMediaGallery({ media }: PostMediaGalleryProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  
+  useEscapeKey(activeIndex !== null, () => setActiveIndex(null));
 
   if (media.length === 0) return null;
 
@@ -85,12 +89,26 @@ export function PostMediaGallery({ media }: PostMediaGalleryProps) {
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm"
             onClick={() => setActiveIndex(null)}
           >
-            <button
-              className="absolute top-6 right-6 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
-              onClick={() => setActiveIndex(null)}
-            >
-              <X size={28} />
-            </button>
+            <div className="absolute right-6 top-6 z-10 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <a
+                href={media[activeIndex].url}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                aria-label="Download media"
+                title="Download"
+              >
+                <Download size={24} />
+              </a>
+              <button
+                className="text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                onClick={() => setActiveIndex(null)}
+                aria-label="Close media viewer"
+              >
+                <X size={28} />
+              </button>
+            </div>
 
             {activeIndex > 0 && (
               <button

@@ -18,4 +18,6 @@ public class ParticipantInfo {
     private String displayName;
     private String avatarUrl;
     private Boolean allowDirectMessages;
+    private String nickname;
+    private Boolean admin;
 }

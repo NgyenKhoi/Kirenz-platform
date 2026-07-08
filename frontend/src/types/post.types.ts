@@ -1,6 +1,6 @@
 import { ReactionSummaryResponse } from './reaction.types';
 
-export type MediaType = 'IMAGE' | 'VIDEO';
+export type MediaType = 'IMAGE' | 'VIDEO' | 'FILE';
 export type PostPrivacy = 'PUBLIC' | 'FRIENDS' | 'ONLY_ME';
 
 export interface PostMediaRequest {

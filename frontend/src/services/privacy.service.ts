@@ -10,6 +10,13 @@ export const privacyService = {
     return response.data.data;
   },
 
+  getUserPrivacySettings: async (userId: string): Promise<PrivacySettingResponse> => {
+    const response = await userServiceClient.get<ApiResponse<PrivacySettingResponse>>(
+      `/privacy/user/${userId}`
+    );
+    return response.data.data;
+  },
+
   updatePrivacySettings: async (data: UpdatePrivacySettingRequest): Promise<PrivacySettingResponse> => {
     const response = await userServiceClient.put<ApiResponse<PrivacySettingResponse>>(
       API_ENDPOINTS.PRIVACY.ME,

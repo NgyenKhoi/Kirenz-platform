@@ -21,6 +21,7 @@ public class UserProfileDTO {
     private String username;
     private String displayName;
     private String avatarUrl;
+    private String coverPhotoUrl;
     private String bio;
     private LocalDate birthDate;
     private Gender gender;
@@ -31,3 +32,4 @@ public class UserProfileDTO {
     private Instant createdAt;
     private Instant updatedAt;
 }
+

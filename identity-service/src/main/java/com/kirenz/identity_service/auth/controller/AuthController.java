@@ -1,5 +1,6 @@
 package com.kirenz.identity_service.auth.controller;
 
+import com.kirenz.identity_service.auth.dto.GoogleLoginRequestDTO;
 import com.kirenz.identity_service.auth.dto.LoginRequestDTO;
 import com.kirenz.identity_service.auth.dto.LoginResponseDTO;
 import com.kirenz.identity_service.auth.dto.RefreshTokenRequestDTO;
@@ -41,6 +42,14 @@ public class AuthController {
                 .body(ApiResponse.success("Login successful", response));
     }
 
+    @PostMapping("/google")
+    public ResponseEntity<ApiResponse<LoginResponseDTO>> loginWithGoogle(
+            @Valid @RequestBody GoogleLoginRequestDTO request) {
+        LoginResponseDTO response = authService.loginWithGoogle(request);
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success("Google login successful", response));
+    }
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<LoginResponseDTO>> refresh(
             @Valid @RequestBody RefreshTokenRequestDTO request) {

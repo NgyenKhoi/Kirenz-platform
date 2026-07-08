@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { 
   Search, Bell, Heart, Mail, User, Users, UsersRound, Sparkles, 
   PlusCircle, Camera, Plus, Edit2, MapPin, Calendar, Link as LinkIcon, 
@@ -11,13 +11,24 @@ import { useAuth } from './hooks/useAuth';
 import { postService } from './services/post.service';
 import { friendService } from './services/friend.service';
 import { authService } from './services/auth.service';
+import { privacyService } from './services/privacy.service';
 import { PostCard } from './components/Post/PostCard';
 import { CreatePost } from './components/Post/CreatePost';
 import { MediaViewerModal } from './components/common/MediaViewerModal';
 import { PostImageResponse, PostPrivacy, PostResponse } from './types/post.types';
 import { ReactionSummaryResponse } from './types/reaction.types';
 import { UserProfile as UserProfileType } from './types/auth.types';
-import { RelationshipStatus } from './types/friend.types';
+import { FriendResponse, RelationshipStatus } from './types/friend.types';
+
+type ProfileTab = 'ABOUT' | 'POSTS' | 'FRIENDS' | 'PHOTOS';
+
+const profileTabFromQuery = (value: string | null): ProfileTab => {
+  const tab = value?.toLowerCase();
+  if (tab === 'about') return 'ABOUT';
+  if (tab === 'friends') return 'FRIENDS';
+  if (tab === 'photos') return 'PHOTOS';
+  return 'POSTS';
+};
 
 export default function UserProfile() {
   const { 
@@ -28,13 +39,15 @@ export default function UserProfile() {
     isUpdatingProfile 
   } = useAuth();
   const { userId } = useParams<{ userId?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isOwnProfile = !userId || userId === user?.id;
 
   const [targetUser, setTargetUser] = useState<UserProfileType | null>(null);
   const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('NONE');
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
+  const [profileRestricted, setProfileRestricted] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'POSTS' | 'PHOTOS'>('POSTS');
+  const [activeTab, setActiveTab] = useState<ProfileTab>(() => profileTabFromQuery(searchParams.get('tab')));
 
   const [posts, setPosts] = useState<PostResponse[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
@@ -44,7 +57,10 @@ export default function UserProfile() {
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
-  const [friendCount, setFriendCount] = useState<number>(0);
+  const [friends, setFriends] = useState<FriendResponse[]>([]);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(true);
+  const [friendError, setFriendError] = useState<string | null>(null);
+  const friendCount = friends.length;
 
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -55,6 +71,15 @@ export default function UserProfile() {
     location: '',
     website: '',
   });
+
+  useEffect(() => {
+    setActiveTab(profileTabFromQuery(searchParams.get('tab')));
+  }, [searchParams]);
+
+  const handleSetActiveTab = (tab: ProfileTab) => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'POSTS' ? {} : { tab: tab.toLowerCase() });
+  };
 
   // Pre-fill the form whenever the modal is opened or the user data changes
   useEffect(() => {
@@ -106,15 +131,18 @@ export default function UserProfile() {
 
   const displayedUser = isOwnProfile ? user : targetUser;
   const displayName = displayedUser?.displayName || displayedUser?.username || 'User';
-  const bio = displayedUser?.bio || (isOwnProfile ? 'Capturing life\'s little joys. 🌻' : 'No bio yet.');
+  const bio = displayedUser?.bio || (isOwnProfile ? 'Capturing life\'s little joys. ðŸŒ»' : 'No bio yet.');
   const location = displayedUser?.location || (isOwnProfile ? 'Portland, Oregon' : 'No location specified');
   const website = displayedUser?.website || '';
   const avatarUrl = displayedUser?.avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBbY_GUlw34tnkyFIMOl2BKettMEaotAsjvlMn6C_uAYu2C3nM_ijw2rr7U9XDlyBU_0LlidZUITe7OACoMYLzy0O5RdjRo0fH9NEmNkLOhjpaIoRogweGdwOQ-QcP4_RepAyayI6_jVKYnJjekbEf07QzVchgO3G2gcSWct_pYdY99tJYJchT_3k1kNmpev6u7x_QcQx94o5RYQ1tq5OVrkvJSM5IlD4Q11oyMhGIqiJ2ENgSg_Qv24OaSlAfI-ypwo4U6jlVrwoA';
+  const defaultCoverUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuCG_4uv5c7LMPK5KoWQBZhw2UhexJJ8IIJLAk6l9zKKv7qDm2uCc4PU0QgciFnRx011VAxSWcTIlt_W169WWVryMv3s5jpnMViYu0PScoW1Rp7m7zehvHtLXADvwVAGMOXhDVxpcEfQdyysA2YBZZtpo183gpTP8uw7rAp2rdbrfqN6eA8a1PxyKsfK5FcRNMdDiaxvOMoR_kZKd7ErrytAtfm4J99HXQKAm9dXM2RLUIr6dR3zn79NAIqs7r64_ycRqGODy4c3dHk';
+  const coverPhotoUrl = displayedUser?.coverPhotoUrl || defaultCoverUrl;
   const joinedDate = displayedUser?.createdAt ? new Date(displayedUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'September 2021';
 
   useEffect(() => {
     if (isOwnProfile) {
       setTargetUser(null);
+      setProfileRestricted(false);
       setRelationshipStatus('SELF');
       return;
     }
@@ -122,17 +150,38 @@ export default function UserProfile() {
     let isMounted = true;
     const fetchTargetUserDetails = async () => {
       setIsFetchingProfile(true);
+      setProfileRestricted(false);
       try {
-        const [profileData, statusData] = await Promise.all([
-          authService.getUserProfile(userId!),
+        const [statusData, privacyData] = await Promise.all([
           friendService.getStatus(userId!),
+          privacyService.getUserPrivacySettings(userId!),
         ]);
+        const canViewProfile =
+          statusData.status === 'SELF' ||
+          privacyData.profileVisibility === 'PUBLIC' ||
+          (privacyData.profileVisibility === 'FRIENDS_ONLY' && statusData.status === 'FRIENDS');
+
+        if (!canViewProfile) {
+          if (isMounted) {
+            setRelationshipStatus(statusData.status);
+            setTargetUser(null);
+            setProfileRestricted(true);
+          }
+          return;
+        }
+
+        const profileData = await authService.getUserProfile(userId!);
         if (isMounted) {
           setTargetUser(profileData);
           setRelationshipStatus(statusData.status);
+          setProfileRestricted(false);
         }
       } catch (err) {
         console.error('Error fetching target user details:', err);
+        if (isMounted) {
+          setTargetUser(null);
+          setProfileRestricted(false);
+        }
       } finally {
         if (isMounted) {
           setIsFetchingProfile(false);
@@ -144,34 +193,52 @@ export default function UserProfile() {
     return () => {
       isMounted = false;
     };
-  }, [userId, isOwnProfile]);
+  }, [userId, isOwnProfile, profileRestricted]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchFriends = async () => {
+      setIsLoadingFriends(true);
+      setFriendError(null);
       try {
         const id = isOwnProfile ? user?.id : userId;
-        if (!id) return;
+        if (!id) {
+          if (isMounted) setFriends([]);
+          return;
+        }
         const friendsList = isOwnProfile 
           ? await friendService.getFriends()
           : await friendService.getUserFriends(id);
         if (isMounted) {
-          setFriendCount(friendsList.length);
+          setFriends(friendsList || []);
         }
       } catch (err) {
         console.error('Error fetching friends:', err);
+        if (isMounted) {
+          setFriends([]);
+          setFriendError('Could not load friends. Please try again.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingFriends(false);
+        }
       }
     };
     void fetchFriends();
     return () => {
       isMounted = false;
     };
-  }, [userId, isOwnProfile, user?.id, relationshipStatus]);
+  }, [userId, isOwnProfile, user?.id, relationshipStatus, profileRestricted]);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadPosts = async () => {
+      if (profileRestricted) {
+        setPosts([]);
+        setIsLoadingPosts(false);
+        return;
+      }
       setIsLoadingPosts(true);
       setPostError(null);
       try {
@@ -196,12 +263,17 @@ export default function UserProfile() {
     return () => {
       isMounted = false;
     };
-  }, [userId, isOwnProfile]);
+  }, [userId, isOwnProfile, profileRestricted]);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadPhotos = async () => {
+      if (profileRestricted) {
+        setPhotos([]);
+        setIsLoadingPhotos(false);
+        return;
+      }
       const id = isOwnProfile ? user?.id : userId;
       if (!id) {
         return;
@@ -229,7 +301,7 @@ export default function UserProfile() {
     return () => {
       isMounted = false;
     };
-  }, [userId, isOwnProfile, user?.id]);
+  }, [userId, isOwnProfile, user?.id, profileRestricted]);
 
   const handleSendRequest = async () => {
     if (!userId) return;
@@ -360,14 +432,31 @@ export default function UserProfile() {
     );
   }
 
+  if (!isOwnProfile && profileRestricted) {
+    return (
+      <Layout>
+        <main className="flex min-h-screen items-center justify-center bg-surface px-6 text-center text-on-surface">
+          <div className="max-w-md rounded-[2rem] bg-surface-container-lowest p-8 shadow-xl">
+            <UsersRound size={48} className="mx-auto mb-4 text-primary" />
+            <h2 className="text-2xl font-bold">User này đã ẩn profile của mình</h2>
+            <p className="mt-3 text-sm font-medium text-on-surface-variant">Hãy kết bạn để xem profile, bài viết, bạn bè và ảnh của người dùng này.</p>
+            <Link to="/explore" className="mt-5 inline-flex rounded-full bg-primary px-6 py-2 text-sm font-bold text-on-primary">
+              Back to Explore
+            </Link>
+          </div>
+        </main>
+      </Layout>
+    );
+  }
+
   if (!isOwnProfile && !targetUser && !isFetchingProfile) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-screen">
           <h2 className="text-2xl font-bold text-on-surface">User Not Found</h2>
           <p className="text-on-surface-variant mt-2">The user you are looking for does not exist.</p>
-          <Link to="/friends" className="mt-4 px-6 py-2 bg-primary text-on-primary rounded-full font-bold">
-            Back to Friends
+          <Link to="/explore" className="mt-4 px-6 py-2 bg-primary text-on-primary rounded-full font-bold">
+            Back to Explore
           </Link>
         </div>
       </Layout>
@@ -398,7 +487,7 @@ export default function UserProfile() {
             <div className="h-64 md:h-80 w-full overflow-hidden relative group">
               <img 
                 alt="Cover" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCG_4uv5c7LMPK5KoWQBZhw2UhexJJ8IIJLAk6l9zKKv7qDm2uCc4PU0QgciFnRx011VAxSWcTIlt_W169WWVryMv3s5jpnMViYu0PScoW1Rp7m7zehvHtLXADvwVAGMOXhDVxpcEfQdyysA2YBZZtpo183gpTP8uw7rAp2rdbrfqN6eA8a1PxyKsfK5FcRNMdDiaxvOMoR_kZKd7ErrytAtfm4J99HXQKAm9dXM2RLUIr6dR3zn79NAIqs7r64_ycRqGODy4c3dHk"
+                src={coverPhotoUrl}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
@@ -439,10 +528,6 @@ export default function UserProfile() {
                 <div className="flex gap-3 justify-center mb-2 md:mb-0">
                   {isOwnProfile ? (
                     <>
-                      <button className="bg-primary text-on-primary px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:brightness-110 transition-all">
-                        <Plus size={20} />
-                        Add Story
-                      </button>
                       <button 
                         onClick={() => setIsEditModalOpen(true)}
                         className="bg-surface-container-high text-on-surface-variant px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 border-2 border-outline-variant hover:bg-surface-container-highest transition-all"
@@ -520,22 +605,21 @@ export default function UserProfile() {
               
               {/* Tabs */}
               <div className="flex border-b border-surface-variant mt-6 px-2 overflow-x-auto gap-8 hide-scrollbar">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('POSTS')}
-                  className={`px-4 py-4 font-bold whitespace-nowrap outline-none ${activeTab === 'POSTS' ? 'text-primary border-b-4 border-primary' : 'text-on-surface-variant hover:text-primary transition-colors'}`}
-                >
-                  Posts
-                </button>
-                <button className="px-4 py-4 text-on-surface-variant font-bold hover:text-primary transition-colors whitespace-nowrap outline-none">About</button>
-                <button className="px-4 py-4 text-on-surface-variant font-bold hover:text-primary transition-colors whitespace-nowrap outline-none">Friends</button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('PHOTOS')}
-                  className={`px-4 py-4 font-bold whitespace-nowrap outline-none ${activeTab === 'PHOTOS' ? 'text-primary border-b-4 border-primary' : 'text-on-surface-variant hover:text-primary transition-colors'}`}
-                >
-                  Photos
-                </button>
+                {([
+                  ['POSTS', 'Posts'],
+                  ['ABOUT', 'About'],
+                  ['FRIENDS', 'Friends'],
+                  ['PHOTOS', 'Photos'],
+                ] as const).map(([tab, label]) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => handleSetActiveTab(tab)}
+                    className={`px-4 py-4 font-bold whitespace-nowrap outline-none ${activeTab === tab ? 'text-primary border-b-4 border-primary' : 'text-on-surface-variant hover:text-primary transition-colors'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -621,6 +705,93 @@ export default function UserProfile() {
 
             {/* Right Column: Posts Feed */}
             <div className="lg:col-span-7 flex flex-col gap-6">
+              {activeTab === 'ABOUT' && (
+                <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
+                  <h3 className="text-xl font-bold text-on-surface mb-5">About</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3 text-on-surface-variant">
+                      <Heart size={22} className="text-primary shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.08em] text-outline">Bio</p>
+                        <p className="text-base font-medium text-on-surface">{bio}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 text-on-surface-variant">
+                      <MapPin size={22} className="text-primary shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.08em] text-outline">Location</p>
+                        <p className="text-base font-medium text-on-surface">{location}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 text-on-surface-variant">
+                      <Calendar size={22} className="text-primary shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.08em] text-outline">Joined</p>
+                        <p className="text-base font-medium text-on-surface">{joinedDate}</p>
+                      </div>
+                    </div>
+                    {website && (
+                      <div className="flex items-start gap-3 text-on-surface-variant">
+                        <LinkIcon size={22} className="text-primary shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.08em] text-outline">Website</p>
+                          <a href={website.startsWith('http') ? website : `https://${website}`} target="_blank" rel="noopener noreferrer" className="text-base font-bold text-tertiary hover:underline">
+                            {website}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'FRIENDS' && (
+                <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-on-surface">Friends</h3>
+                    <span className="text-sm font-bold text-on-surface-variant">{friendCount} friend{friendCount === 1 ? '' : 's'}</span>
+                  </div>
+                  {isLoadingFriends ? (
+                    <div className="rounded-xl bg-surface-container-low p-8 text-center text-sm font-bold text-on-surface-variant">
+                      Loading friends...
+                    </div>
+                  ) : friendError ? (
+                    <div className="rounded-xl bg-error-container p-8 text-center text-sm font-bold text-on-error-container">
+                      {friendError}
+                    </div>
+                  ) : friends.length === 0 ? (
+                    <div className="rounded-xl bg-surface-container-low p-8 text-center text-sm font-bold text-on-surface-variant">
+                      No friends yet.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {friends.map((friend) => {
+                        const friendName = friend.displayName || friend.username || 'Kirenz User';
+                        return (
+                          <Link
+                            key={friend.friendshipId || friend.friendId}
+                            to={`/profile/${friend.friendId}`}
+                            className="flex min-w-0 items-center gap-3 rounded-2xl border border-outline-variant bg-surface-container-low p-4 transition-all hover:border-primary/40 hover:bg-surface-container"
+                          >
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-container text-on-primary-container font-bold">
+                              {friend.avatarUrl ? (
+                                <img src={friend.avatarUrl} alt={friendName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                friendName.slice(0, 1).toUpperCase()
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate font-bold text-on-surface">{friendName}</p>
+                              {friend.username && <p className="truncate text-xs font-bold text-primary">@{friend.username}</p>}
+                              {friend.bio && <p className="mt-1 line-clamp-1 text-xs text-on-surface-variant">{friend.bio}</p>}
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               {activeTab === 'PHOTOS' && (
                 <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
                   <div className="mb-4 flex items-center justify-between">
@@ -747,7 +918,7 @@ export default function UserProfile() {
                     />
                     <div>
                       <h4 className="text-lg font-bold text-on-surface leading-tight">Alex Rivera</h4>
-                      <span className="text-[12px] font-bold text-outline-variant">2 hours ago • Public</span>
+                      <span className="text-[12px] font-bold text-outline-variant">2 hours ago â€¢ Public</span>
                     </div>
                   </div>
                   <button className="text-outline hover:text-on-surface transition-colors p-2 rounded-full hover:bg-surface-container">
@@ -756,7 +927,7 @@ export default function UserProfile() {
                 </div>
                 
                 <p className="text-base font-medium text-on-surface mb-4">
-                  Found this beautiful corner in the park today. Nature always knows how to reset the soul. 🌿✨
+                  Found this beautiful corner in the park today. Nature always knows how to reset the soul. ðŸŒ¿âœ¨
                 </p>
                 
                 <div className="rounded-[1.5rem] overflow-hidden mb-4">
@@ -806,7 +977,7 @@ export default function UserProfile() {
                     />
                     <div>
                       <h4 className="text-lg font-bold text-on-surface leading-tight">Alex Rivera</h4>
-                      <span className="text-[12px] font-bold text-outline-variant">Yesterday at 6:15 PM • Friends</span>
+                      <span className="text-[12px] font-bold text-outline-variant">Yesterday at 6:15 PM â€¢ Friends</span>
                     </div>
                   </div>
                   <button className="text-outline hover:text-on-surface transition-colors p-2 rounded-full hover:bg-surface-container">
@@ -815,7 +986,7 @@ export default function UserProfile() {
                 </div>
                 
                 <p className="text-base font-medium text-on-surface mb-4">
-                  The sourdough experiment continues! Best loaf yet. 🍞☕️
+                  The sourdough experiment continues! Best loaf yet. ðŸžâ˜•ï¸
                 </p>
                 
                 <div className="grid grid-cols-2 gap-2 rounded-[1.5rem] overflow-hidden mb-4">
@@ -1005,3 +1176,5 @@ export default function UserProfile() {
     </Layout>
   );
 }
+
+

@@ -6,6 +6,7 @@ import com.example.social_service.comment.repository.CommentRepository;
 import com.example.social_service.common.exception.NotFoundException;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostStatus;
+import com.example.social_service.identity.IdentityServiceClient;
 import com.example.social_service.post.repository.PostRepository;
 import com.example.social_service.reaction.dto.ReactionRequest;
 import com.example.social_service.reaction.dto.ReactionSummaryResponse;
@@ -50,13 +51,16 @@ class ReactionServiceTest {
     private UserServiceClient userServiceClient;
 
     @Mock
+    private IdentityServiceClient identityServiceClient;
+
+    @Mock
     private com.example.social_service.event.NotificationProducer notificationProducer;
 
     private ReactionService reactionService;
 
     @BeforeEach
     void setUp() {
-        reactionService = new ReactionService(reactionRepository, postRepository, commentRepository, userServiceClient, notificationProducer);
+        reactionService = new ReactionService(reactionRepository, postRepository, commentRepository, userServiceClient, identityServiceClient, notificationProducer);
     }
 
     @Test

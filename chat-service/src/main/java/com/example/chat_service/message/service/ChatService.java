@@ -1,6 +1,6 @@
 package com.example.chat_service.message.service;
 
-import com.example.chat_service.common.dto.ApiResponse;
+import com.example.chat_service.common.client.IdentityServiceClient;
 import com.example.chat_service.common.exception.BadRequestException;
 import com.example.chat_service.common.exception.NotFoundException;
 import com.example.chat_service.conversation.dto.ParticipantInfo;
@@ -8,7 +8,7 @@ import com.example.chat_service.conversation.model.Conversation;
 import com.example.chat_service.conversation.model.LastMessage;
 import com.example.chat_service.conversation.repository.ConversationRepository;
 import com.example.chat_service.conversation.service.ConversationService;
-import com.example.chat_service.event.MessageEventProducer;
+
 import com.example.chat_service.message.dto.MessageResponse;
 import com.example.chat_service.message.dto.SendMessageRequest;
 import com.example.chat_service.message.model.*;
@@ -24,7 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,7 +38,7 @@ public class ChatService {
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
     private final MessageBroadcastService broadcastService;
-    private final MessageEventProducer messageEventProducer;
+    private final IdentityServiceClient identityServiceClient;
     private final ConversationService conversationService;
     private final org.springframework.data.mongodb.core.MongoTemplate mongoTemplate;
 
@@ -59,6 +62,7 @@ public class ChatService {
             String primaryType = request.getAttachments().get(0).getType();
             if ("IMAGE".equalsIgnoreCase(primaryType)) type = MessageType.IMAGE;
             else if ("VIDEO".equalsIgnoreCase(primaryType)) type = MessageType.VIDEO;
+            else if ("FILE".equalsIgnoreCase(primaryType)) type = MessageType.FILE;
         }
 
         // 4. Create & Save Message
@@ -96,10 +100,10 @@ public class ChatService {
         conversationRepository.save(conversation);
 
         // 6. Broadcast via WebSocket
-        String senderName = conversation.getLastMessage().getSenderName();
-        String senderAvatar = ""; // In a real app, find this from current participant list
+        ParticipantInfo senderProfile = fetchSenderProfile(senderId);
+        String senderName = senderDisplayName(conversation, senderId, senderProfile);
+        String senderAvatar = senderProfile == null ? "" : senderProfile.getAvatarUrl();
         broadcastService.broadcastMessage(savedMessage, conversation, senderName, senderAvatar);
-        messageEventProducer.publishMessageSent(savedMessage, conversation);
     }
 
     public List<MessageResponse> getMessageHistory(String conversationId, UUID userId, int page, int size) {
@@ -116,9 +120,11 @@ public class ChatService {
         Page<Message> messagePage = messageRepository.findByConversationIdAndStatusOrderBySentAtDesc(
             conversationId, "ACTIVE", pageable);
 
-        // Enrich with sender details
-        return messagePage.getContent().stream()
-            .map(m -> convertToResponse(m, conversation))
+        List<Message> messages = messagePage.getContent();
+        Map<UUID, ParticipantInfo> senderProfiles = fetchSenderProfiles(messages);
+
+        return messages.stream()
+            .map(m -> convertToResponse(m, conversation, senderProfiles))
             .collect(Collectors.toList());
     }
 
@@ -146,8 +152,10 @@ public class ChatService {
             if (attachment.getUrl() == null || attachment.getUrl().isBlank()) {
                 throw new BadRequestException("Attachment url is required");
             }
-            if (!"IMAGE".equalsIgnoreCase(attachment.getType()) && !"VIDEO".equalsIgnoreCase(attachment.getType())) {
-                throw new BadRequestException("Only image and video attachments are supported");
+            if (!"IMAGE".equalsIgnoreCase(attachment.getType())
+                && !"VIDEO".equalsIgnoreCase(attachment.getType())
+                && !"FILE".equalsIgnoreCase(attachment.getType())) {
+                throw new BadRequestException("Only image, video, and file attachments are supported");
             }
         });
     }
@@ -159,6 +167,10 @@ public class ChatService {
         if (message.getType() == MessageType.VIDEO) {
             return "Sent a video";
         }
+        if (message.getType() == MessageType.FILE) {
+            int count = message.getAttachments() == null ? 0 : message.getAttachments().size();
+            return count > 1 ? "Sent " + count + " files" : "Sent a file";
+        }
         if (message.getType() == MessageType.IMAGE) {
             int count = message.getAttachments() == null ? 0 : message.getAttachments().size();
             return count > 1 ? "Sent " + count + " media files" : "Sent media";
@@ -167,21 +179,70 @@ public class ChatService {
     }
 
     private String getSenderName(Conversation conversation, UUID senderId) {
-        // This is a simple version; in a full app, you'd fetch from identity-service or use a local cache
-        return "User " + senderId.toString().substring(0, 8);
+        return senderDisplayName(conversation, senderId, fetchSenderProfile(senderId));
     }
 
-    private MessageResponse convertToResponse(Message message, Conversation conversation) {
+    private MessageResponse convertToResponse(Message message, Conversation conversation, Map<UUID, ParticipantInfo> senderProfiles) {
+        ParticipantInfo sender = senderProfiles.get(message.getSenderId());
         return MessageResponse.builder()
             .id(message.getId())
             .conversationId(message.getConversationId())
             .senderId(message.getSenderId())
+            .senderName(senderDisplayName(conversation, message.getSenderId(), sender))
+            .senderAvatar(sender == null ? null : sender.getAvatarUrl())
             .content(message.getContent())
             .type(message.getType())
             .attachments(message.getAttachments())
             .sentAt(message.getSentAt())
             .status(message.getStatus())
             .build();
+    }
+
+    private Map<UUID, ParticipantInfo> fetchSenderProfiles(List<Message> messages) {
+        List<UUID> senderIds = messages.stream()
+            .map(Message::getSenderId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        if (senderIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            var response = identityServiceClient.getProfilesByIds(senderIds);
+            if (response != null && response.isSuccess() && response.getData() != null) {
+                return response.getData().stream()
+                    .filter(profile -> profile.getUserId() != null)
+                    .collect(Collectors.toMap(ParticipantInfo::getUserId, Function.identity(), (left, right) -> left));
+            }
+        } catch (RuntimeException ex) {
+            log.warn("Failed to fetch message sender profiles: {}", ex.getMessage());
+        }
+        return Map.of();
+    }
+
+    private ParticipantInfo fetchSenderProfile(UUID senderId) {
+        if (senderId == null) {
+            return null;
+        }
+        return fetchSenderProfiles(List.of(Message.builder().senderId(senderId).build())).get(senderId);
+    }
+
+    private String senderDisplayName(Conversation conversation, UUID senderId, ParticipantInfo sender) {
+        if (senderId != null && conversation.getParticipantNicknames() != null) {
+            String nickname = conversation.getParticipantNicknames().get(senderId.toString());
+            if (nickname != null && !nickname.isBlank()) {
+                return nickname;
+            }
+        }
+        if (sender != null) {
+            if (sender.getDisplayName() != null && !sender.getDisplayName().isBlank()) {
+                return sender.getDisplayName();
+            }
+            if (sender.getUsername() != null && !sender.getUsername().isBlank()) {
+                return sender.getUsername();
+            }
+        }
+        return senderId == null ? "Unknown" : "User " + senderId.toString().substring(0, 8);
     }
 
     @Transactional

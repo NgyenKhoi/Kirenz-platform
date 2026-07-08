@@ -1,6 +1,7 @@
 import apiClient, { API_ENDPOINTS, STORAGE_KEYS } from '../config/api.config';
 import {
   LoginRequest,
+  GoogleLoginRequest,
   RegisterRequest,
   LoginResponse,
   RegisterResponse,
@@ -37,6 +38,18 @@ export const authService = {
     return loginData;
   },
 
+  loginWithGoogle: async (data: GoogleLoginRequest): Promise<LoginResponse> => {
+    const response = await apiClient.post<ApiResponse<LoginResponse>>(
+      API_ENDPOINTS.AUTH.GOOGLE,
+      data
+    );
+    const loginData = response.data.data;
+
+    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, loginData.accessToken);
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, loginData.refreshToken);
+
+    return loginData;
+  },
   refreshToken: async (refreshToken: string): Promise<LoginResponse> => {
     const response = await apiClient.post<ApiResponse<LoginResponse>>(
       API_ENDPOINTS.AUTH.REFRESH,
@@ -97,6 +110,22 @@ export const authService = {
 
     return userData;
   },
+
+  uploadCover: async (file: File): Promise<UserProfile> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<ApiResponse<UserProfile>>(
+      API_ENDPOINTS.USER.COVER,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    const userData = response.data.data;
+
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
+
+    return userData;
+  },
   logout: () => {
     localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
@@ -137,3 +166,4 @@ export const authService = {
     return response.data.data;
   },
 };
+

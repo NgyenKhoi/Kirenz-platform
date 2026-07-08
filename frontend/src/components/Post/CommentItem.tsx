@@ -118,7 +118,7 @@ export function CommentItem({
   return (
     <div className="flex min-w-0 max-w-full gap-3">
       <div
-        className={`${isNested ? "h-8 w-8" : "h-9 w-9"} rounded-full overflow-hidden shrink-0`}
+        className={`${isNested ? "h-8 w-8" : "h-9 w-9"} rounded-full overflow-hidden shrink-0 ring-2 ring-surface-container-lowest shadow-sm`}
       >
         <img
           alt={authorName}
@@ -129,7 +129,7 @@ export function CommentItem({
       </div>
       <div className="min-w-0 flex-1">
         <div
-          className={`${isNested ? "rounded-2xl bg-surface-container-lowest border border-outline-variant/25" : "rounded-2xl bg-surface-container-low"} ${isDeepNested ? "px-3" : "px-4"} py-3`}
+          className={`${isNested ? "rounded-2xl bg-surface-container-lowest border border-outline-variant/20" : "rounded-2xl bg-surface-container-low"} ${isDeepNested ? "px-3" : "px-4"} py-3 shadow-sm transition-colors hover:bg-surface-container-high`}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -155,13 +155,13 @@ export function CommentItem({
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen((open) => !open)}
-                  className="p-1 text-outline hover:text-on-surface"
+                  className="rounded-full p-1 text-outline transition-colors hover:bg-surface-container-high hover:text-on-surface"
                   aria-label="Comment actions"
                 >
                   <MoreHorizontal size={18} />
                 </button>
                 {isMenuOpen && (
-                  <div className="absolute right-0 top-7 z-20 w-36 rounded-2xl bg-surface-container-lowest shadow-lg border border-outline-variant/40 p-2">
+                  <div className="absolute right-0 top-7 z-20 w-36 rounded-2xl bg-surface-container-lowest shadow-xl border border-outline-variant/30 p-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -209,7 +209,7 @@ export function CommentItem({
           )}
         </div>
 
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 text-[11px] font-bold text-on-surface-variant">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 text-[11px] font-bold text-on-surface-variant">
           <span>{formatPostTime(comment.createdAt)}</span>
           {comment.updatedAt !== comment.createdAt && <span>edited</span>}
           <ReactionPicker
@@ -222,7 +222,7 @@ export function CommentItem({
           <button
             type="button"
             onClick={() => setIsReplying((value) => !value)}
-            className="text-[11px] font-bold text-on-surface-variant hover:text-secondary"
+            className="rounded-full px-2 py-0.5 text-[11px] font-bold text-on-surface-variant transition-colors hover:bg-secondary-container/30 hover:text-secondary"
           >
             Reply
           </button>

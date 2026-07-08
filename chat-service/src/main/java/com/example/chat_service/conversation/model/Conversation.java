@@ -10,7 +10,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Document(collection = "conversations")
@@ -30,6 +32,12 @@ public class Conversation {
     @Indexed
     @Builder.Default
     private List<UUID> participantIds = new ArrayList<>();
+
+    @Builder.Default
+    private List<UUID> adminIds = new ArrayList<>();
+
+    @Builder.Default
+    private Map<String, String> participantNicknames = new HashMap<>();
 
     private UUID createdBy;
 

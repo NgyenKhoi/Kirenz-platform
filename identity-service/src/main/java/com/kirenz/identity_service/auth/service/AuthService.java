@@ -1,5 +1,7 @@
 package com.kirenz.identity_service.auth.service;
 
+import com.kirenz.identity_service.auth.dto.GoogleLoginRequestDTO;
+import com.kirenz.identity_service.auth.dto.GoogleTokenInfoDTO;
 import com.kirenz.identity_service.auth.dto.LoginRequestDTO;
 import com.kirenz.identity_service.auth.dto.LoginResponseDTO;
 import com.kirenz.identity_service.auth.dto.RefreshTokenRequestDTO;
@@ -33,7 +35,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -47,10 +51,10 @@ public class AuthService {
     private final UserMapper userMapper;
     private final VerificationService verificationService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final GoogleTokenVerifierService googleTokenVerifierService;
 
     @Transactional
     public RegisterResponseDTO register(RegisterRequestDTO request) {
-        // Check if a user with this email already exists
         Optional<User> existingUser = userRepository.findByEmail(request.getEmail());
         
         if (existingUser.isPresent()) {
@@ -58,18 +62,12 @@ public class AuthService {
             if (Boolean.TRUE.equals(user.getEmailVerified())) {
                 throw new EmailAlreadyExistsException("Email already registered");
             } else {
-                // If email is not verified, we allow "overwriting" or re-registration.
-                // We delete the existing unverified user to avoid constraints and start fresh.
                 log.info("Found unverified user with email: {}. Deleting to allow re-registration.", request.getEmail());
                 userRepository.delete(user);
-                // Flush to ensure the deletion is synchronized with the database 
-                // before checking other consistency constraints like username
                 userRepository.flush();
             }
         }
 
-        // Now check if username is taken (it might have been cleared by the deletion above, 
-        // or it might be taken by a different verified/unverified user)
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new UsernameAlreadyExistsException("Username already taken");
         }
@@ -81,22 +79,8 @@ public class AuthService {
         user.setEmailVerified(false);
 
         User savedUser = userRepository.save(user);
+        publishUserCreated(savedUser);
 
-        // Publish user-created event
-        try {
-            UserCreatedEvent event = UserCreatedEvent.builder()
-                .userId(savedUser.getId())
-                .email(savedUser.getEmail())
-                .username(savedUser.getUsername())
-                .build();
-            kafkaTemplate.send("user-created", event);
-            log.info("Published user-created event for user: {}", savedUser.getId());
-        } catch (Exception e) {
-            log.error("Failed to publish user-created event for user: {}. Error: {}", savedUser.getId(), e.getMessage());
-            // We don't throw exception here to avoid rolling back registration if Kafka is down
-        }
-
-        // Attempt to send OTP automatically after registration
         boolean otpSent = false;
         try {
             verificationService.sendOTP(savedUser.getEmail());
@@ -105,11 +89,9 @@ public class AuthService {
         } catch (EmailSendingException e) {
             log.warn("Failed to send OTP after registration for email: {}. Error: {}", 
                 savedUser.getEmail(), e.getMessage());
-            // Continue with registration - OTP failure should not block registration
         } catch (Exception e) {
             log.warn("Unexpected error sending OTP after registration for email: {}. Error: {}", 
                 savedUser.getEmail(), e.getMessage());
-            // Continue with registration - OTP failure should not block registration
         }
 
         RegisterResponseDTO response = userMapper.toRegisterResponseDTO(savedUser);
@@ -141,25 +123,71 @@ public class AuthService {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
-        if (user.getStatus() == AccountStatus.BANNED) {
-            throw new AccountBannedException("Account has been banned");
-        }
-        if (user.getStatus() == AccountStatus.DEACTIVATED) {
-            throw new AccountDeactivatedException("Account has been deactivated");
-        }
+        assertLoginAllowed(user);
 
         user.setLastLoginAt(Instant.now());
         userRepository.save(user);
 
-        String accessToken = jwtService.generateAccessToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
+        return issueTokens(user);
+    }
 
-        return LoginResponseDTO.builder()
-            .accessToken(accessToken)
-            .refreshToken(refreshToken)
-            .tokenType("Bearer")
-            .expiresIn(900L)
-            .build();
+    @Transactional
+    public LoginResponseDTO loginWithGoogle(GoogleLoginRequestDTO request) {
+        GoogleTokenInfoDTO tokenInfo = googleTokenVerifierService.verify(request.getIdToken());
+        String email = tokenInfo.getEmail().trim().toLowerCase(Locale.ROOT);
+
+        Optional<User> userByGoogleId = userRepository.findByGoogleId(tokenInfo.getSub());
+        User user;
+        boolean newUser = false;
+
+        if (userByGoogleId.isPresent()) {
+            user = userByGoogleId.get();
+        } else {
+            Optional<User> userByEmail = userRepository.findByEmail(email);
+            if (userByEmail.isPresent()) {
+                user = userByEmail.get();
+                user.setGoogleId(tokenInfo.getSub());
+            } else {
+                user = User.builder()
+                        .email(email)
+                        .googleId(tokenInfo.getSub())
+                        .username(generateUniqueUsername(email))
+                        .password(passwordEncoder.encode(UUID.randomUUID().toString() + UUID.randomUUID()))
+                        .displayName(firstNonBlank(tokenInfo.getName(), email.substring(0, email.indexOf('@'))))
+                        .avatarUrl(tokenInfo.getPicture())
+                        .role(UserRole.USER)
+                        .status(AccountStatus.ACTIVE)
+                        .emailVerified(true)
+                        .emailVerifiedAt(Instant.now())
+                        .build();
+                newUser = true;
+            }
+        }
+
+        assertLoginAllowed(user);
+
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            user.setEmailVerified(true);
+            user.setEmailVerifiedAt(Instant.now());
+        }
+        if (user.getGoogleId() == null || user.getGoogleId().isBlank()) {
+            user.setGoogleId(tokenInfo.getSub());
+        }
+        if ((user.getAvatarUrl() == null || user.getAvatarUrl().isBlank()) && tokenInfo.getPicture() != null) {
+            user.setAvatarUrl(tokenInfo.getPicture());
+        }
+        if ((user.getDisplayName() == null || user.getDisplayName().isBlank()) && tokenInfo.getName() != null) {
+            user.setDisplayName(tokenInfo.getName());
+        }
+
+        user.setLastLoginAt(Instant.now());
+        User savedUser = userRepository.save(user);
+
+        if (newUser) {
+            publishUserCreated(savedUser);
+        }
+
+        return issueTokens(savedUser);
     }
 
     @Transactional
@@ -169,11 +197,11 @@ public class AuthService {
             throw new InvalidTokenException("Refresh token is required");
         }
 
-        String username;
+        String email;
         try {
-            username = jwtService.extractUsername(refreshToken);
-            if (username == null || username.trim().isEmpty()) {
-                throw new InvalidTokenException("Invalid refresh token: username not found");
+            email = jwtService.extractEmail(refreshToken);
+            if (email == null || email.trim().isEmpty()) {
+                throw new InvalidTokenException("Invalid refresh token: email not found");
             }
         } catch (InvalidTokenException e) {
             throw e;
@@ -181,7 +209,7 @@ public class AuthService {
             throw new InvalidTokenException("Invalid refresh token: " + e.getMessage());
         }
 
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByEmail(email)
             .orElseThrow(() -> new InvalidTokenException("Invalid refresh token: user not found"));
 
         try {
@@ -200,16 +228,69 @@ public class AuthService {
             throw new InvalidTokenException("Invalid refresh token: " + e.getMessage());
         }
 
+        assertLoginAllowed(user);
         log.info("Refreshing tokens for user: {}", user.getId());
-        
-        String newAccessToken = jwtService.generateAccessToken(user);
-        String newRefreshToken = jwtService.generateRefreshToken(user);
+        return issueTokens(user);
+    }
+
+    private LoginResponseDTO issueTokens(User user) {
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
 
         return LoginResponseDTO.builder()
-            .accessToken(newAccessToken)
-            .refreshToken(newRefreshToken)
+            .accessToken(accessToken)
+            .refreshToken(refreshToken)
             .tokenType("Bearer")
             .expiresIn(900L)
             .build();
+    }
+
+    private void assertLoginAllowed(User user) {
+        if (user.getStatus() == AccountStatus.BANNED) {
+            throw new AccountBannedException("Account has been banned");
+        }
+        if (user.getStatus() == AccountStatus.DEACTIVATED) {
+            throw new AccountDeactivatedException("Account has been deactivated");
+        }
+    }
+
+    private void publishUserCreated(User savedUser) {
+        try {
+            UserCreatedEvent event = UserCreatedEvent.builder()
+                .userId(savedUser.getId())
+                .email(savedUser.getEmail())
+                .username(savedUser.getUsername())
+                .build();
+            kafkaTemplate.send("user-created", event);
+            log.info("Published user-created event for user: {}", savedUser.getId());
+        } catch (Exception e) {
+            log.error("Failed to publish user-created event for user: {}. Error: {}", savedUser.getId(), e.getMessage());
+        }
+    }
+
+    private String generateUniqueUsername(String email) {
+        String localPart = email.substring(0, email.indexOf('@'));
+        String base = localPart.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_]", "_");
+        base = base.replaceAll("_+", "_").replaceAll("^_+|_+$", "");
+        if (base.length() < 3) {
+            base = "user_" + base;
+        }
+        if (base.length() > 42) {
+            base = base.substring(0, 42);
+        }
+
+        String candidate = base;
+        int suffix = 1;
+        while (userRepository.existsByUsername(candidate)) {
+            candidate = base + "_" + suffix++;
+            if (candidate.length() > 50) {
+                candidate = base.substring(0, Math.min(base.length(), 45)) + "_" + suffix;
+            }
+        }
+        return candidate;
+    }
+
+    private String firstNonBlank(String preferred, String fallback) {
+        return preferred == null || preferred.isBlank() ? fallback : preferred;
     }
 }

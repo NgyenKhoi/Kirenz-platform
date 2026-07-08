@@ -1,0 +1,12 @@
+package com.example.chat_service.conversation.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class UpdateConversationRequest {
+    private String name;
+}

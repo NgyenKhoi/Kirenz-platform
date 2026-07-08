@@ -12,7 +12,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Attachment {
-    private String type;           // e.g., IMAGE, VIDEO
+    private String type;           // e.g., IMAGE, VIDEO, FILE
     private String url;
     private String cloudinaryPublicId;
     private Map<String, Object> metadata; // e.g., width, height, size

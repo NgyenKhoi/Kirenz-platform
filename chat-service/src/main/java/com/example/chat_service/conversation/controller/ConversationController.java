@@ -4,6 +4,8 @@ import com.example.chat_service.auth.CurrentUser;
 import com.example.chat_service.common.dto.ApiResponse;
 import com.example.chat_service.conversation.dto.ConversationResponse;
 import com.example.chat_service.conversation.dto.CreateConversationRequest;
+import com.example.chat_service.conversation.dto.UpdateConversationRequest;
+import com.example.chat_service.conversation.dto.UpdateNicknameRequest;
 import com.example.chat_service.conversation.service.ConversationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,21 +51,61 @@ public class ConversationController {
         return ResponseEntity.ok(ApiResponse.success("Conversation details retrieved", conversation));
     }
 
+    @PatchMapping("/{id}")
+    public ResponseEntity<ApiResponse<ConversationResponse>> updateGroupName(
+        @PathVariable String id,
+        @RequestBody UpdateConversationRequest request
+    ) {
+        ConversationResponse conversation = conversationService.updateGroupName(id, request.getName(), currentUser.id());
+        return ResponseEntity.ok(ApiResponse.success("Group updated successfully", conversation));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteGroup(@PathVariable String id) {
+        conversationService.deleteGroup(id, currentUser.id());
+        return ResponseEntity.ok(ApiResponse.success("Group deleted successfully", null));
+    }
+
     @PostMapping("/{id}/participants")
-    public ResponseEntity<ApiResponse<Void>> addParticipant(
+    public ResponseEntity<ApiResponse<ConversationResponse>> addParticipant(
         @PathVariable String id,
         @RequestParam UUID userId
     ) {
-        conversationService.addParticipant(id, userId, currentUser.id());
-        return ResponseEntity.ok(ApiResponse.success("Participant added successfully", null));
+        ConversationResponse conversation = conversationService.addParticipant(id, userId, currentUser.id());
+        return ResponseEntity.ok(ApiResponse.success("Participant added successfully", conversation));
     }
 
     @DeleteMapping("/{id}/participants/{userId}")
-    public ResponseEntity<ApiResponse<Void>> removeParticipant(
+    public ResponseEntity<ApiResponse<ConversationResponse>> removeParticipant(
         @PathVariable String id,
         @PathVariable UUID userId
     ) {
-        conversationService.removeParticipant(id, userId, currentUser.id());
-        return ResponseEntity.ok(ApiResponse.success("Participant removed successfully", null));
+        ConversationResponse conversation = conversationService.removeParticipant(id, userId, currentUser.id());
+        return ResponseEntity.ok(ApiResponse.success("Participant removed successfully", conversation));
+    }
+
+    @PostMapping("/{id}/leave")
+    public ResponseEntity<ApiResponse<Void>> leaveGroup(@PathVariable String id) {
+        conversationService.leaveGroup(id, currentUser.id());
+        return ResponseEntity.ok(ApiResponse.success("Left group successfully", null));
+    }
+
+    @PostMapping("/{id}/admins/{userId}")
+    public ResponseEntity<ApiResponse<ConversationResponse>> makeAdmin(
+        @PathVariable String id,
+        @PathVariable UUID userId
+    ) {
+        ConversationResponse conversation = conversationService.makeAdmin(id, userId, currentUser.id());
+        return ResponseEntity.ok(ApiResponse.success("Admin updated successfully", conversation));
+    }
+
+    @PatchMapping("/{id}/nicknames/{userId}")
+    public ResponseEntity<ApiResponse<ConversationResponse>> updateNickname(
+        @PathVariable String id,
+        @PathVariable UUID userId,
+        @RequestBody UpdateNicknameRequest request
+    ) {
+        ConversationResponse conversation = conversationService.updateNickname(id, userId, request.getNickname(), currentUser.id());
+        return ResponseEntity.ok(ApiResponse.success("Nickname updated successfully", conversation));
     }
 }

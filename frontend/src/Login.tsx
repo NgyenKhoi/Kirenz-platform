@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Star, Eye, EyeOff, Check, Apple } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Star, Eye, EyeOff, Check } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/authStore';
@@ -17,9 +17,10 @@ export default function Login() {
   const [unverifiedEmail, setUnverifiedEmail] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<LoginField>>({});
   const [formError, setFormError] = useState('');
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
-  const { loginAsync, isLoggingIn, loginError, refetchUser } = useAuth();
+  const { loginAsync, isLoggingIn, loginError, refetchUser, googleLoginAsync, isGoogleLoggingIn } = useAuth();
   const { isAuthenticated, user } = useAuthStore();
 
   useEffect(() => {
@@ -33,6 +34,66 @@ export default function Login() {
     }
   }, [isAuthenticated, user, navigate]);
 
+  useEffect(() => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '720577131634-ijrdshbfrhacsi8b00gipuj06fjkhr16.apps.googleusercontent.com';
+
+    const renderGoogleButton = () => {
+      if (!googleButtonRef.current || !window.google?.accounts?.id) return;
+
+      googleButtonRef.current.innerHTML = '';
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response) => {
+          if (!response.credential) {
+            setFormError('Google did not return a credential. Please try again.');
+            return;
+          }
+
+          try {
+            const loggedInUser = await googleLoginAsync(response.credential);
+            if (loggedInUser && !loggedInUser.emailVerified) {
+              setUnverifiedEmail(loggedInUser.email);
+              setShowOTP(true);
+            } else {
+              navigate('/home');
+            }
+          } catch (error) {
+            console.error('Google login failed:', error);
+            setFormError(extractErrorMessage(error, 'Google login failed. Please try again.'));
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'pill',
+        width: 360,
+      });
+    };
+
+    if (window.google?.accounts?.id) {
+      renderGoogleButton();
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', renderGoogleButton, { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = renderGoogleButton;
+    document.head.appendChild(script);
+
+    return () => {
+      window.google?.accounts?.id.cancel();
+    };
+  }, [googleLoginAsync, navigate]);
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -157,7 +218,7 @@ export default function Login() {
                         setFieldErrors((current) => ({ ...current, email: undefined }));
                         setFormError('');
                       }}
-                      disabled={isLoggingIn}
+                      disabled={isLoggingIn || isGoogleLoggingIn}
                       aria-invalid={Boolean(fieldErrors.email)}
                       aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
                       className={`w-full px-6 py-4 bg-surface-container rounded-full border-2 focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50 ${fieldErrors.email ? 'border-error focus:border-error' : 'border-transparent focus:border-tertiary'}`} 
@@ -182,7 +243,7 @@ export default function Login() {
                         setFieldErrors((current) => ({ ...current, password: undefined }));
                         setFormError('');
                       }}
-                      disabled={isLoggingIn}
+                      disabled={isLoggingIn || isGoogleLoggingIn}
                       aria-invalid={Boolean(fieldErrors.password)}
                       aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
                       className={`w-full px-6 py-4 bg-surface-container rounded-full border-2 focus:ring-0 text-on-surface text-base font-medium transition-all outline-none disabled:opacity-50 ${fieldErrors.password ? 'border-error focus:border-error' : 'border-transparent focus:border-tertiary'}`} 
@@ -190,7 +251,7 @@ export default function Login() {
                     <button 
                       type="button" 
                       onClick={() => setShowPassword(!showPassword)} 
-                      disabled={isLoggingIn}
+                      disabled={isLoggingIn || isGoogleLoggingIn}
                       className="absolute right-6 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none disabled:opacity-50"
                     >
                       {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
@@ -222,7 +283,7 @@ export default function Login() {
               {/* CTA */}
               <button 
                 type="submit"
-                disabled={isLoggingIn}
+                disabled={isLoggingIn || isGoogleLoggingIn}
                 className="w-full py-4 bg-primary text-on-primary rounded-full text-xl font-bold shadow-sm hover:shadow-[inset_0_0_12px_rgba(255,255,255,0.4),0_8px_16px_-4px_rgba(139,78,62,0.15)] active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
               >
                 {isLoggingIn ? (
@@ -246,21 +307,9 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Social Logins */}
-            <div className="grid grid-cols-2 gap-4">
-              <button className="flex items-center justify-center gap-3 py-3 border-2 border-outline-variant/30 rounded-full text-sm font-bold text-on-surface hover:bg-surface-container-low active:scale-[0.98] transition-all duration-200">
-                <img 
-                  alt="Google" 
-                  className="w-5 h-5" 
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmUf-RzL4W3z8u7CVuNBerUjRvUPz5nn-OTGuoPydC2w0AvVznBJZvrDnJumonKSsnypEApqqRInaPl_IZSv629iMQIYcWxZsFxrlsJ2KhHiV8n2QdqkUOFeeRCxQ5o6a2GVCtB9-p2S34ztSt0gK-pSzEWxC39d2sVQ4lTGfgHAfMcQB80T5M14eDQO2S5w_GTy0SCkK5aPDtQs_b93kIQMQCmXw6BAWrNHPKdkF3IW-G3d6HsMtLetzMXY-ahDoK5-GwDJKXp-o"
-                  referrerPolicy="no-referrer"
-                />
-                Google
-              </button>
-              <button className="flex items-center justify-center gap-3 py-3 border-2 border-outline-variant/30 rounded-full text-sm font-bold text-on-surface hover:bg-surface-container-low active:scale-[0.98] transition-all duration-200">
-                <Apple size={20} className="text-on-surface" />
-                Apple
-              </button>
+            {/* Social Login */}
+            <div className="flex justify-center">
+              <div ref={googleButtonRef} className={isGoogleLoggingIn ? 'pointer-events-none opacity-60' : undefined}></div>
             </div>
 
             {/* Footer Link */}

@@ -10,11 +10,13 @@ export const API_ENDPOINTS = {
   AUTH: {
     REGISTER: '/auth/register',
     LOGIN: '/auth/login',
+    GOOGLE: '/auth/google',
     REFRESH: '/auth/refresh',
   },
   USER: {
     ME: '/users/me',
     AVATAR: '/users/me/avatar',
+    COVER: '/users/me/cover',
     DETAIL: (userId: string) => `/users/${userId}`,
   },
   PRIVACY: {
@@ -226,3 +228,4 @@ addRefreshInterceptor(socialServiceClient);
 addRefreshInterceptor(notificationServiceClient);
 
 export default apiClient;
+

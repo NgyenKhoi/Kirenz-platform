@@ -21,15 +21,26 @@ public class CloudinaryMediaService {
     @Value("${cloudinary.folders.avatars:kirenz/avatars}")
     private String avatarFolder;
 
+    @Value("${cloudinary.folders.covers:kirenz/covers}")
+    private String coverFolder;
+
     @Value("${cloudinary.max-image-bytes:10485760}")
     private long maxImageBytes;
 
     public MediaUploadResponse uploadAvatar(MultipartFile file) {
+        return uploadImage(file, avatarFolder);
+    }
+
+    public MediaUploadResponse uploadCover(MultipartFile file) {
+        return uploadImage(file, coverFolder);
+    }
+
+    private MediaUploadResponse uploadImage(MultipartFile file, String folder) {
         validateImage(file);
 
         try {
             Map<?, ?> result = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
-                "folder", avatarFolder,
+                "folder", folder,
                 "resource_type", "image"
             ));
 

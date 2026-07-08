@@ -1,8 +1,22 @@
 import { API_ENDPOINTS, socialServiceClient } from '../config/api.config';
 import { ApiResponse } from '../types/auth.types';
-import { ReactionSummaryResponse, ReactionType } from '../types/reaction.types';
+import { ReactionSummaryResponse, ReactionType, ReactionUserResponse } from '../types/reaction.types';
 
 export const reactionService = {
+
+  listPostReactions: async (postId: string): Promise<ReactionUserResponse[]> => {
+    const response = await socialServiceClient.get<ApiResponse<ReactionUserResponse[]>>(
+      API_ENDPOINTS.POSTS.REACTIONS(postId)
+    );
+    return response.data.data;
+  },
+
+  listCommentReactions: async (commentId: string): Promise<ReactionUserResponse[]> => {
+    const response = await socialServiceClient.get<ApiResponse<ReactionUserResponse[]>>(
+      API_ENDPOINTS.COMMENTS.REACTIONS(commentId)
+    );
+    return response.data.data;
+  },
   reactToPost: async (postId: string, type: ReactionType): Promise<ReactionSummaryResponse> => {
     const response = await socialServiceClient.post<ApiResponse<ReactionSummaryResponse>>(
       API_ENDPOINTS.POSTS.REACTIONS(postId),
@@ -33,3 +47,4 @@ export const reactionService = {
     return response.data.data;
   },
 };
+

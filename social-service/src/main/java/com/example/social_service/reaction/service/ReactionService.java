@@ -16,6 +16,9 @@ import com.example.social_service.reaction.model.ReactionType;
 import com.example.social_service.reaction.repository.ReactionRepository;
 import com.example.social_service.event.NotificationEvent;
 import com.example.social_service.event.NotificationProducer;
+import com.example.social_service.identity.IdentityServiceClient;
+import com.example.social_service.identity.IdentityUserProfileResponse;
+import com.example.social_service.reaction.dto.ReactionUserResponse;
 import com.example.social_service.user.FriendStatusResponse;
 import com.example.social_service.user.UserServiceClient;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +40,7 @@ public class ReactionService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final UserServiceClient userServiceClient;
+    private final IdentityServiceClient identityServiceClient;
     private final NotificationProducer notificationProducer;
 
     public ReactionSummaryResponse reactToPost(UUID userId, String postId, ReactionRequest request) {
@@ -95,6 +99,16 @@ public class ReactionService {
         return new ReactionSummaryResponse(reactions.size(), currentUserReaction, breakdown);
     }
 
+
+    public List<ReactionUserResponse> getPostReactionUsers(UUID viewerId, String postId) {
+        visiblePost(viewerId, postId);
+        return toReactionUsers(reactionRepository.findByTargetTypeAndTargetId(ReactionTargetType.POST, postId));
+    }
+
+    public List<ReactionUserResponse> getCommentReactionUsers(UUID viewerId, String commentId) {
+        visibleComment(viewerId, commentId);
+        return toReactionUsers(reactionRepository.findByTargetTypeAndTargetId(ReactionTargetType.COMMENT, commentId));
+    }
     public Map<String, ReactionSummaryResponse> getSummaries(
         UUID userId,
         ReactionTargetType targetType,
@@ -121,6 +135,37 @@ public class ReactionService {
             )));
     }
 
+
+    private List<ReactionUserResponse> toReactionUsers(List<Reaction> reactions) {
+        if (reactions.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> userIds = reactions.stream()
+            .map(Reaction::getUserId)
+            .distinct()
+            .toList();
+
+        Map<UUID, IdentityUserProfileResponse> profiles = identityServiceClient.getProfilesByIds(userIds)
+            .getData()
+            .stream()
+            .collect(Collectors.toMap(IdentityUserProfileResponse::id, Function.identity()));
+
+        return reactions.stream()
+            .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
+            .map(reaction -> {
+                IdentityUserProfileResponse profile = profiles.get(reaction.getUserId());
+                return new ReactionUserResponse(
+                    reaction.getUserId(),
+                    profile == null ? null : profile.username(),
+                    profile == null ? "Kirenz User" : profile.displayName(),
+                    profile == null ? null : profile.avatarUrl(),
+                    reaction.getType(),
+                    reaction.getCreatedAt()
+                );
+            })
+            .toList();
+    }
     private void applyReaction(
         UUID userId,
         ReactionTargetType targetType,
@@ -234,3 +279,5 @@ public class ReactionService {
         return new ReactionSummaryResponse(reactions.size(), currentUserReaction, breakdown);
     }
 }
+
+

@@ -7,6 +7,7 @@ export enum MessageType {
   TEXT = 'TEXT',
   IMAGE = 'IMAGE',
   VIDEO = 'VIDEO',
+  FILE = 'FILE',
   SYSTEM = 'SYSTEM'
 }
 
@@ -31,6 +32,8 @@ export interface ParticipantInfo {
   username: string;
   displayName: string;
   avatarUrl: string;
+  nickname?: string | null;
+  admin?: boolean | null;
 }
 
 export interface Conversation {
@@ -38,6 +41,8 @@ export interface Conversation {
   type: ConversationType;
   name?: string;
   participants: ParticipantInfo[];
+  adminIds?: string[];
+  currentUserAdmin?: boolean;
   lastMessage?: LastMessage;
   createdAt: string;
   updatedAt: string;
@@ -68,6 +73,6 @@ export interface ConversationUpdateMessage {
 export interface PendingChatMedia {
   id: string;
   file: File;
-  type: 'IMAGE' | 'VIDEO';
+  type: 'IMAGE' | 'VIDEO' | 'FILE';
   previewUrl: string;
 }

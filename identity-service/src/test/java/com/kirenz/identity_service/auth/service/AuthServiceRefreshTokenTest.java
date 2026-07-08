@@ -69,7 +69,7 @@ class AuthServiceRefreshTokenTest {
         activeUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("test@example.com")
-                .username("testuser")
+                .username("test@example.com")
                 .password("$2a$12$hashedPassword")
                 .role(UserRole.USER)
                 .status(AccountStatus.ACTIVE)
@@ -81,8 +81,8 @@ class AuthServiceRefreshTokenTest {
     @DisplayName("should successfully refresh tokens with valid refresh token")
     void refreshToken_WithValidToken_ShouldReturnNewTokens() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn("testuser");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(activeUser));
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(activeUser));
         when(jwtService.isTokenExpired(validRefreshToken)).thenReturn(false);
         when(jwtService.validateToken(validRefreshToken)).thenReturn(true);
         when(jwtService.generateAccessToken(activeUser)).thenReturn("new-access-token");
@@ -98,8 +98,8 @@ class AuthServiceRefreshTokenTest {
         assertThat(response.getTokenType()).isEqualTo("Bearer");
         assertThat(response.getExpiresIn()).isEqualTo(900L);
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository).findByUsername("testuser");
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository).findByEmail("test@example.com");
         verify(jwtService).isTokenExpired(validRefreshToken);
         verify(jwtService).validateToken(validRefreshToken);
         verify(jwtService).generateAccessToken(activeUser);
@@ -117,7 +117,7 @@ class AuthServiceRefreshTokenTest {
                 .isInstanceOf(InvalidTokenException.class)
                 .hasMessage("Refresh token is required");
 
-        verify(jwtService, never()).extractUsername(anyString());
+        verify(jwtService, never()).extractEmail(anyString());
     }
 
     @Test
@@ -131,7 +131,7 @@ class AuthServiceRefreshTokenTest {
                 .isInstanceOf(InvalidTokenException.class)
                 .hasMessage("Refresh token is required");
 
-        verify(jwtService, never()).extractUsername(anyString());
+        verify(jwtService, never()).extractEmail(anyString());
     }
 
     @Test
@@ -145,14 +145,14 @@ class AuthServiceRefreshTokenTest {
                 .isInstanceOf(InvalidTokenException.class)
                 .hasMessage("Refresh token is required");
 
-        verify(jwtService, never()).extractUsername(anyString());
+        verify(jwtService, never()).extractEmail(anyString());
     }
 
     @Test
-    @DisplayName("should throw InvalidTokenException when username extraction fails")
-    void refreshToken_WhenUsernameExtractionFails_ShouldThrowInvalidTokenException() {
+    @DisplayName("should throw InvalidTokenException when email extraction fails")
+    void refreshToken_WhenEmailExtractionFails_ShouldThrowInvalidTokenException() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken))
+        when(jwtService.extractEmail(validRefreshToken))
                 .thenThrow(new RuntimeException("Token parsing failed"));
 
         // Act & Assert
@@ -160,54 +160,54 @@ class AuthServiceRefreshTokenTest {
                 .isInstanceOf(InvalidTokenException.class)
                 .hasMessageContaining("Invalid refresh token:");
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository, never()).findByUsername(anyString());
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository, never()).findByEmail(anyString());
     }
 
     @Test
-    @DisplayName("should throw InvalidTokenException when extracted username is null")
-    void refreshToken_WhenExtractedUsernameIsNull_ShouldThrowInvalidTokenException() {
+    @DisplayName("should throw InvalidTokenException when extracted email is null")
+    void refreshToken_WhenExtractedEmailIsNull_ShouldThrowInvalidTokenException() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn(null);
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn(null);
 
         // Act & Assert
         assertThatThrownBy(() -> authService.refreshToken(validRefreshRequest))
                 .isInstanceOf(InvalidTokenException.class)
-                .hasMessage("Invalid refresh token: username not found");
+                .hasMessage("Invalid refresh token: email not found");
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository, never()).findByUsername(anyString());
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository, never()).findByEmail(anyString());
     }
 
     @Test
-    @DisplayName("should throw InvalidTokenException when extracted username is empty")
-    void refreshToken_WhenExtractedUsernameIsEmpty_ShouldThrowInvalidTokenException() {
+    @DisplayName("should throw InvalidTokenException when extracted email is empty")
+    void refreshToken_WhenExtractedEmailIsEmpty_ShouldThrowInvalidTokenException() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn("");
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn("");
 
         // Act & Assert
         assertThatThrownBy(() -> authService.refreshToken(validRefreshRequest))
                 .isInstanceOf(InvalidTokenException.class)
-                .hasMessage("Invalid refresh token: username not found");
+                .hasMessage("Invalid refresh token: email not found");
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository, never()).findByUsername(anyString());
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository, never()).findByEmail(anyString());
     }
 
     @Test
-    @DisplayName("should throw InvalidTokenException when user not found by username")
+    @DisplayName("should throw InvalidTokenException when user not found by email")
     void refreshToken_WhenUserNotFound_ShouldThrowInvalidTokenException() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn("testuser");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.empty());
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
 
         // Act & Assert
         assertThatThrownBy(() -> authService.refreshToken(validRefreshRequest))
                 .isInstanceOf(InvalidTokenException.class)
                 .hasMessage("Invalid refresh token: user not found");
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository).findByUsername("testuser");
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository).findByEmail("test@example.com");
         verify(jwtService, never()).isTokenExpired(anyString());
     }
 
@@ -215,8 +215,8 @@ class AuthServiceRefreshTokenTest {
     @DisplayName("should throw ExpiredTokenException when token is expired")
     void refreshToken_WhenTokenIsExpired_ShouldThrowExpiredTokenException() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn("testuser");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(activeUser));
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(activeUser));
         when(jwtService.isTokenExpired(validRefreshToken)).thenReturn(true);
 
         // Act & Assert
@@ -224,8 +224,8 @@ class AuthServiceRefreshTokenTest {
                 .isInstanceOf(ExpiredTokenException.class)
                 .hasMessage("Refresh token has expired");
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository).findByUsername("testuser");
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository).findByEmail("test@example.com");
         verify(jwtService).isTokenExpired(validRefreshToken);
         verify(jwtService, never()).generateAccessToken(any());
     }
@@ -234,8 +234,8 @@ class AuthServiceRefreshTokenTest {
     @DisplayName("should throw ExpiredTokenException when ExpiredJwtException is thrown during validation")
     void refreshToken_WhenExpiredJwtExceptionThrown_ShouldThrowExpiredTokenException() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn("testuser");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(activeUser));
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(activeUser));
         when(jwtService.isTokenExpired(validRefreshToken)).thenReturn(false);
         when(jwtService.validateToken(validRefreshToken)).thenThrow(mock(ExpiredJwtException.class));
 
@@ -244,8 +244,8 @@ class AuthServiceRefreshTokenTest {
                 .isInstanceOf(ExpiredTokenException.class)
                 .hasMessage("Refresh token has expired");
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository).findByUsername("testuser");
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository).findByEmail("test@example.com");
         verify(jwtService).isTokenExpired(validRefreshToken);
         verify(jwtService).validateToken(validRefreshToken);
         verify(jwtService, never()).generateAccessToken(any());
@@ -255,8 +255,8 @@ class AuthServiceRefreshTokenTest {
     @DisplayName("should throw InvalidTokenException when token signature is invalid")
     void refreshToken_WhenTokenSignatureInvalid_ShouldThrowInvalidTokenException() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn("testuser");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(activeUser));
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(activeUser));
         when(jwtService.isTokenExpired(validRefreshToken)).thenReturn(false);
         when(jwtService.validateToken(validRefreshToken)).thenReturn(false);
 
@@ -265,8 +265,8 @@ class AuthServiceRefreshTokenTest {
                 .isInstanceOf(InvalidTokenException.class)
                 .hasMessage("Invalid refresh token signature");
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository).findByUsername("testuser");
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository).findByEmail("test@example.com");
         verify(jwtService).isTokenExpired(validRefreshToken);
         verify(jwtService).validateToken(validRefreshToken);
         verify(jwtService, never()).generateAccessToken(any());
@@ -276,8 +276,8 @@ class AuthServiceRefreshTokenTest {
     @DisplayName("should throw InvalidTokenException when validation throws unexpected exception")
     void refreshToken_WhenValidationThrowsException_ShouldThrowInvalidTokenException() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn("testuser");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(activeUser));
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(activeUser));
         when(jwtService.isTokenExpired(validRefreshToken)).thenReturn(false);
         when(jwtService.validateToken(validRefreshToken))
                 .thenThrow(new RuntimeException("Unexpected validation error"));
@@ -287,8 +287,8 @@ class AuthServiceRefreshTokenTest {
                 .isInstanceOf(InvalidTokenException.class)
                 .hasMessageContaining("Invalid refresh token:");
 
-        verify(jwtService).extractUsername(validRefreshToken);
-        verify(userRepository).findByUsername("testuser");
+        verify(jwtService).extractEmail(validRefreshToken);
+        verify(userRepository).findByEmail("test@example.com");
         verify(jwtService).isTokenExpired(validRefreshToken);
         verify(jwtService).validateToken(validRefreshToken);
         verify(jwtService, never()).generateAccessToken(any());
@@ -298,8 +298,8 @@ class AuthServiceRefreshTokenTest {
     @DisplayName("should generate both new access token and refresh token")
     void refreshToken_ShouldGenerateBothNewTokens() {
         // Arrange
-        when(jwtService.extractUsername(validRefreshToken)).thenReturn("testuser");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(activeUser));
+        when(jwtService.extractEmail(validRefreshToken)).thenReturn("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(activeUser));
         when(jwtService.isTokenExpired(validRefreshToken)).thenReturn(false);
         when(jwtService.validateToken(validRefreshToken)).thenReturn(true);
         when(jwtService.generateAccessToken(activeUser)).thenReturn("new-access-token");

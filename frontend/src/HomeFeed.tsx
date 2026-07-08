@@ -202,33 +202,6 @@ export default function HomeFeed() {
             View Birthdays
           </button>
         </div>
-
-        <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)]">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-on-surface">Shortcuts</h2>
-            <div className="flex gap-2 text-on-surface-variant">
-              <Video size={20} />
-              <Bell size={20} />
-            </div>
-          </div>
-          <ul className="flex flex-col gap-2">
-            {[
-              { label: "Saved Posts", icon: Bookmark },
-              { label: "Events", icon: Calendar },
-              { label: "Live Video", icon: Video },
-            ].map(({ label, icon: Icon }) => (
-              <li
-                key={label}
-                className="flex items-center gap-4 hover:bg-surface-container-low p-3 rounded-[1rem] transition-all"
-              >
-                <Icon size={20} className="text-primary" />
-                <span className="text-base font-medium text-on-surface">
-                  {label}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
       </aside>
 
       <button className="lg:hidden fixed bottom-20 right-6 w-14 h-14 bg-primary-container text-on-primary-container rounded-full shadow-[0_8px_16px_rgba(255,176,156,0.4)] flex items-center justify-center active:scale-95 transition-transform z-40">

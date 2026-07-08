@@ -28,6 +28,18 @@ export const useAuth = () => {
     },
   });
 
+  const googleLoginMutation = useMutation({
+    mutationFn: async (idToken: string) => {
+      await authService.loginWithGoogle({ idToken });
+      return authService.getCurrentUser();
+    },
+    onSuccess: (user) => {
+      login(user);
+    },
+    onError: (error: AxiosError<{ message: string }>) => {
+      setError(error.response?.data?.message || 'Google login failed');
+    },
+  });
   const { refetch: refetchUser } = useQuery({
     queryKey: ['currentUser'],
     queryFn: authService.getCurrentUser,
@@ -75,6 +87,16 @@ export const useAuth = () => {
       setError(error.response?.data?.message || 'Failed to upload avatar');
     },
   });
+
+  const uploadCoverMutation = useMutation({
+    mutationFn: (file: File) => authService.uploadCover(file),
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser);
+    },
+    onError: (error: AxiosError<{ message: string }>) => {
+      setError(error.response?.data?.message || 'Failed to upload cover photo');
+    },
+  });
   return {
     user,
     isAuthenticated,
@@ -86,6 +108,9 @@ export const useAuth = () => {
     loginAsync: loginMutation.mutateAsync,
     isLoggingIn: loginMutation.isPending,
     loginError: loginMutation.error,
+    googleLoginAsync: googleLoginMutation.mutateAsync,
+    isGoogleLoggingIn: googleLoginMutation.isPending,
+    googleLoginError: googleLoginMutation.error,
     logout: logoutMutation.mutate,
     sendOTP: sendOTPMutation.mutate,
     sendOTPAsync: sendOTPMutation.mutateAsync,
@@ -100,8 +125,12 @@ export const useAuth = () => {
     uploadAvatar: uploadAvatarMutation.mutate,
     uploadAvatarAsync: uploadAvatarMutation.mutateAsync,
     isUploadingAvatar: uploadAvatarMutation.isPending,
+    uploadCover: uploadCoverMutation.mutate,
+    uploadCoverAsync: uploadCoverMutation.mutateAsync,
+    isUploadingCover: uploadCoverMutation.isPending,
     refetchUser,
     initializeAuth,
   };
 
 };
+

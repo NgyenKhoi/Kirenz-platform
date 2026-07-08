@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { MoreHorizontal, Edit2, Trash2, X, Save, MessageSquare, Share2, ThumbsUp, Send, Image as ImageIcon } from "lucide-react";
+import { Link } from "react-router-dom";
+import { MoreHorizontal, Edit2, Trash2, X, Save, MessageSquare, Share2, ThumbsUp, Send, Image as ImageIcon, Loader2 } from "lucide-react";
 import { PostResponse } from "../../types/post.types";
 import { CommentResponse } from "../../types/comment.types";
-import { ReactionSummaryResponse, ReactionType } from "../../types/reaction.types";
+import { ReactionSummaryResponse, ReactionType, ReactionUserResponse } from "../../types/reaction.types";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { commentService } from "../../services/comment.service";
 import { postService } from "../../services/post.service";
@@ -19,14 +20,12 @@ import {
   repliesForComment,
   descendantComments,
 } from "../../utils/post.utils";
-import { fallbackAvatar } from "../../constants/post.constants";
+import { fallbackAvatar, reactionOptions } from "../../constants/post.constants";
 import { PrivacyDropdown } from "../common/PrivacyDropdown";
 import { PostMediaGallery } from "./PostMediaGallery";
-import { CountPopover } from "../common/CountPopover";
-import { ReactionBreakdown } from "./ReactionBreakdown";
-import { CommentersPopover } from "./CommentersPopover";
 import { ReactionPicker } from "./ReactionPicker";
 import { CommentItem } from "./CommentItem";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 
 interface PostCardProps {
   post: PostResponse;
@@ -82,6 +81,11 @@ export function PostCard({
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
+  const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
+  const [isReactionDialogOpen, setIsReactionDialogOpen] = useState(false);
+  const [reactionUsers, setReactionUsers] = useState<ReactionUserResponse[]>([]);
+  const [isLoadingReactionUsers, setIsLoadingReactionUsers] = useState(false);
+  const [reactionUsersError, setReactionUsersError] = useState<string | null>(null);
   const [originalPostDetail, setOriginalPostDetail] =
     useState<PostResponse | null>(null);
   const [isLoadingOriginalPost, setIsLoadingOriginalPost] = useState(false);
@@ -104,7 +108,15 @@ export function PostCard({
     onConfirm: () => {},
   });
 
-  useEffect(() => {
+  
+  useEscapeKey(isShareOpen, () => {
+    setIsShareOpen(false);
+    setShareCaption("");
+  });
+  useEscapeKey(isPostDialogOpen, () => setIsPostDialogOpen(false));
+  useEscapeKey(isReactionDialogOpen, () => setIsReactionDialogOpen(false));
+  useEscapeKey(isOriginalModalOpen, () => setIsOriginalModalOpen(false));
+useEffect(() => {
     setDraftContent(post.content);
     setDraftPrivacy(post.privacy);
     setDraftImages(post.media);
@@ -196,20 +208,30 @@ export function PostCard({
     }
   };
 
-  const loadCommentsForPopover = () => {
-    if (post.commentsCount > 0 && comments.length === 0 && !isLoadingComments) {
-      void loadComments();
-    }
-  };
-
-  const toggleComments = async () => {
-    const nextOpen = !isCommentsOpen;
-    setIsCommentsOpen(nextOpen);
-    if (nextOpen && comments.length === 0) {
+  const openPostDialog = async () => {
+    setIsPostDialogOpen(true);
+    if (comments.length === 0) {
       await loadComments();
     }
   };
 
+  const toggleComments = async () => {
+    await openPostDialog();
+  };
+
+  const openReactionDialog = async () => {
+    setIsReactionDialogOpen(true);
+    setReactionUsersError(null);
+    setIsLoadingReactionUsers(true);
+    try {
+      setReactionUsers(await reactionService.listPostReactions(post.id));
+    } catch (err) {
+      setReactionUsers([]);
+      setReactionUsersError(getErrorMessage(err));
+    } finally {
+      setIsLoadingReactionUsers(false);
+    }
+  };
   const handleCreateComment = async (event: React.FormEvent) => {
     event.preventDefault();
     setCommentError(null);
@@ -465,11 +487,11 @@ export function PostCard({
 
   return (
     <>
-      <article className="bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] overflow-hidden">
+      <article className="bg-surface-container-lowest rounded-[2rem] border border-outline-variant/10 shadow-[0_14px_34px_-22px_rgba(28,28,24,0.35)] overflow-hidden transition-shadow hover:shadow-[0_18px_42px_-24px_rgba(28,28,24,0.45)]">
         <div className="p-6 pb-0">
           <div className="flex items-start justify-between mb-4 gap-4">
             <div className="flex items-center gap-4 min-w-0">
-              <div className="w-11 h-11 rounded-full overflow-hidden shrink-0">
+              <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 ring-2 ring-surface-container-low shadow-sm">
                 <img
                   alt={authorName}
                   src={post.author.avatarUrl || fallbackAvatar}
@@ -522,7 +544,7 @@ export function PostCard({
                   <MoreHorizontal size={24} />
                 </button>
                 {isMenuOpen && (
-                  <div className="absolute right-0 top-11 z-20 w-40 rounded-2xl bg-surface-container-lowest shadow-lg border border-outline-variant/40 p-2">
+                  <div className="absolute right-0 top-11 z-20 w-40 rounded-2xl bg-surface-container-lowest shadow-xl border border-outline-variant/30 p-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -642,9 +664,10 @@ export function PostCard({
             </div>
           ) : (
             post.content.trim() && (
-              <p className="text-lg font-medium text-on-surface mb-4 whitespace-pre-wrap">
-                {post.content}
-              </p>
+              <HighlightedPostContent
+                content={post.content}
+                className="text-lg font-medium text-on-surface mb-4 whitespace-pre-wrap"
+              />
             )
           )}
         </div>
@@ -692,9 +715,10 @@ export function PostCard({
                     </div>
                   </div>
                   {sharedPost.content && (
-                    <p className="whitespace-pre-wrap text-sm font-medium text-on-surface">
-                      {sharedPost.content}
-                    </p>
+                    <HighlightedPostContent
+                      content={sharedPost.content}
+                      className="whitespace-pre-wrap text-sm font-medium text-on-surface"
+                    />
                   )}
                 </div>
                 <PostMediaGallery media={sharedPost.media} />
@@ -714,34 +738,29 @@ export function PostCard({
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 py-2 border-b border-outline-variant/30">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3 rounded-2xl bg-surface-container-low px-3 py-2">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-tertiary flex items-center justify-center">
                 <ThumbsUp size={12} className="text-white fill-current" />
               </div>
-              <CountPopover
-                label={formatCount(reactionTotal, "reaction", "reactions")}
+                            <button
+                type="button"
+                onClick={openReactionDialog}
+                className="text-xs font-bold text-on-surface-variant underline-offset-2 hover:text-on-surface hover:underline"
               >
-                <ReactionBreakdown
-                  summary={post.reactionSummary}
-                  currentUserAvatarUrl={currentUserAvatarUrl}
-                />
-              </CountPopover>
+                {formatCount(reactionTotal, "reaction", "reactions")}
+              </button>
             </div>
-            <CountPopover
-              label={formatCount(post.commentsCount, "comment", "comments")}
-              align="right"
-              onOpen={loadCommentsForPopover}
+                        <button
+              type="button"
+              onClick={openPostDialog}
+              className="text-xs font-bold text-on-surface-variant underline-offset-2 hover:text-on-surface hover:underline"
             >
-              <CommentersPopover
-                comments={comments}
-                isLoading={isLoadingComments}
-                commentsCount={post.commentsCount}
-              />
-            </CountPopover>
+              {formatCount(post.commentsCount, "comment", "comments")}
+            </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-1">
             <ReactionPicker
               currentReaction={currentReaction}
               selectedReaction={selectedReaction}
@@ -817,11 +836,11 @@ export function PostCard({
               )}
 
               {isLoadingComments ? (
-                <div className="rounded-2xl bg-surface-container-low px-4 py-4 text-center text-sm font-bold text-on-surface-variant">
+                <div className="rounded-2xl border border-dashed border-outline-variant/30 bg-surface-container-low px-4 py-5 text-center text-sm font-bold text-on-surface-variant">
                   Loading comments...
                 </div>
               ) : comments.length === 0 ? (
-                <div className="rounded-2xl bg-surface-container-low px-4 py-4 text-center text-sm font-bold text-on-surface-variant">
+                <div className="rounded-2xl border border-dashed border-outline-variant/30 bg-surface-container-low px-4 py-5 text-center text-sm font-bold text-on-surface-variant">
                   No comments yet.
                 </div>
               ) : (
@@ -841,7 +860,7 @@ export function PostCard({
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <div className="flex-1 flex gap-2 rounded-2xl bg-surface-container-low px-4 py-2">
+                <div className="flex-1 flex gap-2 rounded-2xl border border-transparent bg-surface-container-low px-4 py-2 transition-colors focus-within:border-primary-container focus-within:bg-surface-container-lowest">
                   <input
                     value={commentDraft}
                     onChange={(event) => setCommentDraft(event.target.value)}
@@ -862,6 +881,121 @@ export function PostCard({
           )}
         </div>
       </article>
+      {isPostDialogOpen && (
+        <div className="fixed inset-0 z-[85] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-[760px] rounded-[2rem] bg-surface-container-lowest shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-lowest px-5 py-4 rounded-t-[2rem]">
+              <h2 className="text-lg font-bold text-on-surface">{authorName}'s post</h2>
+              <button
+                type="button"
+                onClick={() => setIsPostDialogOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                aria-label="Close post detail"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(100vh-9rem)] overflow-y-auto px-5 py-4">
+              <div className="mb-4 flex items-center gap-3">
+                <img
+                  alt={authorName}
+                  src={post.author.avatarUrl || fallbackAvatar}
+                  className="h-11 w-11 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-on-surface">{authorName}</p>
+                  <p className="text-xs font-bold text-on-surface-variant">{formatPostTime(post.createdAt)}</p>
+                </div>
+              </div>
+
+              {post.content.trim() && (
+                <HighlightedPostContent
+                  content={post.content}
+                  className="mb-4 whitespace-pre-wrap text-base font-medium text-on-surface"
+                />
+              )}
+
+              <PostMediaGallery media={post.media} />
+
+              <div className="mt-4 flex items-center justify-between border-y border-outline-variant/30 py-3">
+                <button
+                  type="button"
+                  onClick={openReactionDialog}
+                  className="text-xs font-bold text-on-surface-variant underline-offset-2 hover:text-on-surface hover:underline"
+                >
+                  {formatCount(reactionTotal, "reaction", "reactions")}
+                </button>
+                <span className="text-xs font-bold text-on-surface-variant">
+                  {formatCount(post.commentsCount, "comment", "comments")}
+                </span>
+              </div>
+
+              <div className="mt-5">
+                {commentError && (
+                  <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
+                    {commentError}
+                  </div>
+                )}
+
+                <div className="max-h-[420px] overflow-y-auto pr-1">
+                  {isLoadingComments ? (
+                    <div className="rounded-2xl border border-dashed border-outline-variant/30 bg-surface-container-low px-4 py-5 text-center text-sm font-bold text-on-surface-variant">
+                      Loading comments...
+                    </div>
+                  ) : comments.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-outline-variant/30 bg-surface-container-low px-4 py-5 text-center text-sm font-bold text-on-surface-variant">
+                      No comments yet.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {topLevelComments(comments).map((comment) => renderCommentThread(comment))}
+                    </div>
+                  )}
+                </div>
+
+                <form onSubmit={handleCreateComment} className="mt-4 flex gap-3">
+                  <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full">
+                    <img
+                      alt="Your avatar"
+                      src={currentUserAvatarUrl || fallbackAvatar}
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="flex flex-1 gap-2 rounded-2xl border border-transparent bg-surface-container-low px-4 py-2 transition-colors focus-within:border-primary-container focus-within:bg-surface-container-lowest">
+                    <input
+                      value={commentDraft}
+                      onChange={(event) => setCommentDraft(event.target.value)}
+                      placeholder="Write a comment..."
+                      className="min-w-0 flex-1 bg-transparent text-sm font-medium text-on-surface outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmittingComment || !commentDraft.trim()}
+                      className="shrink-0 text-secondary transition-transform active:scale-95 disabled:opacity-50"
+                      aria-label="Send comment"
+                    >
+                      <Send size={18} />
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isReactionDialogOpen && (
+        <ReactionUsersDialog
+          users={reactionUsers}
+          isLoading={isLoadingReactionUsers}
+          error={reactionUsersError}
+          summary={post.reactionSummary}
+          onClose={() => setIsReactionDialogOpen(false)}
+        />
+      )}
       {isOriginalModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8 backdrop-blur-sm">
           <div className="w-full max-w-[760px]">
@@ -913,3 +1047,126 @@ export function PostCard({
     </>
   );
 }
+function HighlightedPostContent({ content, className }: { content: string; className?: string }) {
+  const parts = content.split(/(#[\p{L}\p{N}_-]+)/gu);
+
+  return (
+    <p className={className}>
+      {parts.map((part, index) => {
+        if (part.startsWith('#')) {
+          return (
+            <span key={`${part}-${index}`} className="font-bold text-primary">
+              {part}
+            </span>
+          );
+        }
+        return <React.Fragment key={`${index}-${part.slice(0, 8)}`}>{part}</React.Fragment>;
+      })}
+    </p>
+  );
+}
+
+function ReactionUsersDialog({
+  users,
+  isLoading,
+  error,
+  summary,
+  onClose,
+}: {
+  users: ReactionUserResponse[];
+  isLoading: boolean;
+  error: string | null;
+  summary?: ReactionSummaryResponse;
+  onClose: () => void;
+}) {
+    useEscapeKey(true, onClose);
+const availableTypes = reactionOptions.filter(
+    (option) => (summary?.breakdown?.[option.type] ?? 0) > 0 || users.some((user) => user.type === option.type)
+  );
+  const [activeType, setActiveType] = useState<ReactionType | 'ALL'>('ALL');
+  const visibleUsers = activeType === 'ALL' ? users : users.filter((user) => user.type === activeType);
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/45 px-4 py-8 backdrop-blur-sm">
+      <div className="flex max-h-[86vh] w-full max-w-[520px] flex-col rounded-[2rem] bg-surface-container-lowest shadow-2xl">
+        <div className="flex items-center justify-between border-b border-outline-variant/30 px-5 py-4">
+          <h2 className="text-lg font-bold text-on-surface">Reactions</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+            aria-label="Close reactions"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto border-b border-outline-variant/20 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setActiveType('ALL')}
+            className={`rounded-full px-4 py-2 text-xs font-bold transition-all ${activeType === 'ALL' ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+          >
+            All {users.length}
+          </button>
+          {availableTypes.map((option) => (
+            <button
+              key={option.type}
+              type="button"
+              onClick={() => setActiveType(option.type)}
+              className={`rounded-full px-4 py-2 text-xs font-bold transition-all ${activeType === option.type ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+            >
+              {option.icon} {summary?.breakdown?.[option.type] ?? users.filter((user) => user.type === option.type).length}
+            </button>
+          ))}
+        </div>
+
+        <div className="min-h-[260px] overflow-y-auto px-4 py-3">
+          {isLoading ? (
+            <div className="flex min-h-[220px] items-center justify-center gap-2 text-sm font-bold text-on-surface-variant">
+              <Loader2 size={18} className="animate-spin text-primary" />
+              Loading reactions...
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
+              {error}
+            </div>
+          ) : visibleUsers.length === 0 ? (
+            <div className="flex min-h-[220px] items-center justify-center text-sm font-bold text-on-surface-variant">
+              No reactions yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {visibleUsers.map((user) => {
+                const option = reactionOptions.find((item) => item.type === user.type);
+                const name = user.displayName || user.username || 'Kirenz User';
+                return (
+                  <Link
+                    key={`${user.userId}-${user.type}`}
+                    to={`/profile/${user.userId}`}
+                    onClick={onClose}
+                    className="flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-surface-container-low"
+                  >
+                    <img
+                      src={user.avatarUrl || fallbackAvatar}
+                      alt={name}
+                      className="h-11 w-11 rounded-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-on-surface">{name}</p>
+                      {user.username && <p className="truncate text-xs font-bold text-primary">@{user.username}</p>}
+                    </div>
+                    <span className="text-xl" aria-label={option?.label || user.type}>{option?.icon}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+

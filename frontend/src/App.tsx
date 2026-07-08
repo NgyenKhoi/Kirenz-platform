@@ -10,9 +10,7 @@ import Register from './Register';
 import ProfileSettings from './ProfileSettings';
 import UserProfile from './UserProfile';
 import HomeFeed from './HomeFeed';
-import Friends from './Friends';
-import Stories from './Stories';
-import StoryViewer from './StoryViewer';
+import Explore from './Explore';
 import Chat from './Chat';
 import EditCover from './EditCover';
 import BlockedUsers from './BlockedUsers';
@@ -33,13 +31,11 @@ export default function App() {
         <span className="text-on-surface-variant">|</span>
         <Link to="/home" className="text-primary font-bold hover:underline">Home Feed</Link>
         <span className="text-on-surface-variant">|</span>
-        <Link to="/stories" className="text-primary font-bold hover:underline">Stories</Link>
+        <Link to="/explore" className="text-primary font-bold hover:underline">Explore</Link>
         <span className="text-on-surface-variant">|</span>
         <Link to="/profile" className="text-primary font-bold hover:underline">Profile</Link>
         <span className="text-on-surface-variant">|</span>
         <Link to="/chat" className="text-primary font-bold hover:underline">Chat</Link>
-        <span className="text-on-surface-variant">|</span>
-        <Link to="/friends" className="text-primary font-bold hover:underline">Friends</Link>
         <span className="text-on-surface-variant">|</span>
         <Link to="/settings" className="text-primary font-bold hover:underline">Settings</Link>
         <span className="text-on-surface-variant">|</span>
@@ -50,13 +46,14 @@ export default function App() {
           <Route path="/" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/home" element={<ProtectedRoute><HomeFeed /></ProtectedRoute>} />
-          <Route path="/stories" element={<ProtectedRoute><Stories /></ProtectedRoute>} />
-          <Route path="/story/:id" element={<ProtectedRoute><StoryViewer /></ProtectedRoute>} />
+          <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
           <Route path="/profile/:userId" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
           <Route path="/edit-cover" element={<ProtectedRoute><EditCover /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-          <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+          <Route path="/friends" element={<Navigate to="/profile?tab=friends" replace />} />
+          <Route path="/stories" element={<Navigate to="/home" replace />} />
+          <Route path="/story/:id" element={<Navigate to="/home" replace />} />
           <Route path="/settings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
           <Route path="/privacy" element={<Navigate to="/settings" replace />} />
           <Route path="/blocked" element={<ProtectedRoute><BlockedUsers /></ProtectedRoute>} />
@@ -65,4 +62,5 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
 
