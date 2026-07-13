@@ -1,6 +1,5 @@
 package com.example.notification_service.listener;
 
-import com.example.notification_service.event.MessageSentEvent;
 import com.example.notification_service.event.NotificationEvent;
 import com.example.notification_service.event.UserCreatedEvent;
 import com.example.notification_service.model.Notification;
@@ -36,28 +35,6 @@ public class NotificationEventListener {
             notificationService.saveAndPushNotification(notification);
         } catch (Exception e) {
             log.error("Failed to process notification event: {}", e.getMessage(), e);
-        }
-    }
-    @KafkaListener(topics = "message-sent", groupId = "notification-service-group")
-    public void handleMessageSent(MessageSentEvent event) {
-        log.info("Received message-sent event for message: {}", event.getMessageId());
-        try {
-            String preview = event.getContent() == null || event.getContent().isBlank()
-                ? "Sent you a media message"
-                : event.getContent();
-
-            Notification notification = Notification.builder()
-                .receiverId(event.getReceiverId())
-                .actorId(event.getSenderId())
-                .type(NotificationType.MESSAGE)
-                .targetId(event.getConversationId())
-                .message(preview)
-                .createdAt(event.getSentAt() != null ? event.getSentAt() : Instant.now())
-                .build();
-
-            notificationService.saveAndPushNotification(notification);
-        } catch (Exception e) {
-            log.error("Failed to process message-sent event: {}", e.getMessage(), e);
         }
     }
     @KafkaListener(topics = "user-created", groupId = "notification-service-group")

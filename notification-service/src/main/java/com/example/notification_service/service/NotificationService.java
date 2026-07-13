@@ -5,6 +5,7 @@ import com.example.notification_service.client.IdentityUserProfileResponse;
 import com.example.notification_service.dto.ApiResponse;
 import com.example.notification_service.dto.NotificationResponse;
 import com.example.notification_service.model.Notification;
+import com.example.notification_service.model.NotificationType;
 import com.example.notification_service.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +29,7 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<NotificationResponse> getNotifications(UUID userId) {
-        return notificationRepository.findByReceiverIdOrderByCreatedAtDesc(userId)
+        return notificationRepository.findByReceiverIdAndTypeNotOrderByCreatedAtDesc(userId, NotificationType.MESSAGE)
             .stream()
             .map(this::toResponse)
             .toList();
@@ -36,7 +37,7 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public long getUnreadCount(UUID userId) {
-        return notificationRepository.countByReceiverIdAndIsReadFalse(userId);
+        return notificationRepository.countByReceiverIdAndIsReadFalseAndTypeNot(userId, NotificationType.MESSAGE);
     }
 
     @Transactional
@@ -56,7 +57,10 @@ public class NotificationService {
 
     @Transactional
     public void markAllAsRead(UUID userId) {
-        List<Notification> unread = notificationRepository.findByReceiverIdAndIsReadFalse(userId);
+        List<Notification> unread = notificationRepository.findByReceiverIdAndIsReadFalseAndTypeNot(
+            userId,
+            NotificationType.MESSAGE
+        );
         if (!unread.isEmpty()) {
             for (Notification n : unread) {
                 n.setRead(true);

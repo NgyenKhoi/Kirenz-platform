@@ -9,6 +9,17 @@ import { fallbackAvatar } from '../constants/post.constants';
 import { chatService } from '../services/chat.service';
 import { websocketService } from '../services/websocket.service';
 
+const mergeNotificationsById = (
+  current: NotificationResponse[],
+  incoming: NotificationResponse[],
+) => {
+  const rowsById = new Map(current.map((row) => [row.id, row]));
+  incoming.forEach((row) => rowsById.set(row.id, row));
+  return Array.from(rowsById.values()).sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+};
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const path = location.pathname;
@@ -20,19 +31,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCountMap, setUnreadCountMap] = useState<Record<string, number>>({});
+  const [notificationError, setNotificationError] = useState<string | null>(null);
+  const [isMarkingAllNotifications, setIsMarkingAllNotifications] = useState(false);
 
   // Load initial notifications and unread count
   useEffect(() => {
     if (!user) return;
 
     const loadData = async () => {
-      try {
-        const list = await notificationService.getNotifications();
-        setNotifications(list || []);
-        const count = await notificationService.getUnreadCount();
-        setUnreadCount(count || 0);
-      } catch (err) {
-        console.error("Failed to load notifications:", err);
+      setNotificationError(null);
+
+      const [listResult, countResult] = await Promise.allSettled([
+        notificationService.getNotifications(),
+        notificationService.getUnreadCount(),
+      ]);
+
+      if (listResult.status === 'fulfilled') {
+        setNotifications((current) => mergeNotificationsById(current, listResult.value || []));
+      } else {
+        setNotificationError('Could not load notifications. Please try again.');
+      }
+
+      if (countResult.status === 'fulfilled') {
+        setUnreadCount(countResult.value || 0);
+      } else {
+        setNotificationError('Could not refresh the notification count. Please try again.');
       }
     };
 
@@ -88,14 +111,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         notificationWebsocketService.subscribeToNotifications(
           user.id,
           (newNotif) => {
-            setNotifications(prev => [newNotif, ...prev]);
+            setNotifications((current) => mergeNotificationsById(current, [newNotif]));
           },
           (newCount) => {
             setUnreadCount(newCount);
           }
         );
       })
-      .catch(err => console.error("Error with notification websocket:", err));
+      .catch(() => setNotificationError('Realtime notifications are temporarily unavailable.'));
 
     return () => {
       notificationWebsocketService.disconnect();
@@ -103,6 +126,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const handleNotificationClick = async (notif: NotificationResponse) => {
+    setNotificationError(null);
     try {
       if (!notif.isRead) {
         await notificationService.markAsRead(notif.id);
@@ -113,8 +137,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       if (notif.type === 'FRIEND_REQUEST') {
         navigate('/profile?tab=friends');
-      } else if (notif.type === 'FRIEND_ACCEPT' || notif.type === 'BIRTHDAY') {
-        navigate(`/profile/${notif.targetId}`);
+      } else if (notif.type === 'FRIEND_ACCEPT' && notif.actorId) {
+        navigate(`/profile/${notif.actorId}`);
+      } else if (notif.type === 'BIRTHDAY') {
+        const profileId = notif.actorId || notif.targetId;
+        if (profileId) {
+          navigate(`/profile/${profileId}`);
+        }
       } else if (
         notif.type === 'POST_COMMENT' ||
         notif.type === 'POST_LIKE' ||
@@ -127,17 +156,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         navigate('/settings');
       }
     } catch (err) {
-      console.error("Error marking notification as read:", err);
+      setNotificationError('Could not mark this notification as read. Please try again.');
     }
   };
 
   const handleMarkAllAsRead = async () => {
+    setNotificationError(null);
+    setIsMarkingAllNotifications(true);
     try {
       await notificationService.markAllAsRead();
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       setUnreadCount(0);
-    } catch (err) {
-      console.error("Error marking all read:", err);
+    } catch {
+      setNotificationError('Could not mark all notifications as read. Please try again.');
+    } finally {
+      setIsMarkingAllNotifications(false);
     }
   };
 
@@ -281,9 +314,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <button
                     onClick={handleMarkAllAsRead}
                     className="rounded-full bg-primary-container/30 px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary-container/50 disabled:opacity-40"
-                    disabled={unreadCount === 0}
+                    disabled={unreadCount === 0 || isMarkingAllNotifications}
                   >
-                    Mark read
+                    {isMarkingAllNotifications ? 'Marking…' : 'Mark read'}
                   </button>
                 )}
                 <button
@@ -297,6 +330,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </header>
 
             <div className="flex-1 overflow-y-auto px-4 py-3">
+              {notificationError && (
+                <div role="alert" className="mb-3 rounded-2xl bg-error-container px-4 py-3 text-sm font-bold text-on-error-container">
+                  {notificationError}
+                </div>
+              )}
               {notifications.length > 0 ? (
                 <div className="space-y-2">
                   {notifications.map(n => (

@@ -18,6 +18,7 @@ import com.example.chat_service.message.model.MessageType;
 import com.example.chat_service.message.service.MessageBroadcastService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -40,9 +41,12 @@ public class ConversationService {
             throw new BadRequestException("Group name is required for group chat");
         }
 
-        List<UUID> participants = new ArrayList<>(request.getParticipantIds());
+        List<UUID> participants = new ArrayList<>(new LinkedHashSet<>(request.getParticipantIds()));
         if (!participants.contains(createdBy)) {
             participants.add(createdBy);
+        }
+        if (request.getType() == ConversationType.GROUP && participants.size() < 3) {
+            throw new BadRequestException("Group chat must have at least 3 participants");
         }
 
         if (request.getType() == ConversationType.DIRECT) {
@@ -66,8 +70,10 @@ public class ConversationService {
                 boolean canMessage = userServiceClient.checkDirectMessagePermission(createdBy, recipientId);
                 log.info("Direct message permission check for sender {} to receiver {}: {}", createdBy, recipientId, canMessage);
                 if (!canMessage) {
-                    throw new org.springframework.security.access.AccessDeniedException("This user has disabled direct messages.");
+                    throw new AccessDeniedException("This user has disabled direct messages.");
                 }
+            } catch (AccessDeniedException e) {
+                throw e;
             } catch (Exception e) {
                 log.error("Error checking direct message permission: {}", e.getMessage(), e);
                 throw new BadRequestException("Failed to verify direct message permission: " + e.getMessage());

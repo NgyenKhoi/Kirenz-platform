@@ -25,7 +25,15 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.send")
     public void sendMessage(@Payload SendMessageRequest request, Principal principal) {
         UUID senderId = extractUserId(principal);
-        log.info("Received message via WS from user {}: {}", senderId, request.getContent());
+        int contentLength = request.getContent() == null ? 0 : request.getContent().length();
+        int attachmentCount = request.getAttachments() == null ? 0 : request.getAttachments().size();
+        log.info(
+            "Received message via WS from user {} for conversation {} (contentLength={}, attachments={})",
+            senderId,
+            request.getConversationId(),
+            contentLength,
+            attachmentCount
+        );
         chatService.processAndBroadcastMessage(request, senderId);
     }
 
