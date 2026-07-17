@@ -45,6 +45,10 @@ spring:
           uri: ${NOTIFICATION_SERVICE_URI:lb://notification-service}
           predicates:
             - Path=/api/notifications/**
+        - id: admin-service
+          uri: ${ADMIN_SERVICE_URI:lb://admin-service}
+          predicates:
+            - Path=/api/admin/**,/api/reports/**
 
 eureka:
   client:
