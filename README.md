@@ -333,7 +333,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](./LICEN
 
 ## 👨‍💻 Author
 
-**Vu Huu Nguyen Khoi**
+**Vu Huu Nguyen Khoi**  
 **Tran Ho Thao Nguyen ❤️**
 
 ---
