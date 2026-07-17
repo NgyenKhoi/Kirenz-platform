@@ -3,6 +3,7 @@ package com.example.social_service.post;
 import com.example.social_service.common.dto.ApiResponse;
 import com.example.social_service.common.exception.BadRequestException;
 import com.example.social_service.common.exception.ForbiddenException;
+import com.example.social_service.common.exception.NotFoundException;
 import com.example.social_service.identity.IdentityServiceClient;
 import com.example.social_service.post.dto.CreatePostRequest;
 import com.example.social_service.post.dto.PostResponse;
@@ -10,6 +11,7 @@ import com.example.social_service.post.dto.SharePostRequest;
 import com.example.social_service.post.dto.UpdatePostRequest;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostStatus;
+import com.example.social_service.post.model.PostPrivacy;
 import com.example.social_service.post.repository.PostRepository;
 import com.example.social_service.post.service.PostService;
 import com.example.social_service.reaction.dto.ReactionSummaryResponse;
@@ -101,6 +103,33 @@ class PostServiceTest {
 
         assertThat(feed).extracting(PostResponse::id).containsExactly("newest", "older");
         verify(reactionService).getSummaries(any(), org.mockito.ArgumentMatchers.eq(ReactionTargetType.POST), any());
+    }
+
+    @Test
+    void publicFeedOnlyContainsPublicPosts() {
+        Post publicPost = post("public", UUID.randomUUID(), "Visible", Instant.now());
+        Post friendsPost = post("friends", UUID.randomUUID(), "Hidden", Instant.now());
+        friendsPost.setPrivacy(PostPrivacy.FRIENDS);
+        Post privatePost = post("private", UUID.randomUUID(), "Hidden", Instant.now());
+        privatePost.setPrivacy(PostPrivacy.ONLY_ME);
+        when(postRepository.findByStatusOrderByCreatedAtDesc(PostStatus.ACTIVE))
+            .thenReturn(List.of(publicPost, friendsPost, privatePost));
+
+        List<PostResponse> feed = postService.listPublicPosts();
+
+        assertThat(feed).extracting(PostResponse::id).containsExactly("public");
+    }
+
+    @Test
+    void publicDetailDoesNotRevealRestrictedPost() {
+        Post friendsPost = post("friends", UUID.randomUUID(), "Hidden", Instant.now());
+        friendsPost.setPrivacy(PostPrivacy.FRIENDS);
+        when(postRepository.findByIdAndStatus("friends", PostStatus.ACTIVE))
+            .thenReturn(Optional.of(friendsPost));
+
+        assertThatThrownBy(() -> postService.getPublicPost("friends"))
+            .isInstanceOf(NotFoundException.class)
+            .hasMessage("Post not found");
     }
 
     @Test

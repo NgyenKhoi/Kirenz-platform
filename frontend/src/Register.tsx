@@ -117,7 +117,7 @@ export default function Register() {
       navigate('/home');
     } catch (error) {
       console.error('Login after verification failed:', error);
-      navigate('/'); // Go to login if auto-login fails
+      navigate('/login'); // Go to login if auto-login fails
     }
   };
 
@@ -306,7 +306,7 @@ export default function Register() {
 
             <p className="mt-8 text-center text-base font-medium text-on-surface-variant">
               Already have an account?{' '}
-              <Link to="/" className="text-primary font-bold hover:underline ml-1">Login</Link>
+              <Link to="/login" className="text-primary font-bold hover:underline ml-1">Login</Link>
             </p>
           </div>
         </section>

@@ -14,6 +14,7 @@ import Explore from './Explore';
 import Chat from './Chat';
 import EditCover from './EditCover';
 import BlockedUsers from './BlockedUsers';
+import VisitorFeed from './VisitorFeed';
 import ProtectedRoute from './components/ProtectedRoute';
 import { initTheme } from './utils/theme';
 
@@ -25,7 +26,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="fixed top-0 left-0 right-0 bg-surface-container border-b border-outline-variant p-2 flex justify-center gap-4 z-[100] text-sm hidden">
-        <Link to="/" className="text-primary font-bold hover:underline">Login</Link>
+        <Link to="/login" className="text-primary font-bold hover:underline">Login</Link>
         <span className="text-on-surface-variant">|</span>
         <Link to="/register" className="text-primary font-bold hover:underline">Register</Link>
         <span className="text-on-surface-variant">|</span>
@@ -43,7 +44,9 @@ export default function App() {
       </div>
       <div>
         <Routes>
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<VisitorFeed />} />
+          <Route path="/posts/:postId" element={<VisitorFeed />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/home" element={<ProtectedRoute><HomeFeed /></ProtectedRoute>} />
           <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />

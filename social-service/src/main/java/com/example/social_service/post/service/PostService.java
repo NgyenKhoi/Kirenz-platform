@@ -116,6 +116,31 @@ public class PostService {
         return toResponses(userId, posts);
     }
 
+    public List<PostResponse> listPublicPosts() {
+        List<Post> posts = postRepository.findByStatusOrderByCreatedAtDesc(PostStatus.ACTIVE)
+            .stream()
+            .filter(post -> privacyOrDefault(post) == PostPrivacy.PUBLIC)
+            .limit(50)
+            .toList();
+        Map<UUID, IdentityUserProfileResponse> authors = fetchAuthors(authorIdsFor(posts));
+        return posts.stream()
+            .map(post -> toResponse(null, post, authors, emptyReactionSummary()))
+            .toList();
+    }
+
+    public PostResponse getPublicPost(String postId) {
+        Post post = activePost(postId);
+        if (privacyOrDefault(post) != PostPrivacy.PUBLIC) {
+            throw new NotFoundException("Post not found");
+        }
+        return toResponse(
+            null,
+            post,
+            fetchAuthors(authorIdsFor(List.of(post))),
+            emptyReactionSummary()
+        );
+    }
+
     public List<PostResponse> listMyPosts(UUID userId) {
         List<Post> posts = postRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, PostStatus.ACTIVE);
         return toResponses(userId, posts);
@@ -377,7 +402,7 @@ public class PostService {
     }
 
     private boolean canView(UUID viewerId, Post post) {
-        if (post.getUserId().equals(viewerId)) {
+        if (viewerId != null && post.getUserId().equals(viewerId)) {
             return true;
         }
 
@@ -385,7 +410,7 @@ public class PostService {
         if (privacy == PostPrivacy.PUBLIC) {
             return true;
         }
-        if (privacy == PostPrivacy.ONLY_ME) {
+        if (viewerId == null || privacy == PostPrivacy.ONLY_ME) {
             return false;
         }
 

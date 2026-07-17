@@ -32,6 +32,22 @@ public class PostController {
     private final PostService postService;
     private final CurrentUser currentUser;
 
+    @GetMapping("/public")
+    public ResponseEntity<ApiResponse<List<PostResponse>>> publicFeed() {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Public posts retrieved successfully",
+            postService.listPublicPosts()
+        ));
+    }
+
+    @GetMapping("/public/{postId}")
+    public ResponseEntity<ApiResponse<PostResponse>> publicDetail(@PathVariable String postId) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Public post retrieved successfully",
+            postService.getPublicPost(postId)
+        ));
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<PostResponse>> createPost(
         @Valid @RequestBody CreatePostRequest request

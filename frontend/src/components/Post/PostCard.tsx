@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { MoreHorizontal, Edit2, Trash2, X, Save, MessageSquare, Share2, ThumbsUp, Send, Image as ImageIcon, Loader2 } from "lucide-react";
+import { MoreHorizontal, Edit2, Trash2, X, Save, MessageSquare, Share2, ThumbsUp, Send, Image as ImageIcon, Loader2, Link2 } from "lucide-react";
 import { PostResponse } from "../../types/post.types";
 import { CommentResponse } from "../../types/comment.types";
 import { ReactionSummaryResponse, ReactionType, ReactionUserResponse } from "../../types/reaction.types";
@@ -79,6 +79,7 @@ export function PostCard({
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareCaption, setShareCaption] = useState("");
   const [isSharing, setIsSharing] = useState(false);
+  const [isLinkCopied, setIsLinkCopied] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
@@ -419,6 +420,17 @@ useEffect(() => {
       setShareError(getErrorMessage(err));
     } finally {
       setIsSharing(false);
+    }
+  };
+
+  const copyPublicLink = async () => {
+    const url = `${window.location.origin}/posts/${post.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setIsLinkCopied(true);
+      window.setTimeout(() => setIsLinkCopied(false), 1800);
+    } catch {
+      window.prompt("Copy this public post link:", url);
     }
   };
 
@@ -790,6 +802,15 @@ useEffect(() => {
 
           {isShareOpen && (
             <div className="mt-4 rounded-2xl border border-outline-variant/40 bg-surface-container-low p-4">
+              {post.privacy === "PUBLIC" && (
+                <button
+                  type="button"
+                  onClick={() => void copyPublicLink()}
+                  className="mb-3 flex w-full items-center justify-center gap-2 rounded-full bg-surface-container-lowest px-4 py-2.5 text-sm font-bold text-primary hover:bg-primary-container/25"
+                >
+                  <Link2 size={17} /> {isLinkCopied ? "Public link copied" : "Copy public link"}
+                </button>
+              )}
               <form onSubmit={handleShareSubmit} className="space-y-3">
                 <textarea
                   value={shareCaption}

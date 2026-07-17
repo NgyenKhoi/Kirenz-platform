@@ -49,6 +49,8 @@ export const API_ENDPOINTS = {
   },
   POSTS: {
     BASE: '/posts',
+    PUBLIC: '/posts/public',
+    PUBLIC_DETAIL: (postId: string) => `/posts/public/${postId}`,
     ME: '/posts/me',
     DETAIL: (postId: string) => `/posts/${postId}`,
     USER: (userId: string) => `/posts/user/${userId}`,
@@ -96,6 +98,15 @@ export const socialServiceClient = axios.create({
   },
 });
 
+// Anonymous reads intentionally use a client without auth/refresh interceptors.
+// This prevents a stale local token from blocking an otherwise public post.
+export const publicSocialServiceClient = axios.create({
+  baseURL: SOCIAL_SERVICE_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 export const notificationServiceClient = axios.create({
   baseURL: NOTIFICATION_SERVICE_BASE_URL,
   headers: {
@@ -118,6 +129,11 @@ const processQueue = (error: Error | null) => {
     }
   });
   failedQueue = [];
+};
+
+const redirectToLogin = () => {
+  const returnTo = `${window.location.pathname}${window.location.search}`;
+  window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`;
 };
 
 apiClient.interceptors.request.use(
@@ -169,8 +185,9 @@ const addRefreshInterceptor = (client: AxiosInstance) => {
     (response) => response,
     async (error: AxiosError<ErrorResponse>) => {
       const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+      const isAuthRequest = originalRequest.url?.startsWith('/auth/');
 
-      if (error.response?.status === 401 && !originalRequest._retry) {
+      if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
         if (isRefreshing) {
           return new Promise((resolve, reject) => {
             failedQueue.push({ resolve, reject });
@@ -188,7 +205,7 @@ const addRefreshInterceptor = (client: AxiosInstance) => {
           localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
           localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
           localStorage.removeItem(STORAGE_KEYS.USER);
-          window.location.href = '/';
+          redirectToLogin();
           return Promise.reject(error);
         }
 
@@ -210,7 +227,7 @@ const addRefreshInterceptor = (client: AxiosInstance) => {
           localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
           localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
           localStorage.removeItem(STORAGE_KEYS.USER);
-          window.location.href = '/';
+          redirectToLogin();
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;

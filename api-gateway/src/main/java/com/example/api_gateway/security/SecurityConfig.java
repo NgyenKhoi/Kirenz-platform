@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .pathMatchers("/actuator/health/**", "/actuator/info").permitAll()
                 .pathMatchers("/api/auth/**", "/api/verification/**").permitAll()
+                .pathMatchers(HttpMethod.GET, "/api/posts/public", "/api/posts/public/**").permitAll()
                 .pathMatchers("/ws/**").permitAll()
                 .anyExchange().authenticated()
             )

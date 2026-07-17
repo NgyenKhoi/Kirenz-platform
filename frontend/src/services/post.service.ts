@@ -1,4 +1,4 @@
-import { API_ENDPOINTS, socialServiceClient } from '../config/api.config';
+import { API_ENDPOINTS, publicSocialServiceClient, socialServiceClient } from '../config/api.config';
 import { ApiResponse } from '../types/auth.types';
 import { CreatePostRequest, MediaUploadResponse, PostImageResponse, PostResponse, SharePostRequest, UpdatePostRequest } from '../types/post.types';
 
@@ -29,6 +29,20 @@ export const postService = {
   listFeed: async (): Promise<PostResponse[]> => {
     const response = await socialServiceClient.get<ApiResponse<PostResponse[]>>(
       API_ENDPOINTS.POSTS.BASE
+    );
+    return response.data.data;
+  },
+
+  listPublic: async (): Promise<PostResponse[]> => {
+    const response = await publicSocialServiceClient.get<ApiResponse<PostResponse[]>>(
+      API_ENDPOINTS.POSTS.PUBLIC
+    );
+    return response.data.data;
+  },
+
+  getPublicById: async (postId: string): Promise<PostResponse> => {
+    const response = await publicSocialServiceClient.get<ApiResponse<PostResponse>>(
+      API_ENDPOINTS.POSTS.PUBLIC_DETAIL(postId)
     );
     return response.data.data;
   },

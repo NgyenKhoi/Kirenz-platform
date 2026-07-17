@@ -60,6 +60,6 @@
 
 ## Documentation
 
-1. Update docs when behavior, architecture, use cases, or API expectations change.
+1. Update docs when behavior, architecture, use cases, or API expectations  change.
 2. User-facing feature names may differ from internal technical names when that improves clarity.
 3. Keep docs concise and aligned with the current implementation.
