@@ -58,7 +58,7 @@ export function PrivacyDropdown({
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className={`flex items-center gap-1 rounded-md transition-colors hover:bg-surface-container hover:text-on-surface active:bg-surface-container-high ${
+        className={`flex items-center gap-1 rounded-lg border border-outline-variant/70 transition-colors hover:border-outline hover:bg-surface-container hover:text-on-surface active:bg-surface-container-high ${
           compact
             ? "text-on-surface-variant"
             : "bg-surface-container-low px-3 py-1.5 text-sm font-bold text-on-surface hover:bg-surface-container-high"
@@ -80,7 +80,7 @@ export function PrivacyDropdown({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -5, scale: 0.95 }}
             transition={{ duration: 0.15, type: "spring", bounce: 0 }}
-            className={`absolute z-50 flex flex-col min-w-32 overflow-hidden rounded-xl border border-outline-variant/40 bg-surface-container-lowest py-1 shadow-lg ${
+            className={`absolute z-50 flex flex-col min-w-32 overflow-hidden rounded-lg border border-outline-variant/70 bg-surface-container-lowest py-1 shadow-lg ${
               compact ? "left-0 top-full mt-1" : "left-0 top-full mt-2"
             }`}
             role="listbox"

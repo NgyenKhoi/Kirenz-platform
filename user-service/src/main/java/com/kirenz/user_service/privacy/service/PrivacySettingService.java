@@ -6,6 +6,7 @@ import com.kirenz.user_service.privacy.dto.UpdatePrivacySettingRequest;
 import com.kirenz.user_service.privacy.model.PrivacySetting;
 import com.kirenz.user_service.privacy.model.Visibility;
 import com.kirenz.user_service.privacy.repository.PrivacySettingRepository;
+import com.kirenz.user_service.friend.repository.FriendshipRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class PrivacySettingService {
 
     private final PrivacySettingRepository privacySettingRepository;
+    private final FriendshipRepository friendshipRepository;
     private final CurrentUser currentUser;
 
     @Transactional(readOnly = true)
@@ -55,9 +57,21 @@ public class PrivacySettingService {
 
     @Transactional(readOnly = true)
     public boolean canSendDirectMessage(UUID senderId, UUID receiverId) {
-        return privacySettingRepository.findByUserId(receiverId)
+        boolean allowsAnyone = privacySettingRepository.findByUserId(receiverId)
             .map(PrivacySetting::getAllowDirectMessages)
             .orElse(true); // Default to true for existing users without settings
+        if (allowsAnyone) {
+            return true;
+        }
+
+        UUID first = senderId.compareTo(receiverId) < 0 ? senderId : receiverId;
+        UUID second = senderId.compareTo(receiverId) < 0 ? receiverId : senderId;
+        return friendshipRepository.existsByUserId1AndUserId2(first, second);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean canCurrentUserSendDirectMessage(UUID receiverId) {
+        return canSendDirectMessage(currentUser.id(), receiverId);
     }
 
     @Transactional

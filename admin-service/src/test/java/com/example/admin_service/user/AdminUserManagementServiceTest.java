@@ -24,10 +24,12 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class AdminUserManagementServiceTest {
@@ -124,6 +126,20 @@ class AdminUserManagementServiceTest {
         assertThat(result.status()).isEqualTo("SUSPENDED");
         verify(adminActionService).record(adminId, AdminActionType.SUSPEND_ACCOUNT,
             AdminTargetType.USER, userId.toString(), "HARASSMENT", "Repeated abuse");
+    }
+
+    @Test
+    void rejectsModerationAgainstCurrentAdminBeforeCallingDownstreamServices() {
+        UUID adminId = UUID.randomUUID();
+        when(currentAdmin.id()).thenReturn(adminId);
+
+        assertThatThrownBy(() -> adminUserManagementService.sendWarning(
+            adminId,
+            new AdminWarningRequest("SPAM", "Warning", null)
+        )).isInstanceOf(com.example.admin_service.common.exception.BadRequestException.class)
+            .hasMessage("Administrators cannot moderate their own account");
+
+        verifyNoInteractions(identityAdminClient, adminActionService, notificationProducer);
     }
 
     private AdminUserResponse user(UUID userId, String status) {

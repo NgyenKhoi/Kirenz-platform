@@ -16,7 +16,7 @@ public interface ConversationRepository extends MongoRepository<Conversation, St
     List<Conversation> findByParticipantIdsContainingAndStatusOrderByUpdatedAtDesc(
         UUID userId, String status);
 
-    @Query("{ 'participantIds': { $all: ?0 }, 'participantIds': { $size: ?1 }, 'type': ?2, 'status': ?3 }")
+    @Query("{ 'participantIds': { $all: ?0, $size: ?1 }, 'type': ?2, 'status': ?3 }")
     Optional<Conversation> findExactDirectConversation(
         List<UUID> participantIds, int size, ConversationType type, String status);
 }

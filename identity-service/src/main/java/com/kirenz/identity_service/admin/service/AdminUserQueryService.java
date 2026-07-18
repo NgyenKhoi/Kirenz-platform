@@ -67,7 +67,7 @@ public class AdminUserQueryService {
         int page,
         int size
     ) {
-        String normalizedQuery = query == null || query.isBlank() ? null : query.trim();
+        String normalizedQuery = query == null || query.isBlank() ? "" : query.trim();
         int normalizedPage = Math.max(page, 0);
         int normalizedSize = Math.max(1, Math.min(size, 100));
         PageRequest pageable = PageRequest.of(

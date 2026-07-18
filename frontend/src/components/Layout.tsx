@@ -127,36 +127,42 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const handleNotificationClick = async (notif: NotificationResponse) => {
     setNotificationError(null);
-    try {
-      if (!notif.isRead) {
+    if (!notif.isRead) {
+      try {
         await notificationService.markAsRead(notif.id);
         setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
+      } catch {
+        setNotificationError('Could not mark this notification as read.');
       }
-      setShowNotifications(false);
+    }
+    setShowNotifications(false);
 
-      if (notif.type === 'FRIEND_REQUEST') {
-        navigate('/profile?tab=friends');
-      } else if (notif.type === 'FRIEND_ACCEPT' && notif.actorId) {
-        navigate(`/profile/${notif.actorId}`);
-      } else if (notif.type === 'BIRTHDAY') {
-        const profileId = notif.actorId || notif.targetId;
-        if (profileId) {
-          navigate(`/profile/${profileId}`);
-        }
-      } else if (
-        notif.type === 'POST_COMMENT' ||
-        notif.type === 'POST_LIKE' ||
-        notif.type === 'COMMENT_REPLY' ||
-        notif.type === 'POST_MENTION' ||
-        notif.type === 'COMMENT_MENTION'
-      ) {
-        navigate(`/home?postId=${notif.targetId}`);
-      } else if (notif.type === 'WELCOME') {
-        navigate('/settings');
+    if (notif.type === 'FRIEND_REQUEST') {
+      navigate('/profile?tab=friends');
+    } else if (notif.type === 'FRIEND_ACCEPT' && notif.actorId) {
+      navigate(`/profile/${notif.actorId}`);
+    } else if (notif.type === 'BIRTHDAY') {
+      const profileId = notif.actorId || notif.targetId;
+      if (profileId) {
+        navigate(`/profile/${profileId}`);
       }
-    } catch (err) {
-      setNotificationError('Could not mark this notification as read. Please try again.');
+    } else if (
+      notif.type === 'POST_COMMENT' ||
+      notif.type === 'POST_LIKE' ||
+      notif.type === 'COMMENT_REPLY' ||
+      notif.type === 'POST_MENTION' ||
+      notif.type === 'COMMENT_MENTION'
+    ) {
+      if (notif.targetId) {
+        const params = new URLSearchParams({
+          postId: notif.targetId,
+          notificationId: notif.id,
+        });
+        navigate(`/home?${params.toString()}`);
+      }
+    } else if (notif.type === 'WELCOME') {
+      navigate('/settings');
     }
   };
 

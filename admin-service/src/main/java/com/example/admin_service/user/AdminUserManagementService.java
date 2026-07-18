@@ -7,6 +7,7 @@ import com.example.admin_service.audit.dto.AdminActionResponse;
 import com.example.admin_service.auth.CurrentAdmin;
 import com.example.admin_service.notification.NotificationEvent;
 import com.example.admin_service.notification.NotificationProducer;
+import com.example.admin_service.common.exception.BadRequestException;
 import com.example.admin_service.user.dto.AdminUserActionRequest;
 import com.example.admin_service.user.dto.AdminUserResponse;
 import com.example.admin_service.user.dto.AdminWarningRequest;
@@ -29,6 +30,7 @@ public class AdminUserManagementService {
 
     public AdminUserResponse ban(UUID userId, AdminUserActionRequest request) {
         UUID adminId = currentAdmin.id();
+        ensureNotCurrentAdmin(userId, adminId);
         AdminUserResponse user = identityAdminClient.ban(userId).getData();
         adminActionService.record(
             adminId,
@@ -43,6 +45,7 @@ public class AdminUserManagementService {
 
     public AdminUserResponse unban(UUID userId, AdminUserActionRequest request) {
         UUID adminId = currentAdmin.id();
+        ensureNotCurrentAdmin(userId, adminId);
         AdminUserResponse user = identityAdminClient.unban(userId).getData();
         adminActionService.record(
             adminId,
@@ -57,6 +60,7 @@ public class AdminUserManagementService {
 
     public AdminActionResponse sendWarning(UUID userId, AdminWarningRequest request) {
         UUID adminId = currentAdmin.id();
+        ensureNotCurrentAdmin(userId, adminId);
         identityAdminClient.getUser(userId);
         AdminActionResponse action = adminActionService.record(
             adminId,
@@ -85,6 +89,7 @@ public class AdminUserManagementService {
 
     public AdminUserResponse suspend(UUID userId, AdminSuspendRequest request) {
         UUID adminId = currentAdmin.id();
+        ensureNotCurrentAdmin(userId, adminId);
         AdminUserResponse user = identityAdminClient.suspend(userId,
             new IdentitySuspendRequest(request.suspendedUntil(), request.moderationReason())).getData();
         adminActionService.record(
@@ -96,5 +101,11 @@ public class AdminUserManagementService {
             request.note()
         );
         return user;
+    }
+
+    private void ensureNotCurrentAdmin(UUID userId, UUID adminId) {
+        if (userId.equals(adminId)) {
+            throw new BadRequestException("Administrators cannot moderate their own account");
+        }
     }
 }

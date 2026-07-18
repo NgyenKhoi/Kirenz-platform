@@ -52,6 +52,14 @@ public class ChatService {
             throw new BadRequestException("You are not a participant in this conversation");
         }
 
+        if (conversation.getType() == com.example.chat_service.conversation.model.ConversationType.DIRECT) {
+            UUID recipientId = conversation.getParticipantIds().stream()
+                .filter(id -> !id.equals(senderId))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Recipient not found"));
+            conversationService.ensureCanSendDirectMessage(senderId, recipientId);
+        }
+
         // 2. Validate payload and determine message type
         validateMessageRequest(request);
         String content = request.getContent() == null ? "" : request.getContent().trim();

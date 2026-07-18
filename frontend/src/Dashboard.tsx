@@ -30,7 +30,11 @@ function Bars({ values, labels }: { values: number[]; labels: string[] }) {
   return (
     <div className="flex min-h-52 items-end gap-1" aria-label="Growth chart">
       {values.map((value, index) => (
-        <div key={`${labels[index]}-${index}`} className="group flex min-w-0 flex-1 items-end" title={`${labels[index]}: ${value}`}>
+        <div key={`${labels[index]}-${index}`} className="group relative flex min-w-0 flex-1 items-end">
+          <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-outline-variant bg-inverse-surface px-2 py-1 text-[10px] font-medium leading-tight text-inverse-on-surface opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <span className="text-inverse-on-surface/70">{labels[index]}</span>
+            <b className="ml-1">{value.toLocaleString()}</b>
+          </div>
           <div className="w-full rounded-t-full bg-primary/30 transition-colors group-hover:bg-primary" style={{ height: `${Math.max(4, (value / max) * 190)}px` }} />
         </div>
       ))}
@@ -93,7 +97,7 @@ export default function Dashboard() {
             </section>
 
             <div className="my-8 flex justify-end">
-              <select value={granularity} onChange={(event) => setGranularity(event.target.value as DashboardGranularity)} className="rounded-full bg-surface-container px-5 py-3 text-sm font-bold outline-none ring-primary focus:ring-2" aria-label="Chart granularity">
+              <select value={granularity} onChange={(event) => setGranularity(event.target.value as DashboardGranularity)} className="bg-surface-container px-5 py-3 text-sm font-bold outline-none ring-primary focus:ring-2" aria-label="Chart granularity">
                 <option value="DAY">Last 30 days</option>
                 <option value="MONTH">Last 12 months</option>
               </select>

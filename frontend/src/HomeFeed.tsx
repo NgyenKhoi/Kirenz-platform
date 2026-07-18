@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Search,
   Bell,
@@ -19,7 +20,11 @@ import { CreatePost } from "./components/Post/CreatePost";
 
 export default function HomeFeed() {
   const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  const targetPostId = searchParams.get("postId");
+  const notificationId = searchParams.get("notificationId");
   const [posts, setPosts] = useState<PostResponse[]>([]);
+  const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,11 +34,23 @@ export default function HomeFeed() {
     [user],
   );
 
-  const loadPosts = async () => {
+  const loadPosts = async (focusedPostId?: string | null) => {
     setIsLoading(true);
     setError(null);
     try {
-      setPosts(await postService.listFeed());
+      const feedPosts = await postService.listFeed();
+      if (!focusedPostId || feedPosts.some((post) => post.id === focusedPostId)) {
+        setPosts(feedPosts);
+        return;
+      }
+
+      try {
+        const focusedPost = await postService.getById(focusedPostId);
+        setPosts([focusedPost, ...feedPosts]);
+      } catch {
+        setPosts(feedPosts);
+        setError("The post from this notification is unavailable or you no longer have access to it.");
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -42,8 +59,25 @@ export default function HomeFeed() {
   };
 
   useEffect(() => {
-    void loadPosts();
-  }, []);
+    void loadPosts(targetPostId);
+  }, [targetPostId]);
+
+  useEffect(() => {
+    if (!targetPostId || isLoading) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(`post-${targetPostId}`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedPostId(targetPostId);
+    });
+    const timer = window.setTimeout(() => setHighlightedPostId(null), 3000);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [targetPostId, notificationId, isLoading]);
 
   const handlePostCreated = (newPost: PostResponse) => {
     setPosts((current) => [newPost, ...current]);
@@ -158,7 +192,11 @@ export default function HomeFeed() {
             </div>
           ) : (
             posts.map((post) => (
-              <React.Fragment key={post.id}>
+              <div
+                id={`post-${post.id}`}
+                key={post.id}
+                className={`scroll-mt-24 rounded-[2rem] transition-all duration-500 ${highlightedPostId === post.id ? "ring-4 ring-primary/60 shadow-[0_0_0_10px_rgba(139,78,62,0.12)]" : "ring-0 ring-transparent"}`}
+              >
                 <PostCard
                   post={post}
                   currentUserId={user?.id}
@@ -169,7 +207,7 @@ export default function HomeFeed() {
                   onCommentCountChange={handleCommentCountChange}
                   onReactionSummaryChange={handleReactionSummaryChange}
                 />
-              </React.Fragment>
+              </div>
             ))
           )}
         </div>

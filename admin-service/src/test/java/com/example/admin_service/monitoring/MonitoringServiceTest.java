@@ -59,8 +59,7 @@ class MonitoringServiceTest {
         });
         when(infrastructureProbe.probe()).thenReturn(Map.of(
             "kafka", HealthStatus.UP,
-            "redis", HealthStatus.UP,
-            "postgresql", HealthStatus.UP
+            "redis", HealthStatus.UP
         ));
         service = new MonitoringService(
             discoveryClient,
@@ -80,6 +79,8 @@ class MonitoringServiceTest {
 
         assertThat(result.services()).hasSize(5);
         assertThat(result.services()).allMatch(item -> item.status() == HealthStatus.DOWN);
+        assertThat(result.infrastructure()).extracting("component")
+            .containsExactly("Kafka", "Redis");
         assertThat(result.partialData()).isTrue();
     }
 

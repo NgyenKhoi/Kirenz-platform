@@ -18,7 +18,8 @@ import { MediaViewerModal } from './components/common/MediaViewerModal';
 import { PostImageResponse, PostPrivacy, PostResponse } from './types/post.types';
 import { ReactionSummaryResponse } from './types/reaction.types';
 import { UserProfile as UserProfileType } from './types/auth.types';
-import { FriendResponse, RelationshipStatus } from './types/friend.types';
+import { FriendRequestResponse, FriendResponse, RelationshipStatus } from './types/friend.types';
+import { useEscapeKey } from './hooks/useEscapeKey';
 
 type ProfileTab = 'ABOUT' | 'POSTS' | 'FRIENDS' | 'PHOTOS';
 
@@ -60,6 +61,10 @@ export default function UserProfile() {
   const [friends, setFriends] = useState<FriendResponse[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(true);
   const [friendError, setFriendError] = useState<string | null>(null);
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequestResponse[]>([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [requestActionId, setRequestActionId] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const friendCount = friends.length;
 
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -71,6 +76,7 @@ export default function UserProfile() {
     location: '',
     website: '',
   });
+  useEscapeKey(isEditModalOpen, () => setIsEditModalOpen(false));
 
   useEffect(() => {
     setActiveTab(profileTabFromQuery(searchParams.get('tab')));
@@ -131,7 +137,7 @@ export default function UserProfile() {
 
   const displayedUser = isOwnProfile ? user : targetUser;
   const displayName = displayedUser?.displayName || displayedUser?.username || 'User';
-  const bio = displayedUser?.bio || (isOwnProfile ? 'Capturing life\'s little joys. ðŸŒ»' : 'No bio yet.');
+  const bio = displayedUser?.bio || (isOwnProfile ? 'Capturing life\'s little joys.' : 'No bio yet.');
   const location = displayedUser?.location || (isOwnProfile ? 'Portland, Oregon' : 'No location specified');
   const website = displayedUser?.website || '';
   const avatarUrl = displayedUser?.avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBbY_GUlw34tnkyFIMOl2BKettMEaotAsjvlMn6C_uAYu2C3nM_ijw2rr7U9XDlyBU_0LlidZUITe7OACoMYLzy0O5RdjRo0fH9NEmNkLOhjpaIoRogweGdwOQ-QcP4_RepAyayI6_jVKYnJjekbEf07QzVchgO3G2gcSWct_pYdY99tJYJchT_3k1kNmpev6u7x_QcQx94o5RYQ1tq5OVrkvJSM5IlD4Q11oyMhGIqiJ2ENgSg_Qv24OaSlAfI-ypwo4U6jlVrwoA';
@@ -229,6 +235,33 @@ export default function UserProfile() {
       isMounted = false;
     };
   }, [userId, isOwnProfile, user?.id, relationshipStatus, profileRestricted]);
+
+  useEffect(() => {
+    if (!isOwnProfile) {
+      setIncomingRequests([]);
+      setRequestError(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingRequests(true);
+    setRequestError(null);
+    friendService.getIncomingRequests()
+      .then((requests) => {
+        if (isMounted) setIncomingRequests(requests || []);
+      })
+      .catch((err) => {
+        console.error('Error fetching incoming friend requests:', err);
+        if (isMounted) setRequestError('Could not load friend requests. Please try again.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingRequests(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOwnProfile, user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -385,6 +418,37 @@ export default function UserProfile() {
     }
   };
 
+  const handleAcceptPendingRequest = async (request: FriendRequestResponse) => {
+    setRequestActionId(request.id);
+    setRequestError(null);
+    try {
+      const acceptedFriend = await friendService.acceptRequest(request.id);
+      setIncomingRequests((current) => current.filter((item) => item.id !== request.id));
+      setFriends((current) => current.some((item) => item.friendId === acceptedFriend.friendId)
+        ? current
+        : [acceptedFriend, ...current]);
+    } catch (err) {
+      console.error('Error accepting friend request:', err);
+      setRequestError('Could not accept this friend request. Please try again.');
+    } finally {
+      setRequestActionId(null);
+    }
+  };
+
+  const handleRejectPendingRequest = async (requestId: string) => {
+    setRequestActionId(requestId);
+    setRequestError(null);
+    try {
+      await friendService.declineRequest(requestId);
+      setIncomingRequests((current) => current.filter((item) => item.id !== requestId));
+    } catch (err) {
+      console.error('Error rejecting friend request:', err);
+      setRequestError('Could not reject this friend request. Please try again.');
+    } finally {
+      setRequestActionId(null);
+    }
+  };
+
   const handleUpdatePost = async (postId: string, data: any) => {
     const updated = await postService.update(postId, data);
     setPosts((current) => current.map((post) => (post.id === postId ? updated : post)));
@@ -496,7 +560,7 @@ export default function UserProfile() {
               {isOwnProfile && (
                 <Link 
                   to="/edit-cover" 
-                  className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/20 hover:bg-white/40 backdrop-blur-md px-4 py-2 rounded-full text-white font-bold flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all border border-white/30 hover:scale-105 active:scale-95"
+                  className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/20 hover:bg-white/40 backdrop-blur-md px-4 py-2 rounded-full text-white font-bold flex items-center gap-2 transition-all border border-white/30 hover:scale-105 active:scale-95"
                 >
                   <Camera size={18} />
                   <span className="hidden sm:inline">Edit Cover Photo</span>
@@ -747,6 +811,82 @@ export default function UserProfile() {
 
               {activeTab === 'FRIENDS' && (
                 <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
+                  {isOwnProfile && (
+                    <section className="mb-8">
+                      <div className="mb-4 flex items-center justify-between gap-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-on-surface">Friend requests</h3>
+                          <p className="mt-1 text-sm text-on-surface-variant">Review people who want to connect with you.</p>
+                        </div>
+                        {incomingRequests.length > 0 && (
+                          <span className="rounded-full bg-primary-container px-3 py-1 text-xs font-bold text-on-primary-container">
+                            {incomingRequests.length} pending
+                          </span>
+                        )}
+                      </div>
+
+                      {requestError && (
+                        <div className="mb-3 rounded-xl bg-error-container p-4 text-sm font-bold text-on-error-container">
+                          {requestError}
+                        </div>
+                      )}
+
+                      {isLoadingRequests ? (
+                        <div className="rounded-xl bg-surface-container-low p-6 text-center text-sm font-bold text-on-surface-variant">
+                          Loading friend requests...
+                        </div>
+                      ) : incomingRequests.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-outline-variant bg-surface-container-low p-6 text-center text-sm font-bold text-on-surface-variant">
+                          No pending friend requests.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {incomingRequests.map((request) => {
+                            const requesterName = request.displayName || request.username || 'Kirenz User';
+                            const isWorking = requestActionId === request.id;
+                            return (
+                              <div key={request.id} className="flex flex-col gap-4 rounded-2xl border border-outline-variant bg-surface-container-low p-4 sm:flex-row sm:items-center">
+                                <Link to={`/profile/${request.requesterId}`} className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-80">
+                                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-container font-bold text-on-primary-container">
+                                    {request.avatarUrl ? (
+                                      <img src={request.avatarUrl} alt={requesterName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      requesterName.slice(0, 1).toUpperCase()
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="truncate font-bold text-on-surface">{requesterName}</p>
+                                    {request.username && <p className="truncate text-xs font-bold text-primary">@{request.username}</p>}
+                                  </div>
+                                </Link>
+                                <div className="flex gap-2 sm:shrink-0">
+                                  <button
+                                    type="button"
+                                    disabled={isWorking}
+                                    onClick={() => void handleRejectPendingRequest(request.id)}
+                                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container disabled:opacity-60 sm:flex-none"
+                                  >
+                                    {isWorking ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                                    Reject
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isWorking}
+                                    onClick={() => void handleAcceptPendingRequest(request)}
+                                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-60 sm:flex-none"
+                                  >
+                                    {isWorking ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                                    Accept
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+                  )}
+
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="text-xl font-bold text-on-surface">Friends</h3>
                     <span className="text-sm font-bold text-on-surface-variant">{friendCount} friend{friendCount === 1 ? '' : 's'}</span>

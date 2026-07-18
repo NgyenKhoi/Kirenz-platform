@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Eye, Globe, Users, Lock, Shield, UserPlus,
-  MessageSquare, Menu, Bell, Loader2, UserX,
+  MessageSquare, Menu, Loader2, UserX,
   Sun, Moon, Palette, Settings
 } from 'lucide-react';
 import Layout from './components/Layout';
@@ -115,9 +115,6 @@ export default function ProfileSettings() {
           </div>
           
           <div className="flex items-center gap-4 shrink-0">
-            <button className="p-2 text-on-surface-variant hover:bg-primary-container/20 rounded-full transition-colors active:scale-95">
-              <Bell size={24} />
-            </button>
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container hidden md:block shrink-0">
               <img 
                 alt="User Profile" 

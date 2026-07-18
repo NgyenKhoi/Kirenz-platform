@@ -201,7 +201,7 @@ export default function Explore() {
               <Compass size={24} />
               <p className="text-sm font-bold uppercase tracking-[0.08em]">Explore</p>
             </div>
-            <h1 className="mt-2 text-3xl font-bold text-on-surface">Kết quả tìm kiếm</h1>
+            <h1 className="mt-2 text-3xl font-bold text-on-surface">Search results</h1>
           </header>
 
           <section className="rounded-3xl border border-surface-container bg-surface-container-lowest p-5 shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)]">

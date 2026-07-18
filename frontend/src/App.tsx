@@ -17,6 +17,7 @@ import BlockedUsers from './BlockedUsers';
 import VisitorFeed from './VisitorFeed';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
+import PublicRoute from './components/PublicRoute';
 import Dashboard from './Dashboard';
 import AdminLayout from './components/AdminLayout';
 import UserManagement from './UserManagement';
@@ -51,10 +52,10 @@ export default function App() {
       </div>
       <div>
         <Routes>
-          <Route path="/" element={<VisitorFeed />} />
-          <Route path="/posts/:postId" element={<VisitorFeed />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/" element={<PublicRoute><VisitorFeed /></PublicRoute>} />
+          <Route path="/posts/:postId" element={<PublicRoute><VisitorFeed /></PublicRoute>} />
+          <Route path="/login" element={<PublicRoute allowUnverified><Login /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           <Route path="/home" element={<ProtectedRoute><HomeFeed /></ProtectedRoute>} />
           <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />

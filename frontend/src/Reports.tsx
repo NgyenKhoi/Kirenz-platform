@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Flag, RefreshCw, X } from 'lucide-react';
 import { useAdminReports } from './hooks/useAdminReports';
+import { useEscapeKey } from './hooks/useEscapeKey';
 
 const reasons = ['SPAM','HARASSMENT','HATE_SPEECH','VIOLENCE','NUDITY','FALSE_INFORMATION','IMPERSONATION','OTHER'];
 const actions = ['HIDE_CONTENT','REMOVE_CONTENT','SEND_WARNING','SUSPEND_USER','BAN_USER'];
@@ -11,6 +12,9 @@ export default function Reports() {
   const params=useMemo(()=>({status:status||undefined,targetType:targetType||undefined,reason:reasonFilter||undefined,page,size:20}),[status,targetType,reasonFilter,page]);
   const admin=useAdminReports(params,selectedId); const selected=admin.detail.data; const mutation=mode==='review'?admin.review:mode==='dismiss'?admin.dismiss:admin.resolve;
   const closeAction=()=>{setMode(undefined);setNote('');setUntil('')};
+  const closeDetails=()=>{setSelectedId(undefined);setMode(undefined)};
+  useEscapeKey(Boolean(mode), closeAction);
+  useEscapeKey(Boolean(selectedId) && !mode, closeDetails);
   const submit=async()=>{if(!selectedId||!mode)return;if(mode==='review')await admin.review.mutateAsync({id:selectedId,adminNote:note||undefined});else if(mode==='dismiss')await admin.dismiss.mutateAsync({id:selectedId,moderationReason:reason,adminNote:note||undefined});else await admin.resolve.mutateAsync({id:selectedId,action,moderationReason:reason,adminNote:note||undefined,suspendedUntil:action==='SUSPEND_USER'&&until?new Date(until).toISOString():undefined});closeAction();await admin.detail.refetch();};
   return <main className="p-4 sm:p-8"><div className="mx-auto max-w-7xl space-y-6"><header className="flex items-end justify-between"><div><p className="text-sm font-bold uppercase tracking-[.2em] text-primary">Trust & Safety</p><h2 className="mt-2 text-4xl font-semibold">Report Queue</h2><p className="mt-2 text-on-surface-variant">Review community reports and apply audited outcomes.</p></div><button onClick={()=>void admin.reports.refetch()} className="rounded-full bg-primary p-3 text-white"><RefreshCw size={20}/></button></header>
   <section className="grid gap-3 rounded-3xl bg-surface-container-lowest p-5 sm:grid-cols-3"><select value={status} onChange={e=>{setStatus(e.target.value);setPage(0)}} className="rounded-full bg-surface-container px-4 py-3"><option value="">All statuses</option>{['PENDING','REVIEWING','RESOLVED','DISMISSED'].map(x=><option key={x}>{x}</option>)}</select><select value={targetType} onChange={e=>{setTargetType(e.target.value);setPage(0)}} className="rounded-full bg-surface-container px-4 py-3"><option value="">All targets</option>{['POST','COMMENT','USER'].map(x=><option key={x}>{x}</option>)}</select><select value={reasonFilter} onChange={e=>{setReasonFilter(e.target.value);setPage(0)}} className="rounded-full bg-surface-container px-4 py-3"><option value="">All reasons</option>{reasons.map(x=><option key={x}>{x}</option>)}</select></section>

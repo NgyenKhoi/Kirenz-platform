@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Star, Eye, EyeOff, Check } from 'lucide-react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/authStore';
 import OTPVerification from './components/OTPVerification';
 import { FieldErrors, extractErrorMessage, extractFieldErrors } from './utils/formErrors';
+import { getRoleLandingPath } from './utils/roleNavigation';
 
 type LoginField = 'email' | 'password';
 
@@ -20,11 +21,6 @@ export default function Login() {
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
-  const location = useLocation();
-  const requestedReturnTo = new URLSearchParams(location.search).get('returnTo');
-  const destination = requestedReturnTo?.startsWith('/') && !requestedReturnTo.startsWith('//')
-    ? requestedReturnTo
-    : '/home';
   const { loginAsync, isLoggingIn, loginError, refetchUser, googleLoginAsync, isGoogleLoggingIn } = useAuth();
   const { isAuthenticated, user } = useAuthStore();
 
@@ -34,10 +30,10 @@ export default function Login() {
         setUnverifiedEmail(user.email);
         setShowOTP(true);
       } else {
-        navigate(destination);
+        navigate(getRoleLandingPath(user?.role), { replace: true });
       }
     }
-  }, [isAuthenticated, user, navigate, destination]);
+  }, [isAuthenticated, user, navigate]);
 
   useEffect(() => {
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '720577131634-ijrdshbfrhacsi8b00gipuj06fjkhr16.apps.googleusercontent.com';
@@ -60,7 +56,7 @@ export default function Login() {
               setUnverifiedEmail(loggedInUser.email);
               setShowOTP(true);
             } else {
-              navigate(destination);
+              navigate(getRoleLandingPath(loggedInUser?.role), { replace: true });
             }
           } catch (error) {
             console.error('Google login failed:', error);
@@ -98,7 +94,7 @@ export default function Login() {
     return () => {
       window.google?.accounts?.id.cancel();
     };
-  }, [googleLoginAsync, navigate, destination]);
+  }, [googleLoginAsync, navigate]);
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -121,7 +117,7 @@ export default function Login() {
         setUnverifiedEmail(loggedInUser.email);
         setShowOTP(true);
       } else {
-        navigate(destination);
+        navigate(getRoleLandingPath(loggedInUser?.role), { replace: true });
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -142,9 +138,9 @@ export default function Login() {
   };
 
   const handleOTPVerified = async () => {
-    await refetchUser();
+    const result = await refetchUser();
     setShowOTP(false);
-    navigate(destination);
+    navigate(getRoleLandingPath(result.data?.role ?? user?.role), { replace: true });
   };
 
   if (showOTP) {
