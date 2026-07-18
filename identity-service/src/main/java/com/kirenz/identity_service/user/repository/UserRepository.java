@@ -31,6 +31,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     long countByStatus(AccountStatus status);
 
+    @Query("select u.createdAt from User u where u.createdAt >= :from and u.createdAt < :to order by u.createdAt")
+    List<Instant> findCreatedAtBetween(@Param("from") Instant from, @Param("to") Instant to);
+
     @Query("""
         select u from User u
         where (

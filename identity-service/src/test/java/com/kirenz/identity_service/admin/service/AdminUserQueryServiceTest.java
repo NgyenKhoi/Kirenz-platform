@@ -94,4 +94,22 @@ class AdminUserQueryServiceTest {
         assertThat(result.totalElements()).isEqualTo(1);
         assertThat(result.content()).hasSize(1);
     }
+
+    @Test
+    void fillsMissingDailyGrowthPeriodsWithZero() {
+        when(userRepository.findCreatedAtBetween(any(Instant.class), any(Instant.class)))
+            .thenReturn(List.of(
+                Instant.parse("2026-07-01T03:00:00Z"),
+                Instant.parse("2026-07-03T03:00:00Z"),
+                Instant.parse("2026-07-03T04:00:00Z")
+            ));
+
+        var result = adminUserQueryService.getGrowth(
+            java.time.LocalDate.parse("2026-07-01"),
+            java.time.LocalDate.parse("2026-07-03"),
+            "DAY"
+        );
+
+        assertThat(result).extracting("count").containsExactly(1L, 0L, 2L);
+    }
 }
