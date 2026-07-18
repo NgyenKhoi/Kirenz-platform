@@ -34,25 +34,30 @@ Legend: `[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked.
 - [x] Submit reports for posts, comments, and users; retain story as an extensible target type.
 - [x] Deduplicate repeated reports from the same reporter and target.
 - [x] List/filter reports and load report detail with aggregate report count.
-- [ ] Implement reviewing, dismiss, note, moderation reason, and resolution workflow.
-- [ ] Persist every privileged action in `admin_actions`.
-- [ ] Add report workflow and authorization tests.
+- [x] Implement reviewing, dismiss, note, moderation reason, and resolution workflow for content reports.
+- [x] Persist every privileged action in `admin_actions`.
+- [x] Add report workflow and authorization tests.
 
 ## Phase 3 - Social and notification moderation contracts
 
-- [ ] Add Social Service internal content-detail contract for posts/comments and attached media.
-- [ ] Add Social Service internal moderation commands: temporary hide and remove content.
-- [ ] Add Identity Service violation-history and suspend/ban support.
+- [x] Add Social Service internal content-detail contract for posts/comments and attached media.
+- [x] Add Social Service internal moderation commands: temporary hide and remove content.
+- [x] Add Identity Service suspend/ban support and expose user-scoped violation history from Admin Service-owned audit records.
 - [x] Define warning notification Kafka event keyed by admin action ID with idempotent consumer behavior.
-- [ ] Add Feign fallbacks/circuit breakers and partial-result semantics.
+- [x] Add Feign fallbacks/circuit breakers and partial-result semantics.
 
 ## Phase 4 - Dashboard aggregation
 
-- [ ] Add Identity Service user-growth time-series endpoint.
-- [ ] Add Social Service post/comment/reaction time-series endpoint.
-- [ ] Aggregate dashboard overview in Admin Service through Feign only.
-- [ ] Return partial-data metadata when a downstream service is unavailable.
-- [ ] Add short TTL caching for expensive dashboard queries.
+- [x] Add Identity Service user-growth time-series endpoint.
+- [x] Add Social Service post/comment/reaction time-series endpoint.
+- [x] Aggregate dashboard overview in Admin Service through Feign only.
+- [x] Return partial-data metadata when a downstream service is unavailable.
+- [x] Add short TTL caching for expensive dashboard queries.
+- [x] Add the role-aware `/admin` frontend route and an admin-only route guard.
+- [x] Integrate the supplied Dashboard UI/UX with Admin Service summary and growth APIs.
+- [x] Add TanStack Query dashboard hooks with loading, empty, error, partial-data, and refresh states.
+- [x] Add dashboard aggregation and partial-result contract tests.
+- [ ] Run the live-stack dashboard E2E smoke path for admin authorization and rendered metrics.
 
 ## Phase 5 - System monitoring
 
@@ -63,12 +68,19 @@ Legend: `[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked.
 
 ## Phase 6 - Admin web application
 
-- [ ] Add role-aware admin route guard and navigation.
-- [ ] Build dashboard cards and growth/activity charts.
+- [ ] Complete shared admin shell navigation for Users, Reports, Monitoring, and Audit.
 - [ ] Build user list, search, filters, detail, ban/unban, and warning UI.
 - [ ] Build report queue, report detail, and moderation action UI.
 - [ ] Build system-monitoring UI.
 - [ ] Add TanStack Query hooks, loading/error states, and frontend tests.
+
+## End-to-end integration track
+
+- [ ] Dashboard: ADMIN loads aggregated metrics; USER receives 403/redirect; one unavailable downstream renders partial data.
+- [ ] Users: ADMIN searches and filters users, performs warn/suspend/ban/unban, and sees the audit entry.
+- [ ] Reports: USER submits a report; ADMIN reviews and resolves it; owning service state, audit, and notification are verified.
+- [ ] Monitoring: stopping one dependency changes only its component state and the page remains usable.
+- [x] Run frontend production build plus API contract smoke tests before each admin phase is marked complete.
 
 ## Verification log
 
@@ -85,7 +97,18 @@ Run from repository root unless a working directory is stated.
 | 2026-07-18 | targeted admin tests in `identity-service/` | Passed: 7 tests |
 | 2026-07-18 | targeted listener/service tests in `notification-service/` | Passed: 5 tests |
 | 2026-07-18 | `mvn test` in `admin-service/` after report query/submission implementation | Passed: 14 tests |
+| 2026-07-18 | `mvn test` in `admin-service/` after report workflow and audit implementation | Passed: 22 tests |
+| 2026-07-18 | `mvn test` in `social-service/` after internal moderation contracts | Passed: 34 tests |
+| 2026-07-18 | `mvn test` in `admin-service/` after Social moderation orchestration | Passed: 26 tests |
+| 2026-07-18 | targeted suspension, summary, and login tests in `identity-service/` | Passed: 24 tests |
+| 2026-07-18 | targeted user/report moderation tests in `admin-service/` | Passed: 15 tests |
+| 2026-07-18 | `mvn test` in `admin-service/` after Phase 3 fallbacks and partial detail | Passed: 31 tests |
+| 2026-07-18 | `mvn -Dtest=AdminUserQueryServiceTest test` in `identity-service/` after growth analytics | Passed: 3 tests |
+| 2026-07-18 | `mvn test` in `social-service/` after activity analytics | Passed: 35 tests |
+| 2026-07-18 | `mvn test` in `admin-service/` after dashboard aggregation | Passed: 33 tests |
+| 2026-07-18 | `npm run lint` in `frontend/` after dashboard integration | Passed |
+| 2026-07-18 | `npm run build` in `frontend/` after dashboard integration | Passed with existing bundle-size warnings |
 
 ## Current implementation boundary
 
-Admin user queries and account status changes now use Identity Service Feign contracts. Warning delivery uses Kafka, while `admin_actions` remains owned by Admin Service. Authenticated users can submit and query their reports; admins can filter reports and load aggregate detail. No service reads another service's database directly. Report state transitions, moderation orchestration, and dashboard aggregation remain pending.
+Admin user queries, bans, and temporary suspensions use protected Identity Service Feign contracts. Warning delivery uses Kafka, while user-scoped violation history reads Admin Service-owned `admin_actions`. Authenticated users can submit and query reports; admins can review, dismiss, hide/remove content, warn, suspend, or ban reported users with audited optimistic state transitions. Identity and Social now expose bounded dashboard time series, while Admin Service aggregates summary and growth data through Feign with a short TTL cache and explicit partial-data metadata. The role-aware `/admin` frontend route renders those contracts through TanStack Query using the supplied Dashboard visual direction. No service reads another service's database directly. Phase 4 implementation is complete; the live-stack E2E smoke run remains pending environment startup, and system monitoring is next.
