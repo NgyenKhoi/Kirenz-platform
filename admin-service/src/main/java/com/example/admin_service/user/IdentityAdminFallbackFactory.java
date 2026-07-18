@@ -10,6 +10,9 @@ import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
+import java.time.LocalDate;
+import java.util.List;
+import com.example.admin_service.dashboard.dto.GrowthPointResponse;
 
 @Component
 public class IdentityAdminFallbackFactory implements FallbackFactory<IdentityAdminClient> {
@@ -19,6 +22,13 @@ public class IdentityAdminFallbackFactory implements FallbackFactory<IdentityAdm
         return new IdentityAdminClient() {
             @Override
             public ApiResponse<AdminUserSummaryResponse> getUserSummary() {
+                throw unavailable(cause);
+            }
+
+            @Override
+            public ApiResponse<List<GrowthPointResponse>> getUserGrowth(
+                LocalDate from, LocalDate to, String granularity
+            ) {
                 throw unavailable(cause);
             }
 
