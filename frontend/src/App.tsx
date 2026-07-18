@@ -16,6 +16,8 @@ import EditCover from './EditCover';
 import BlockedUsers from './BlockedUsers';
 import VisitorFeed from './VisitorFeed';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+import Dashboard from './Dashboard';
 import { initTheme } from './utils/theme';
 
 export default function App() {
@@ -60,6 +62,7 @@ export default function App() {
           <Route path="/settings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
           <Route path="/privacy" element={<Navigate to="/settings" replace />} />
           <Route path="/blocked" element={<ProtectedRoute><BlockedUsers /></ProtectedRoute>} />
+          <Route path="/admin" element={<AdminRoute><Dashboard /></AdminRoute>} />
         </Routes>
       </div>
     </BrowserRouter>
