@@ -30,10 +30,10 @@ Legend: `[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked.
 
 ## Phase 2 - Reports and moderation audit
 
-- [ ] Implement report entities, enums, repositories, DTOs, mappers, and validation.
-- [ ] Submit reports for posts, comments, and users; retain story as an extensible target type.
-- [ ] Deduplicate repeated reports from the same reporter and target.
-- [ ] List/filter reports and load report detail with aggregate report count.
+- [x] Implement report entities, enums, repositories, DTOs, mappers, and validation.
+- [x] Submit reports for posts, comments, and users; retain story as an extensible target type.
+- [x] Deduplicate repeated reports from the same reporter and target.
+- [x] List/filter reports and load report detail with aggregate report count.
 - [ ] Implement reviewing, dismiss, note, moderation reason, and resolution workflow.
 - [ ] Persist every privileged action in `admin_actions`.
 - [ ] Add report workflow and authorization tests.
@@ -84,7 +84,8 @@ Run from repository root unless a working directory is stated.
 | 2026-07-18 | `mvn test` in `admin-service/` after user actions | Passed: 11 tests |
 | 2026-07-18 | targeted admin tests in `identity-service/` | Passed: 7 tests |
 | 2026-07-18 | targeted listener/service tests in `notification-service/` | Passed: 5 tests |
+| 2026-07-18 | `mvn test` in `admin-service/` after report query/submission implementation | Passed: 14 tests |
 
 ## Current implementation boundary
 
-Admin user queries and account status changes now use Identity Service Feign contracts. Warning delivery uses Kafka, while `admin_actions` remains owned by Admin Service. No service reads another service's database directly. Report moderation and dashboard aggregation remain pending.
+Admin user queries and account status changes now use Identity Service Feign contracts. Warning delivery uses Kafka, while `admin_actions` remains owned by Admin Service. Authenticated users can submit and query their reports; admins can filter reports and load aggregate detail. No service reads another service's database directly. Report state transitions, moderation orchestration, and dashboard aggregation remain pending.
