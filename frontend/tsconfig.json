@@ -22,10 +22,5 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  },
-  "exclude": [
-    "src/Monitoring.tsx",
-    "src/Reports.tsx",
-    "src/UserManagement.tsx"
-  ]
+  }
 }
