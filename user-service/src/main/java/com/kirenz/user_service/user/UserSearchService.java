@@ -50,6 +50,7 @@ public class UserSearchService {
         String relationshipStatus = friendService.status(currentUserId, profile.id()).status();
         return new UserSearchResponse(
             profile.id(),
+            profile.email(),
             profile.username(),
             profile.displayName(),
             profile.avatarUrl(),

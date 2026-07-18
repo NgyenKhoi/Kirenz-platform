@@ -23,5 +23,12 @@ export const privacyService = {
       data
     );
     return response.data.data;
-  }
+  },
+
+  canSendDirectMessage: async (receiverId: string): Promise<boolean> => {
+    const response = await userServiceClient.get<ApiResponse<boolean>>(
+      API_ENDPOINTS.PRIVACY.CAN_MESSAGE(receiverId)
+    );
+    return response.data.data;
+  },
 };

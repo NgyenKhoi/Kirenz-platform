@@ -14,6 +14,7 @@ import { UserSearchResponse } from './types/friend.types';
 import { useEscapeKey } from './hooks/useEscapeKey';
 import { chatService } from './services/chat.service';
 import { blockService } from './services/block.service';
+import { privacyService } from './services/privacy.service';
 
 const MAX_IMAGE_COUNT = 10;
 const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
@@ -421,6 +422,30 @@ export default function Chat() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [directChatNotice, setDirectChatNotice] = useState('');
+  const [directMessageAllowed, setDirectMessageAllowed] = useState(true);
+
+  useEffect(() => {
+    if (!selectedConversation || selectedConversation.type !== 'DIRECT' || !user?.id) {
+      setDirectMessageAllowed(true);
+      return;
+    }
+
+    const recipient = selectedConversation.participants.find(participant => participant.userId !== user.id);
+    if (!recipient) return;
+    let active = true;
+    setDirectMessageAllowed(true);
+    privacyService.canSendDirectMessage(recipient.userId)
+      .then((allowed) => {
+        if (active) setDirectMessageAllowed(allowed);
+      })
+      .catch(() => {
+        if (active) setDirectMessageAllowed(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedConversation, user?.id]);
 
   // Handle Search
   useEffect(() => {
@@ -431,7 +456,7 @@ export default function Chat() {
           // import { friendService } from './services/friend.service';
           const { friendService } = await import('./services/friend.service');
           const results = await friendService.searchUsers(searchQuery);
-          setSearchResults(results);
+          setSearchResults(results.filter(result => result.id !== user?.id));
         } catch (err) {
           console.error('Search error', err);
         } finally {
@@ -443,7 +468,7 @@ export default function Chat() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, user?.id]);
 
   // Group chat user search
   useEffect(() => {
@@ -671,6 +696,7 @@ export default function Chat() {
   useEscapeKey(!!previewMedia, () => setPreviewMedia(null));
 
   const handleStartConversation = async (otherUser: any) => {
+    setDirectChatNotice('');
     try {
       const { chatService } = await import('./services/chat.service');
       const conv = await chatService.getOrCreateDirectConversation(otherUser.userId || otherUser.id);
@@ -687,11 +713,10 @@ export default function Chat() {
       
       setSelectedConversationId(conv.id);
       setSearchQuery('');
+      setSearchResults([]);
     } catch (err: any) {
-      setErrorDialog({
-        isOpen: true,
-        message: err.response?.data?.message || 'Could not start conversation'
-      });
+      const message = err.response?.data?.message || 'Could not start conversation';
+      setDirectChatNotice(message);
     }
   };
 
@@ -728,18 +753,9 @@ export default function Chat() {
           <div className="flex items-center gap-6">
             <span className="text-2xl font-bold text-primary tracking-tight">Moments</span>
             <div className="hidden lg:flex items-center bg-surface-container-low px-4 py-2 rounded-full gap-2 w-72 border border-outline-variant/20 focus-within:border-primary-container focus-within:ring-2 focus-within:ring-primary-container/20 transition-all">
-              <Search size={20} className="text-outline shrink-0" />
-              <input 
-                type="text" 
-                placeholder="Search memories..." 
-                className="bg-transparent border-none focus:ring-0 text-sm font-medium w-full placeholder:text-outline-variant outline-none text-on-surface"
-              />
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2.5 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200 rounded-full active:scale-95">
-              <Bell size={22} />
-            </button>
              <button className="p-2.5 text-primary font-bold bg-primary-container/20 hover:bg-surface-container-high transition-colors duration-200 rounded-full active:scale-95 relative">
               <MessageSquare size={22} className="fill-current" />
               {totalUnreadMessages > 0 && (
@@ -775,8 +791,11 @@ export default function Chat() {
                 <input 
                   type="text" 
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search people..." 
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setDirectChatNotice('');
+                  }}
+                  placeholder="Search a username to start a chat..."
                   className="w-full bg-surface-container-lowest border-2 border-transparent focus:border-tertiary-container rounded-full px-4 py-2.5 pl-11 text-sm font-medium focus:ring-0 transition-all outline-none text-on-surface placeholder:text-on-surface-variant"
                 />
                 <Search size={18} className="absolute left-4 top-3 text-outline-variant" />
@@ -786,6 +805,10 @@ export default function Chat() {
                   <div className="absolute top-full left-0 right-0 mt-2 bg-surface-container-highest rounded-2xl shadow-xl z-50 overflow-hidden border border-outline-variant/20">
                     {isSearching ? (
                       <div className="p-4 flex justify-center"><Loader2 className="animate-spin text-primary" size={20} /></div>
+                    ) : directChatNotice ? (
+                      <div role="status" className="p-4 text-sm font-bold text-error bg-error-container">
+                        {directChatNotice}
+                      </div>
                     ) : searchResults.length > 0 ? (
                       searchResults.map(res => (
                         <div 
@@ -1102,6 +1125,11 @@ export default function Chat() {
                       ))}
                     </div>
                   )}
+                  {!directMessageAllowed && selectedConversation?.type === 'DIRECT' && (
+                    <div role="status" className="mb-3 rounded-2xl bg-secondary-container px-4 py-3 text-sm font-bold text-on-secondary-container">
+                      This person does not accept messages from people who are not friends.
+                    </div>
+                  )}
                   <form
                     onSubmit={handleSendMessage}
                     className="flex items-center gap-2 md:gap-4 bg-surface-container-low p-2 pr-2.5 rounded-full border-2 border-transparent focus-within:border-primary-container focus-within:bg-surface-container-lowest transition-all shadow-sm"
@@ -1112,11 +1140,13 @@ export default function Chat() {
                       accept="image/*,video/*,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                       multiple
                       onChange={handleMediaSelect}
+                      disabled={!directMessageAllowed}
                       className="hidden"
                     />
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
+                      disabled={!directMessageAllowed}
                       className="p-2.5 text-primary hover:bg-primary-container/20 rounded-full transition-colors shrink-0"
                       title="Attach images, videos, PDF, or DOCX files"
                     >
@@ -1127,7 +1157,8 @@ export default function Chat() {
                       value={messageText}
                       onChange={(e) => handleMessageChange(e.target.value)}
                       onBlur={() => sendTyping(false)}
-                      placeholder="Write a warm message..."
+                      disabled={!directMessageAllowed}
+                      placeholder={directMessageAllowed ? 'Write a warm message...' : 'Messaging is unavailable'}
                       className="flex-1 bg-transparent border-none focus:ring-0 text-sm md:text-base font-medium py-2 px-1 outline-none text-on-surface placeholder:text-on-surface-variant/70 min-w-0"
                     />
                     <div className="flex items-center gap-1 md:gap-2 shrink-0">
@@ -1139,7 +1170,7 @@ export default function Chat() {
                       </button>
                       <button
                         type="submit"
-                        disabled={isSendingMessage || (!messageText.trim() && selectedMedia.length === 0)}
+                        disabled={!directMessageAllowed || isSendingMessage || (!messageText.trim() && selectedMedia.length === 0)}
                         className={`p-3 rounded-full transition-all flex items-center justify-center shrink-0 ${
                           !isSendingMessage && (messageText.trim() || selectedMedia.length > 0)
                             ? 'bg-primary text-white shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:-translate-y-0.5 active:scale-95'

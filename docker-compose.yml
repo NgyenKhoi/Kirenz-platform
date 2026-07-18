@@ -1,9 +1,9 @@
 x-common-env: &common-env
   JWT_SECRET: ${JWT_SECRET:-local-dev-secret-key-local-dev-secret-key-123456}
-  KAFKA_BOOTSTRAP_SERVERS: ${DOCKER_KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
-  REDIS_HOST: ${DOCKER_REDIS_HOST:-redis}
-  REDIS_PORT: ${DOCKER_REDIS_PORT:-6379}
-  REDIS_PASSWORD: ${DOCKER_REDIS_PASSWORD:-Ambessa@123}
+  KAFKA_BOOTSTRAP_SERVERS: ${DOCKER_KAFKA_BOOTSTRAP_SERVERS:?DOCKER_KAFKA_BOOTSTRAP_SERVERS must be set in .env}
+  REDIS_HOST: ${DOCKER_REDIS_HOST:?DOCKER_REDIS_HOST must be set in .env}
+  REDIS_PORT: ${DOCKER_REDIS_PORT:?DOCKER_REDIS_PORT must be set in .env}
+  REDIS_PASSWORD: ${DOCKER_REDIS_PASSWORD:?DOCKER_REDIS_PASSWORD must be set in .env}
   EUREKA_ENABLED: ${EUREKA_ENABLED:-true}
   EUREKA_DEFAULT_ZONE: ${DOCKER_EUREKA_DEFAULT_ZONE:-http://discovery-service:8761/eureka/}
   IDENTITY_SERVICE_URL: ${DOCKER_IDENTITY_SERVICE_URL:-http://identity-service:8081}
@@ -17,54 +17,9 @@ x-common-env: &common-env
 
 x-spring-build: &spring-build
   context: .
-  dockerfile: docker/spring-service.Dockerfile
+  dockerfile: spring-service.Dockerfile
 
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: kirenz-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_SUPERUSER:-kirenz}
-      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-kirenz}
-      POSTGRES_DB: ${POSTGRES_DEFAULT_DATABASE:-postgres}
-    ports:
-      - "${LOCAL_POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - kirenz-postgres-data:/var/lib/postgresql/data
-      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  mongo:
-    image: mongo:8
-    container_name: kirenz-mongo
-    ports:
-      - "${LOCAL_MONGO_PORT:-27017}:27017"
-    volumes:
-      - kirenz-mongo-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:7.2
-    container_name: kirenz-redis
-    command: redis-server --requirepass "${DOCKER_REDIS_PASSWORD:-Ambessa@123}"
-    environment:
-      REDIS_PASSWORD: ${DOCKER_REDIS_PASSWORD:-Ambessa@123}
-    ports:
-      - "${LOCAL_REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   kafka:
     image: apache/kafka:latest
     container_name: kirenz-kafka
@@ -85,6 +40,20 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       CLUSTER_ID: kirenz-local-dev-cluster
 
+  redis:
+    image: redis:7.2
+    container_name: kirenz-redis
+    command: redis-server --requirepass "${DOCKER_REDIS_PASSWORD:?DOCKER_REDIS_PASSWORD must be set in .env}"
+    environment:
+      REDIS_PASSWORD: ${DOCKER_REDIS_PASSWORD:?DOCKER_REDIS_PASSWORD must be set in .env}
+    ports:
+      - "${LOCAL_REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   discovery-service:
     build:
       <<: *spring-build
@@ -104,19 +73,17 @@ services:
     container_name: kirenz-identity-service
     environment:
       <<: *common-env
-      DATABASE_USERNAME: ${IDENTITY_DATABASE_USERNAME:-kirenz}
-      DATABASE_PASSWORD: ${IDENTITY_DATABASE_PASSWORD:-kirenz}
-      IDENTITY_DATABASE_URL: ${IDENTITY_DATABASE_URL:-jdbc:postgresql://postgres:5432/identity_db}
-      IDENTITY_LIQUIBASE_ENABLED: ${IDENTITY_LIQUIBASE_ENABLED:-true}
+      DATABASE_USERNAME: ${IDENTITY_DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${IDENTITY_DATABASE_PASSWORD}
+      IDENTITY_DATABASE_URL: ${IDENTITY_DATABASE_URL}
+      IDENTITY_LIQUIBASE_ENABLED: ${IDENTITY_LIQUIBASE_ENABLED:-false}
     ports:
       - "${IDENTITY_SERVICE_PORT:-8081}:8081"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
       kafka:
         condition: service_started
+      redis:
+        condition: service_healthy
       discovery-service:
         condition: service_started
 
@@ -128,15 +95,13 @@ services:
     container_name: kirenz-user-service
     environment:
       <<: *common-env
-      DATABASE_USERNAME: ${USER_DATABASE_USERNAME:-kirenz}
-      DATABASE_PASSWORD: ${USER_DATABASE_PASSWORD:-kirenz}
-      USER_DATABASE_URL: ${USER_DATABASE_URL:-jdbc:postgresql://postgres:5432/user_db}
-      USER_LIQUIBASE_ENABLED: ${USER_LIQUIBASE_ENABLED:-true}
+      DATABASE_USERNAME: ${USER_DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${USER_DATABASE_PASSWORD}
+      USER_DATABASE_URL: ${USER_DATABASE_URL}
+      USER_LIQUIBASE_ENABLED: ${USER_LIQUIBASE_ENABLED:-false}
     ports:
       - "${USER_SERVICE_PORT:-8082}:8082"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_started
       discovery-service:
@@ -152,12 +117,10 @@ services:
     container_name: kirenz-social-service
     environment:
       <<: *common-env
-      MONGODB_URI: ${SOCIAL_MONGODB_URI:-mongodb://mongo:27017/kirenz_social}
+      MONGODB_URI: ${SOCIAL_MONGODB_URI:?SOCIAL_MONGODB_URI must be set in .env}
     ports:
       - "${SOCIAL_SERVICE_PORT:-8083}:8083"
     depends_on:
-      mongo:
-        condition: service_healthy
       kafka:
         condition: service_started
       discovery-service:
@@ -175,16 +138,14 @@ services:
     container_name: kirenz-chat-service
     environment:
       <<: *common-env
-      MONGODB_URI: ${CHAT_MONGODB_URI:-mongodb://mongo:27017/kirenz_chat}
+      MONGODB_URI: ${CHAT_MONGODB_URI}
     ports:
       - "${CHAT_SERVICE_PORT:-8084}:8084"
     depends_on:
-      mongo:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
       kafka:
         condition: service_started
+      redis:
+        condition: service_healthy
       discovery-service:
         condition: service_started
       identity-service:
@@ -200,15 +161,13 @@ services:
     container_name: kirenz-notification-service
     environment:
       <<: *common-env
-      DATABASE_USERNAME: ${NOTIFICATION_DATABASE_USERNAME:-kirenz}
-      DATABASE_PASSWORD: ${NOTIFICATION_DATABASE_PASSWORD:-kirenz}
-      DATABASE_URL: ${NOTIFICATION_DATABASE_URL:-jdbc:postgresql://postgres:5432/notification_db}
-      NOTIFICATION_LIQUIBASE_ENABLED: ${NOTIFICATION_LIQUIBASE_ENABLED:-true}
+      DATABASE_USERNAME: ${NOTIFICATION_DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${NOTIFICATION_DATABASE_PASSWORD}
+      DATABASE_URL: ${NOTIFICATION_DATABASE_URL}
+      NOTIFICATION_LIQUIBASE_ENABLED: ${NOTIFICATION_LIQUIBASE_ENABLED:-false}
     ports:
       - "${NOTIFICATION_SERVICE_PORT:-8085}:8085"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_started
       discovery-service:
@@ -226,19 +185,17 @@ services:
     container_name: kirenz-admin-service
     environment:
       <<: *common-env
-      ADMIN_DATABASE_USERNAME: ${ADMIN_DATABASE_USERNAME:-kirenz}
-      ADMIN_DATABASE_PASSWORD: ${ADMIN_DATABASE_PASSWORD:-kirenz}
-      ADMIN_DATABASE_URL: ${ADMIN_DATABASE_URL:-jdbc:postgresql://postgres:5432/admin_db}
-      LIQUIBASE_ENABLED: ${ADMIN_LIQUIBASE_ENABLED:-true}
+      ADMIN_DATABASE_USERNAME: ${ADMIN_DATABASE_USERNAME}
+      ADMIN_DATABASE_PASSWORD: ${ADMIN_DATABASE_PASSWORD}
+      ADMIN_DATABASE_URL: ${ADMIN_DATABASE_URL}
+      ADMIN_LIQUIBASE_ENABLED: ${ADMIN_LIQUIBASE_ENABLED:-false}
     ports:
       - ${ADMIN_SERVICE_PORT:-8086}:8086
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
       kafka:
         condition: service_started
+      redis:
+        condition: service_healthy
       discovery-service:
         condition: service_started
       identity-service:
@@ -253,7 +210,7 @@ services:
         SERVICE_DIR: api-gateway
     container_name: kirenz-api-gateway
     environment:
-      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-key-local-dev-secret-key-123456}
+      JWT_SECRET: ${JWT_SECRET}
       EUREKA_ENABLED: ${EUREKA_ENABLED:-true}
       EUREKA_DEFAULT_ZONE: ${DOCKER_EUREKA_DEFAULT_ZONE:-http://discovery-service:8761/eureka/}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${DOCKER_EUREKA_DEFAULT_ZONE:-http://discovery-service:8761/eureka/}
@@ -308,7 +265,3 @@ services:
       - chat-service
       - notification-service
       - admin-service
-
-volumes:
-  kirenz-postgres-data:
-  kirenz-mongo-data:

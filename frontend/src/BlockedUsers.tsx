@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Search, Shield, UserX } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -6,8 +6,9 @@ import Layout from './components/Layout';
 import { useBlockedUsers, useBlockUser, useUnblockUser } from './hooks/useBlocks';
 import { BlockResponse } from './types/block.types';
 import { extractErrorMessage } from './utils/formErrors';
-
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { friendService } from './services/friend.service';
+import type { UserSearchResponse } from './types/friend.types';
+import { useEscapeKey } from './hooks/useEscapeKey';
 
 function formatBlockedDate(value?: string): string {
   if (!value) return 'Blocked just now';
@@ -24,9 +25,9 @@ function shortId(id: string): string {
 
 export default function BlockedUsers() {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [blockedUserId, setBlockedUserId] = useState('');
-  const [blockInputError, setBlockInputError] = useState('');
+  const [blockQuery, setBlockQuery] = useState('');
+  const [blockSearchResults, setBlockSearchResults] = useState<UserSearchResponse[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [userToUnblock, setUserToUnblock] = useState<BlockResponse | null>(null);
   const [toastMessage, setToastMessage] = useState('');
   const [actionError, setActionError] = useState('');
@@ -34,40 +35,51 @@ export default function BlockedUsers() {
   const blockedUsersQuery = useBlockedUsers();
   const blockUserMutation = useBlockUser();
   const unblockUserMutation = useUnblockUser();
+  useEscapeKey(Boolean(userToUnblock), () => setUserToUnblock(null));
 
   const blockedUsers = blockedUsersQuery.data ?? [];
-  const filteredUsers = useMemo(
-    () =>
-      blockedUsers.filter((user) =>
-        user.blockedUserId.toLowerCase().includes(searchQuery.trim().toLowerCase())
-      ),
-    [blockedUsers, searchQuery]
-  );
+  useEffect(() => {
+    const query = blockQuery.trim();
+    if (query.length < 2) {
+      setBlockSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await friendService.searchUsers(query, 10);
+        const blockedIds = new Set(blockedUsers.map(user => user.blockedUserId));
+        if (active) setBlockSearchResults(results.filter(user => !blockedIds.has(user.id)));
+      } catch (error) {
+        if (active) {
+          setBlockSearchResults([]);
+          setActionError(extractErrorMessage(error, 'Could not search users. Please try again.'));
+        }
+      } finally {
+        if (active) setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [blockQuery, blockedUsersQuery.data]);
 
   const showToast = (message: string) => {
     setToastMessage(message);
     window.setTimeout(() => setToastMessage(''), 3000);
   };
 
-  const handleBlockUser = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedUserId = blockedUserId.trim();
+  const handleBlockUser = async (selectedUser: UserSearchResponse) => {
     setActionError('');
-
-    if (!trimmedUserId) {
-      setBlockInputError('User UUID is required');
-      return;
-    }
-
-    if (!uuidPattern.test(trimmedUserId)) {
-      setBlockInputError('Enter a valid user UUID');
-      return;
-    }
-
-    setBlockInputError('');
     try {
-      await blockUserMutation.mutateAsync(trimmedUserId);
-      setBlockedUserId('');
+      await blockUserMutation.mutateAsync(selectedUser.id);
+      setBlockQuery('');
+      setBlockSearchResults([]);
       showToast('User blocked successfully.');
     } catch (error) {
       setActionError(extractErrorMessage(error, 'Could not block this user. Please try again.'));
@@ -118,49 +130,46 @@ export default function BlockedUsers() {
             </div>
           )}
 
-          <section className="mb-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-            <form onSubmit={handleBlockUser} noValidate className="bg-surface-container-lowest rounded-3xl p-5 border border-primary-container/30">
-              <label className="block text-sm font-bold text-on-surface-variant mb-2 ml-1" htmlFor="blockedUserId">
-                Block user by UUID
+          <section className="relative mb-8 rounded-3xl border border-primary-container/30 bg-surface-container-lowest p-5">
+              <label className="block text-sm font-bold text-on-surface-variant mb-2 ml-1" htmlFor="blockUserSearch">
+                Find someone to block
               </label>
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline" size={20} />
                 <input
-                  id="blockedUserId"
-                  value={blockedUserId}
+                  id="blockUserSearch"
+                  value={blockQuery}
                   onChange={(event) => {
-                    setBlockedUserId(event.target.value);
-                    setBlockInputError('');
+                    setBlockQuery(event.target.value);
                     setActionError('');
                   }}
-                  placeholder="User UUID"
-                  aria-invalid={Boolean(blockInputError)}
-                  aria-describedby={blockInputError ? 'blockedUserId-error' : undefined}
-                  className={`min-w-0 flex-1 bg-surface-container rounded-2xl border-2 py-3 px-4 font-mono text-sm text-on-surface focus:outline-none ${blockInputError ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                  placeholder="Search by display name or email"
+                  className="w-full bg-surface-container rounded-2xl border-2 border-outline-variant py-3 pl-12 pr-4 text-sm text-on-surface focus:border-primary focus:outline-none"
                 />
-                <button
-                  type="submit"
-                  disabled={blockUserMutation.isPending}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary text-on-primary px-5 py-3 font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
-                >
-                  {blockUserMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <UserX size={18} />}
-                  Block
-                </button>
               </div>
-              {blockInputError && (
-                <p id="blockedUserId-error" className="mt-2 ml-1 text-sm font-medium text-error">{blockInputError}</p>
-              )}
-            </form>
 
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline" size={20} />
-              <input
-                className="w-full pl-12 pr-4 py-4 bg-surface-container-lowest border-2 border-primary-container/50 rounded-2xl focus:ring-4 focus:ring-primary-container/30 focus:border-primary transition-all outline-none font-medium text-on-surface"
-                placeholder="Search blocked UUIDs..."
-                type="text"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-            </div>
+              {blockQuery.trim().length >= 2 && (
+                <div className="mt-3 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container">
+                  {isSearching ? (
+                    <div className="flex items-center justify-center p-5 text-primary"><Loader2 size={22} className="animate-spin" /></div>
+                  ) : blockSearchResults.length === 0 ? (
+                    <p className="p-5 text-center text-sm font-bold text-on-surface-variant">No matching users found.</p>
+                  ) : blockSearchResults.map(result => (
+                    <div key={result.id} className="flex items-center gap-3 border-b border-outline-variant/30 p-3 last:border-0">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-container font-bold text-on-primary-container">
+                        {result.avatarUrl ? <img src={result.avatarUrl} alt="" className="h-full w-full object-cover" /> : (result.displayName || result.username).slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold text-on-surface">{result.displayName || result.username}</p>
+                        <p className="truncate text-xs text-on-surface-variant">{result.email || `@${result.username}`}</p>
+                      </div>
+                      <button type="button" onClick={() => void handleBlockUser(result)} disabled={blockUserMutation.isPending} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-on-primary disabled:opacity-60">
+                        <UserX size={16} /> Block
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
           </section>
 
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
@@ -170,8 +179,8 @@ export default function BlockedUsers() {
               </div>
             ) : (
               <AnimatePresence mode="popLayout">
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
+                {blockedUsers.length > 0 ? (
+                  blockedUsers.map((user) => (
                     <motion.div
                       key={user.id}
                       layout

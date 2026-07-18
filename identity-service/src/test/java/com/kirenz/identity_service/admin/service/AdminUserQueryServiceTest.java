@@ -22,6 +22,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -93,6 +95,16 @@ class AdminUserQueryServiceTest {
         assertThat(result.size()).isEqualTo(100);
         assertThat(result.totalElements()).isEqualTo(1);
         assertThat(result.content()).hasSize(1);
+    }
+
+    @Test
+    void usesEmptySearchTermWhenQueryIsMissing() {
+        when(userRepository.searchForAdmin(eq(""), isNull(), isNull(), any(Pageable.class)))
+            .thenReturn(new PageImpl<>(List.of()));
+
+        adminUserQueryService.searchUsers(null, null, null, 0, 20);
+
+        verify(userRepository).searchForAdmin(eq(""), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test

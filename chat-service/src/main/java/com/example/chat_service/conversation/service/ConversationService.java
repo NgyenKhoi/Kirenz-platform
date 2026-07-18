@@ -53,30 +53,16 @@ public class ConversationService {
             if (participants.size() != 2) {
                 throw new BadRequestException("Direct chat must have exactly 2 participants");
             }
-            Optional<Conversation> existing = conversationRepository.findExactDirectConversation(
-                participants, 2, ConversationType.DIRECT, "ACTIVE");
-            if (existing.isPresent()) {
-                return convertToResponse(existing.get(), createdBy);
-            }
-        }
-
-        if (request.getType() == ConversationType.DIRECT) {
             UUID recipientId = participants.stream()
                 .filter(id -> !id.equals(createdBy))
                 .findFirst()
                 .orElseThrow(() -> new BadRequestException("Recipient not found"));
+            ensureCanSendDirectMessage(createdBy, recipientId);
 
-            try {
-                boolean canMessage = userServiceClient.checkDirectMessagePermission(createdBy, recipientId);
-                log.info("Direct message permission check for sender {} to receiver {}: {}", createdBy, recipientId, canMessage);
-                if (!canMessage) {
-                    throw new AccessDeniedException("This user has disabled direct messages.");
-                }
-            } catch (AccessDeniedException e) {
-                throw e;
-            } catch (Exception e) {
-                log.error("Error checking direct message permission: {}", e.getMessage(), e);
-                throw new BadRequestException("Failed to verify direct message permission: " + e.getMessage());
+            Optional<Conversation> existing = conversationRepository.findExactDirectConversation(
+                participants, 2, ConversationType.DIRECT, "ACTIVE");
+            if (existing.isPresent()) {
+                return convertToResponse(existing.get(), createdBy);
             }
         }
 
@@ -192,19 +178,27 @@ public class ConversationService {
 
     public ConversationResponse getOrCreateDirectConversation(UUID user1Id, UUID user2Id) {
         List<UUID> participants = Arrays.asList(user1Id, user2Id);
-        Optional<Conversation> existing = conversationRepository.findExactDirectConversation(
-            participants, 2, ConversationType.DIRECT, "ACTIVE");
-
-        if (existing.isPresent()) {
-            return convertToResponse(existing.get(), user1Id);
-        }
-
         CreateConversationRequest request = CreateConversationRequest.builder()
             .type(ConversationType.DIRECT)
             .participantIds(participants)
             .build();
 
         return createConversation(request, user1Id);
+    }
+
+    public void ensureCanSendDirectMessage(UUID senderId, UUID recipientId) {
+        try {
+            boolean canMessage = userServiceClient.checkDirectMessagePermission(senderId, recipientId);
+            log.info("Direct message permission check for sender {} to receiver {}: {}", senderId, recipientId, canMessage);
+            if (!canMessage) {
+                throw new AccessDeniedException("This user does not accept messages from people who are not friends.");
+            }
+        } catch (AccessDeniedException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error checking direct message permission: {}", e.getMessage(), e);
+            throw new BadRequestException("Failed to verify direct message permission");
+        }
     }
 
 

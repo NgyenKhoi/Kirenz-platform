@@ -15,12 +15,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -54,14 +51,11 @@ class DirectConversationPermissionTest {
             .participantIds(List.of(recipientId))
             .build();
 
-        when(conversationRepository.findExactDirectConversation(
-            anyList(), eq(2), eq(ConversationType.DIRECT), eq("ACTIVE")
-        )).thenReturn(Optional.empty());
         when(userServiceClient.checkDirectMessagePermission(creatorId, recipientId)).thenReturn(false);
 
         assertThatThrownBy(() -> conversationService.createConversation(request, creatorId))
             .isInstanceOf(AccessDeniedException.class)
-            .hasMessage("This user has disabled direct messages.");
+            .hasMessage("This user does not accept messages from people who are not friends.");
 
         verifyNoInteractions(identityServiceClient, messageRepository, messageBroadcastService);
     }

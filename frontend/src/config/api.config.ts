@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
   PRIVACY: {
     BASE: '/privacy',
     ME: '/privacy/me',
+    CAN_MESSAGE: (receiverId: string) => `/privacy/can-message/${receiverId}`,
   },
   VERIFICATION: {
     SEND_OTP: '/verification/send-otp',

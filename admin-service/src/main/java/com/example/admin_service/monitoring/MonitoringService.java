@@ -57,7 +57,7 @@ public class MonitoringService {
             .map(service -> probeService(service, checkedAt))
             .toList();
         List<ServiceHealthResponse> services = probes.stream().map(ServiceProbe::response).toList();
-        List<InfrastructureHealthResponse> infrastructure = aggregateInfrastructure(probes);
+        List<InfrastructureHealthResponse> infrastructure = aggregateInfrastructure();
         boolean partialData = services.stream().anyMatch(service -> service.status() != HealthStatus.UP)
             || infrastructure.stream().anyMatch(component -> component.status() != HealthStatus.UP);
         return new MonitoringResponse(services, infrastructure, partialData, checkedAt);
@@ -117,51 +117,13 @@ public class MonitoringService {
         return new ProbePayload(body == null ? HealthStatus.UNKNOWN : HealthStatus.from(body.status()), components);
     }
 
-    private List<InfrastructureHealthResponse> aggregateInfrastructure(List<ServiceProbe> probes) {
+    private List<InfrastructureHealthResponse> aggregateInfrastructure() {
         Map<String, HealthStatus> local = infrastructureProbe.probe();
         List<InfrastructureHealthResponse> result = new ArrayList<>();
         result.add(component("Kafka", List.of("admin-service"), List.of(local.getOrDefault("kafka", HealthStatus.UNKNOWN))));
         result.add(component("Redis", List.of("admin-service"), List.of(local.getOrDefault("redis", HealthStatus.UNKNOWN))));
 
-        List<HealthStatus> postgres = new ArrayList<>();
-        List<String> postgresSources = new ArrayList<>();
-        postgres.add(local.getOrDefault("postgresql", HealthStatus.UNKNOWN));
-        postgresSources.add("admin-service");
-        addRemoteComponent(probes, List.of("identity-service", "user-service", "notification-service"),
-            List.of("db"), postgres, postgresSources);
-        result.add(component("PostgreSQL", postgresSources, postgres));
-
-        List<HealthStatus> mongo = new ArrayList<>();
-        List<String> mongoSources = new ArrayList<>();
-        addRemoteComponent(probes, List.of("social-service", "chat-service"),
-            List.of("mongo", "mongodb"), mongo, mongoSources);
-        result.add(component("MongoDB", mongoSources, mongo));
         return List.copyOf(result);
-    }
-
-    private void addRemoteComponent(
-        List<ServiceProbe> probes,
-        List<String> serviceNames,
-        List<String> componentNames,
-        List<HealthStatus> statuses,
-        List<String> sources
-    ) {
-        serviceNames.forEach(serviceName -> {
-            ServiceProbe service = probes.stream()
-                .filter(candidate -> candidate.response().serviceName().equals(serviceName))
-                .findFirst().orElse(null);
-            HealthStatus componentStatus = HealthStatus.UNKNOWN;
-            if (service != null) {
-                componentStatus = componentNames.stream()
-                    .map(service.components()::get)
-                    .filter(java.util.Objects::nonNull)
-                    .findFirst()
-                    .orElse(service.response().status() == HealthStatus.DOWN
-                        ? HealthStatus.DOWN : HealthStatus.UNKNOWN);
-            }
-            statuses.add(componentStatus);
-            sources.add(serviceName);
-        });
     }
 
     private InfrastructureHealthResponse component(

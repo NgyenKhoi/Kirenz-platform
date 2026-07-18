@@ -40,6 +40,14 @@ public class PrivacySettingController {
         );
     }
 
+    @GetMapping("/can-message/{receiverId}")
+    public ApiResponse<Boolean> canSendDirectMessage(@PathVariable UUID receiverId) {
+        return ApiResponse.success(
+            "Direct message permission retrieved successfully",
+            privacySettingService.canCurrentUserSendDirectMessage(receiverId)
+        );
+    }
+
     @GetMapping("/internal/check-dm")
     public boolean checkDirectMessagePermission(
         @RequestParam UUID senderId,
