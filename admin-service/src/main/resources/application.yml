@@ -49,6 +49,8 @@ jwt:
 
 admin:
   dashboard-cache-ttl: ${ADMIN_DASHBOARD_CACHE_TTL:PT30S}
+  monitoring:
+    timeout: ${ADMIN_MONITORING_TIMEOUT:PT2S}
 
 management:
   endpoints:

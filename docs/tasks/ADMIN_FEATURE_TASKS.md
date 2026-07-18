@@ -1,6 +1,6 @@
 # Admin Features Task Tracker
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 Legend: `[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked.
 
@@ -61,10 +61,10 @@ Legend: `[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked.
 
 ## Phase 5 - System monitoring
 
-- [ ] Aggregate Identity, User, Social, Chat, and Notification health.
-- [ ] Show Kafka, Redis, PostgreSQL, and MongoDB component states without exposing credentials.
-- [ ] Query Eureka for registered service-instance counts.
-- [ ] Add timeouts, circuit breakers, and explicit `UNKNOWN` state handling.
+- [x] Aggregate Identity, User, Social, Chat, and Notification health.
+- [x] Show Kafka, Redis, PostgreSQL, and MongoDB component states without exposing credentials.
+- [x] Query Eureka for registered service-instance counts.
+- [x] Add timeouts, circuit breakers, and explicit `UNKNOWN` state handling.
 
 ## Phase 6 - Admin web application
 
@@ -108,7 +108,10 @@ Run from repository root unless a working directory is stated.
 | 2026-07-18 | `mvn test` in `admin-service/` after dashboard aggregation | Passed: 33 tests |
 | 2026-07-18 | `npm run lint` in `frontend/` after dashboard integration | Passed |
 | 2026-07-18 | `npm run build` in `frontend/` after dashboard integration | Passed with existing bundle-size warnings |
+| 2026-07-19 | `mvn -Dtest=MonitoringServiceTest test` in `admin-service/` | Passed: 3 tests covering UP, DOWN, and UNKNOWN |
+| 2026-07-19 | `mvn test` in `admin-service/` after system monitoring | Passed: 36 tests |
+| 2026-07-19 | module compile after adding Actuator | Identity, Social, Chat, and Notification passed; User Service remains blocked by pre-existing Lombok annotation-processing failures |
 
 ## Current implementation boundary
 
-Admin user queries, bans, and temporary suspensions use protected Identity Service Feign contracts. Warning delivery uses Kafka, while user-scoped violation history reads Admin Service-owned `admin_actions`. Authenticated users can submit and query reports; admins can review, dismiss, hide/remove content, warn, suspend, or ban reported users with audited optimistic state transitions. Identity and Social now expose bounded dashboard time series, while Admin Service aggregates summary and growth data through Feign with a short TTL cache and explicit partial-data metadata. The role-aware `/admin` frontend route renders those contracts through TanStack Query using the supplied Dashboard visual direction. No service reads another service's database directly. Phase 4 implementation is complete; the live-stack E2E smoke run remains pending environment startup, and system monitoring is next.
+Admin user queries, bans, and temporary suspensions use protected Identity Service Feign contracts. Warning delivery uses Kafka, while user-scoped violation history reads Admin Service-owned `admin_actions`. Authenticated users can submit and query reports; admins can review, dismiss, hide/remove content, warn, suspend, or ban reported users with audited optimistic state transitions. Identity and Social expose bounded dashboard time series, while Admin Service aggregates summary and growth data through Feign with a short TTL cache and explicit partial-data metadata. Admin Service now also discovers Identity, User, Social, Chat, and Notification instances through Eureka, probes bounded Actuator health through circuit breakers, and reports sanitized Kafka, Redis, PostgreSQL, and MongoDB rollups with explicit UP, DOWN, and UNKNOWN states. No service reads another service's database directly. Phase 5 backend implementation is complete; live-stack E2E remains pending environment startup, and the Admin web application is next.
