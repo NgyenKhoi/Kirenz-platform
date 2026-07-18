@@ -7,7 +7,11 @@ import com.example.admin_service.user.dto.AdminUserSummaryResponse;
 import com.example.admin_service.user.dto.PageResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import java.util.UUID;
 
 @FeignClient(name = "identity-service", configuration = FeignAuthForwardingConfig.class)
 public interface IdentityAdminClient {
@@ -23,4 +27,13 @@ public interface IdentityAdminClient {
         @RequestParam("page") int page,
         @RequestParam("size") int size
     );
+
+    @GetMapping("/api/users/internal/admin/{userId}")
+    ApiResponse<AdminUserResponse> getUser(@PathVariable("userId") UUID userId);
+
+    @PostMapping("/api/users/internal/admin/{userId}/ban")
+    ApiResponse<AdminUserResponse> ban(@PathVariable("userId") UUID userId);
+
+    @PostMapping("/api/users/internal/admin/{userId}/unban")
+    ApiResponse<AdminUserResponse> unban(@PathVariable("userId") UUID userId);
 }

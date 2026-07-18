@@ -5,9 +5,9 @@ spring:
   application:
     name: admin-service
   datasource:
-    url: ${ADMIN_DATABASE_URL:jdbc:postgresql://localhost:5432/admin_db}
-    username: ${ADMIN_DATABASE_USERNAME:kirenz}
-    password: ${ADMIN_DATABASE_PASSWORD:kirenz}
+    url: ${ADMIN_DATABASE_URL}
+    username: ${ADMIN_DATABASE_USERNAME}
+    password: ${ADMIN_DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       auto-commit: false
@@ -19,13 +19,13 @@ spring:
       hibernate:
         format_sql: true
   liquibase:
-    enabled: ${LIQUIBASE_ENABLED:true}
+    enabled: false
     change-log: classpath:db/changelog/db.changelog-master.yml
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
@@ -45,7 +45,7 @@ eureka:
     prefer-ip-address: true
 
 jwt:
-  secret: ${JWT_SECRET:local-dev-secret-key-local-dev-secret-key-123456}
+  secret: ${JWT_SECRET}
 
 management:
   endpoints:

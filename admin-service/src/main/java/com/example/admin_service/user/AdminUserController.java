@@ -1,14 +1,23 @@
 package com.example.admin_service.user;
 
 import com.example.admin_service.common.dto.ApiResponse;
+import com.example.admin_service.audit.dto.AdminActionResponse;
+import com.example.admin_service.user.dto.AdminUserActionRequest;
 import com.example.admin_service.user.dto.AdminUserResponse;
 import com.example.admin_service.user.dto.AdminUserSummaryResponse;
+import com.example.admin_service.user.dto.AdminWarningRequest;
 import com.example.admin_service.user.dto.PageResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin/users")
@@ -16,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminUserController {
 
     private final IdentityAdminClient identityAdminClient;
+    private final AdminUserManagementService adminUserManagementService;
 
     @GetMapping("/summary")
     public ApiResponse<AdminUserSummaryResponse> getSummary() {
@@ -31,5 +41,38 @@ public class AdminUserController {
         @RequestParam(defaultValue = "20") int size
     ) {
         return identityAdminClient.searchUsers(query, status, emailVerified, page, size);
+    }
+
+    @PostMapping("/{userId}/ban")
+    public ApiResponse<AdminUserResponse> ban(
+        @PathVariable UUID userId,
+        @Valid @RequestBody AdminUserActionRequest request
+    ) {
+        return ApiResponse.success(
+            "Account banned successfully",
+            adminUserManagementService.ban(userId, request)
+        );
+    }
+
+    @PostMapping("/{userId}/unban")
+    public ApiResponse<AdminUserResponse> unban(
+        @PathVariable UUID userId,
+        @Valid @RequestBody AdminUserActionRequest request
+    ) {
+        return ApiResponse.success(
+            "Account unbanned successfully",
+            adminUserManagementService.unban(userId, request)
+        );
+    }
+
+    @PostMapping("/{userId}/warnings")
+    public ApiResponse<AdminActionResponse> sendWarning(
+        @PathVariable UUID userId,
+        @Valid @RequestBody AdminWarningRequest request
+    ) {
+        return ApiResponse.success(
+            "Warning sent successfully",
+            adminUserManagementService.sendWarning(userId, request)
+        );
     }
 }

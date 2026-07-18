@@ -144,6 +144,19 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+				<groupId>org.liquibase</groupId>
+				<artifactId>liquibase-maven-plugin</artifactId>
+				<version>4.31.1</version>
+				<configuration>
+					<!-- PostgreSQL migrations only -->
+					<changeLogFile>src/main/resources/db/changelog/db.changelog-master.yml</changeLogFile>
+					<url>${env.ADMIN_DATABASE_URL}</url>
+					<username>${env.ADMIN_DATABASE_USERNAME}</username>
+					<password>${env.ADMIN_DATABASE_PASSWORD}</password>
+					<driver>org.postgresql.Driver</driver>
+				</configuration>
+			</plugin>
         </plugins>
     </build>
 </project>

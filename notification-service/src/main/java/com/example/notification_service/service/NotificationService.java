@@ -55,6 +55,11 @@ public class NotificationService {
         return toResponse(notification);
     }
 
+    @Transactional(readOnly = true)
+    public boolean notificationExists(UUID receiverId, NotificationType type, String targetId) {
+        return notificationRepository.existsByReceiverIdAndTypeAndTargetId(receiverId, type, targetId);
+    }
+
     @Transactional
     public void markAllAsRead(UUID userId) {
         List<Notification> unread = notificationRepository.findByReceiverIdAndIsReadFalseAndTypeNot(
