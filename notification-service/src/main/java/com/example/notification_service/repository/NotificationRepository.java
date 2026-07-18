@@ -18,6 +18,8 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     boolean existsByReceiverIdAndActorIdAndTypeAndCreatedAtAfter(UUID receiverId, UUID actorId, com.example.notification_service.model.NotificationType type, java.time.Instant after);
 
+    boolean existsByReceiverIdAndTypeAndTargetId(UUID receiverId, NotificationType type, String targetId);
+
     Optional<Notification> findByIdAndReceiverId(UUID id, UUID receiverId);
 
     List<Notification> findByReceiverIdAndIsReadFalseAndTypeNot(UUID receiverId, NotificationType excludedType);

@@ -3,6 +3,7 @@ package com.kirenz.identity_service.admin.service;
 import com.kirenz.identity_service.admin.dto.AdminUserResponse;
 import com.kirenz.identity_service.admin.dto.AdminUserSummaryResponse;
 import com.kirenz.identity_service.admin.dto.PageResponse;
+import com.kirenz.identity_service.common.exception.UserNotFoundException;
 import com.kirenz.identity_service.user.model.AccountStatus;
 import com.kirenz.identity_service.user.model.User;
 import com.kirenz.identity_service.user.repository.UserRepository;
@@ -20,6 +21,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -75,11 +77,17 @@ public class AdminUserQueryService {
         return PageResponse.from(result);
     }
 
+    public AdminUserResponse getUser(UUID userId) {
+        return userRepository.findById(userId)
+            .map(this::toResponse)
+            .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
+    }
+
     private AdminUserResponse toResponse(User user) {
         return new AdminUserResponse(
             user.getId(),
             user.getEmail(),
-            user.getUsername(),
+            user.getProfileUsername(),
             user.getDisplayName(),
             user.getAvatarUrl(),
             user.getRole(),

@@ -23,10 +23,17 @@ public class NotificationEventListener {
     public void handleNotificationEvent(NotificationEvent event) {
         log.info("Received notification event of type: {}", event.getType());
         try {
+            NotificationType type = NotificationType.valueOf(event.getType());
+            if (type == NotificationType.ADMIN_WARNING
+                && event.getTargetId() != null
+                && notificationService.notificationExists(event.getReceiverId(), type, event.getTargetId())) {
+                log.info("Ignoring duplicate admin warning event: {}", event.getTargetId());
+                return;
+            }
             Notification notification = Notification.builder()
                 .receiverId(event.getReceiverId())
                 .actorId(event.getActorId())
-                .type(NotificationType.valueOf(event.getType()))
+                .type(type)
                 .targetId(event.getTargetId())
                 .message(event.getMessage())
                 .createdAt(event.getCreatedAt() != null ? event.getCreatedAt() : Instant.now())

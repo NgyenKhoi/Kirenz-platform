@@ -10,5 +10,6 @@ public enum NotificationType {
     COMMENT_MENTION,
     BIRTHDAY,
     WELCOME,
+    ADMIN_WARNING,
     MESSAGE
 }
