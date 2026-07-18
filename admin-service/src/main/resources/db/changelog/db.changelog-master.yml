@@ -2,3 +2,6 @@ databaseChangeLog:
   - include:
       file: 001-init-admin-schema.sql
       relativeToChangelogFile: true
+  - include:
+      file: 002-report-deduplication.sql
+      relativeToChangelogFile: true
