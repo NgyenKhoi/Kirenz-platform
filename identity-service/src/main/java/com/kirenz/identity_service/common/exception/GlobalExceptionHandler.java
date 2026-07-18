@@ -60,6 +60,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Account has been deactivated", errorResponse));
     }
 
+    @ExceptionHandler(AccountSuspendedException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleAccountSuspended(AccountSuspendedException ex) {
+        String message = "Account is suspended until " + ex.getSuspendedUntil();
+        ErrorResponse errorResponse = ErrorResponse.of(message);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ApiResponse.error(message, errorResponse));
+    }
+
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiResponse<ErrorResponse>> handleUserNotFound(UserNotFoundException ex) {
         ErrorResponse errorResponse = ErrorResponse.of(ex.getMessage());

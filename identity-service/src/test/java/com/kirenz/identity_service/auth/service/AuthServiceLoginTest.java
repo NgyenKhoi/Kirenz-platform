@@ -5,6 +5,7 @@ import com.kirenz.identity_service.auth.dto.LoginResponseDTO;
 import com.kirenz.identity_service.auth.security.JWTService;
 import com.kirenz.identity_service.common.exception.AccountBannedException;
 import com.kirenz.identity_service.common.exception.AccountDeactivatedException;
+import com.kirenz.identity_service.common.exception.AccountSuspendedException;
 import com.kirenz.identity_service.common.exception.InvalidCredentialsException;
 import com.kirenz.identity_service.common.exception.UserNotFoundException;
 import com.kirenz.identity_service.user.mapper.UserMapper;
@@ -270,6 +271,42 @@ class AuthServiceLoginTest {
         verify(passwordEncoder).matches("password123", activeUser.getPassword());
         verify(jwtService, never()).generateAccessToken(any());
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should reject login while account suspension is active")
+    void login_WithSuspendedAccount_ShouldThrowAccountSuspendedException() {
+        activeUser.setStatus(AccountStatus.SUSPENDED);
+        activeUser.setSuspendedUntil(Instant.now().plusSeconds(3600));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+            .thenReturn(null);
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(activeUser));
+        when(passwordEncoder.matches("password123", activeUser.getPassword())).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.login(validLoginRequest))
+            .isInstanceOf(AccountSuspendedException.class)
+            .hasMessage("Account is temporarily suspended");
+        verify(jwtService, never()).generateAccessToken(any());
+    }
+
+    @Test
+    @DisplayName("should reactivate expired suspension during login")
+    void login_WithExpiredSuspension_ShouldReactivateAccount() {
+        activeUser.setStatus(AccountStatus.SUSPENDED);
+        activeUser.setSuspendedUntil(Instant.now().minusSeconds(1));
+        activeUser.setModerationReason("SPAM");
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(null);
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(activeUser));
+        when(passwordEncoder.matches("password123", activeUser.getPassword())).thenReturn(true);
+        when(userRepository.save(any(User.class))).thenReturn(activeUser);
+        when(jwtService.generateAccessToken(activeUser)).thenReturn("access-token");
+        when(jwtService.generateRefreshToken(activeUser)).thenReturn("refresh-token");
+
+        authService.login(validLoginRequest);
+
+        assertThat(activeUser.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(activeUser.getSuspendedUntil()).isNull();
+        assertThat(activeUser.getModerationReason()).isNull();
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.kirenz.identity_service.admin.controller;
 
 import com.kirenz.identity_service.admin.dto.AdminUserResponse;
 import com.kirenz.identity_service.admin.dto.AdminUserSummaryResponse;
+import com.kirenz.identity_service.admin.dto.SuspendUserRequest;
 import com.kirenz.identity_service.admin.dto.PageResponse;
 import com.kirenz.identity_service.admin.security.CurrentAdmin;
 import com.kirenz.identity_service.admin.service.AdminUserCommandService;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.validation.Valid;
 
 import java.util.UUID;
 
@@ -68,5 +71,15 @@ public class InternalAdminUserController {
     public ApiResponse<AdminUserResponse> unban(@PathVariable UUID userId) {
         AdminUserResponse user = adminUserCommandService.unban(userId, currentAdmin.id());
         return ApiResponse.success("Account unbanned successfully", user);
+    }
+
+    @PostMapping("/{userId}/suspend")
+    public ApiResponse<AdminUserResponse> suspend(
+        @PathVariable UUID userId,
+        @Valid @RequestBody SuspendUserRequest request
+    ) {
+        AdminUserResponse user = adminUserCommandService.suspend(
+            userId, currentAdmin.id(), request.suspendedUntil(), request.moderationReason());
+        return ApiResponse.success("Account suspended successfully", user);
     }
 }

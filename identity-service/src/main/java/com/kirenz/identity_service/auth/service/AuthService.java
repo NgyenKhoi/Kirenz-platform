@@ -11,6 +11,7 @@ import com.kirenz.identity_service.auth.event.UserCreatedEvent;
 import com.kirenz.identity_service.auth.security.JWTService;
 import com.kirenz.identity_service.common.exception.AccountBannedException;
 import com.kirenz.identity_service.common.exception.AccountDeactivatedException;
+import com.kirenz.identity_service.common.exception.AccountSuspendedException;
 import com.kirenz.identity_service.common.exception.EmailAlreadyExistsException;
 import com.kirenz.identity_service.common.exception.ExpiredTokenException;
 import com.kirenz.identity_service.common.exception.InvalidCredentialsException;
@@ -29,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -111,10 +113,15 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new UserNotFoundException("User or email does not exist"));
 
+        reactivateExpiredSuspension(user);
+
         try {
             authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
             );
+        } catch (LockedException e) {
+            assertLoginAllowed(user);
+            throw new InvalidCredentialsException("Invalid email or password");
         } catch (BadCredentialsException e) {
             throw new InvalidCredentialsException("Invalid email or password");
         }
@@ -251,6 +258,22 @@ public class AuthService {
         }
         if (user.getStatus() == AccountStatus.DEACTIVATED) {
             throw new AccountDeactivatedException("Account has been deactivated");
+        }
+        if (user.getStatus() == AccountStatus.SUSPENDED) {
+            if (user.getSuspendedUntil() != null && user.getSuspendedUntil().isAfter(Instant.now())) {
+                throw new AccountSuspendedException("Account is temporarily suspended", user.getSuspendedUntil());
+            }
+            reactivateExpiredSuspension(user);
+        }
+    }
+
+    private void reactivateExpiredSuspension(User user) {
+        if (user.getStatus() == AccountStatus.SUSPENDED
+            && (user.getSuspendedUntil() == null || !user.getSuspendedUntil().isAfter(Instant.now()))) {
+            user.setStatus(AccountStatus.ACTIVE);
+            user.setSuspendedUntil(null);
+            user.setModerationReason(null);
+            userRepository.save(user);
         }
     }
 

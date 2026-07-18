@@ -42,6 +42,7 @@ public class AdminUserQueryService {
             .toInstant();
         Instant monthStart = today.withDayOfMonth(1).atStartOfDay(zoneId).toInstant();
         long banned = userRepository.countByStatus(AccountStatus.BANNED);
+        long suspended = userRepository.countByStatus(AccountStatus.SUSPENDED);
         long deactivated = userRepository.countByStatus(AccountStatus.DEACTIVATED);
 
         return new AdminUserSummaryResponse(
@@ -50,8 +51,9 @@ public class AdminUserQueryService {
             userRepository.countByCreatedAtGreaterThanEqual(weekStart),
             userRepository.countByCreatedAtGreaterThanEqual(monthStart),
             banned,
+            suspended,
             deactivated,
-            banned + deactivated
+            banned + suspended + deactivated
         );
     }
 
@@ -94,7 +96,8 @@ public class AdminUserQueryService {
             user.getStatus(),
             Boolean.TRUE.equals(user.getEmailVerified()),
             user.getCreatedAt(),
-            user.getLastLoginAt()
+            user.getLastLoginAt(),
+            user.getSuspendedUntil()
         );
     }
 }
