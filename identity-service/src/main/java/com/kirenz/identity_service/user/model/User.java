@@ -90,6 +90,12 @@ public class User implements UserDetails {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
+    @Column(name = "suspended_until")
+    private Instant suspendedUntil;
+
+    @Column(name = "moderation_reason", length = 255)
+    private String moderationReason;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

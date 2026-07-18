@@ -2,6 +2,9 @@ package com.example.admin_service.user;
 
 import com.example.admin_service.user.dto.AdminUserActionRequest;
 import com.example.admin_service.user.dto.AdminUserResponse;
+import com.example.admin_service.audit.AdminActionService;
+import com.example.admin_service.audit.AdminTargetType;
+import com.example.admin_service.user.dto.PageResponse;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
@@ -18,11 +21,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,6 +42,9 @@ class AdminUserControllerTest {
 
     @MockitoBean
     private AdminUserManagementService adminUserManagementService;
+
+    @MockitoBean
+    private AdminActionService adminActionService;
 
     @Test
     void allowsAdminToBanUser() throws Exception {
@@ -72,6 +80,19 @@ class AdminUserControllerTest {
             .andExpect(jsonPath("$.success").value(false));
     }
 
+    @Test
+    void allowsAdminToReadUserModerationHistory() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(adminActionService.search(null, AdminTargetType.USER, userId.toString(), 0, 20))
+            .thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
+
+        mockMvc.perform(get("/api/admin/users/{userId}/actions", userId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token("ADMIN")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
     private String token(String role) {
         Instant now = Instant.now();
         SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
@@ -98,6 +119,7 @@ class AdminUserControllerTest {
             status,
             true,
             Instant.now(),
+            null,
             null
         );
     }

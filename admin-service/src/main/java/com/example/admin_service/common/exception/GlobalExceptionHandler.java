@@ -65,6 +65,12 @@ public class GlobalExceptionHandler {
             .body(ErrorResponse.of("Notification service is temporarily unavailable"));
     }
 
+    @ExceptionHandler(DownstreamUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleDownstreamUnavailable(DownstreamUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body(ErrorResponse.of(ex.getMessage()));
+    }
+
     private String extractDownstreamMessage(FeignException ex, HttpStatus status) {
         try {
             String message = objectMapper.readTree(ex.contentUTF8()).path("message").asText();

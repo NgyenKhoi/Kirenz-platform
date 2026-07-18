@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -65,6 +66,33 @@ class AdminUserCommandServiceTest {
             .isInstanceOf(BadRequestException.class)
             .hasMessage("Account is already banned");
         verify(userRepository, never()).save(user);
+    }
+
+    @Test
+    void suspendsActiveUserUntilFutureTime() {
+        UUID adminId = UUID.randomUUID();
+        User user = user(AccountStatus.ACTIVE, UserRole.USER);
+        Instant suspendedUntil = Instant.now().plusSeconds(3600);
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+
+        var result = adminUserCommandService.suspend(
+            user.getId(), adminId, suspendedUntil, "HARASSMENT");
+
+        assertThat(result.status()).isEqualTo(AccountStatus.SUSPENDED);
+        assertThat(result.suspendedUntil()).isEqualTo(suspendedUntil);
+        assertThat(user.getModerationReason()).isEqualTo("HARASSMENT");
+    }
+
+    @Test
+    void rejectsSuspendingBannedUser() {
+        User user = user(AccountStatus.BANNED, UserRole.USER);
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> adminUserCommandService.suspend(
+            user.getId(), UUID.randomUUID(), Instant.now().plusSeconds(3600), "SPAM"))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessage("Banned accounts cannot be suspended");
     }
 
     @Test

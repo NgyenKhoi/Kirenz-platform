@@ -11,6 +11,8 @@ import com.example.admin_service.notification.NotificationProducer;
 import com.example.admin_service.user.dto.AdminUserActionRequest;
 import com.example.admin_service.user.dto.AdminUserResponse;
 import com.example.admin_service.user.dto.AdminWarningRequest;
+import com.example.admin_service.user.dto.AdminSuspendRequest;
+import com.example.admin_service.user.dto.IdentitySuspendRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -22,6 +24,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -104,6 +108,24 @@ class AdminUserManagementServiceTest {
         assertThat(eventCaptor.getValue().getTargetId()).isEqualTo(actionId.toString());
     }
 
+    @Test
+    void suspendsUserThenRecordsAudit() {
+        UUID adminId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Instant suspendedUntil = Instant.now().plusSeconds(3600);
+        AdminUserResponse suspended = user(userId, "SUSPENDED");
+        when(currentAdmin.id()).thenReturn(adminId);
+        when(identityAdminClient.suspend(eq(userId), any(IdentitySuspendRequest.class)))
+            .thenReturn(ApiResponse.success("suspended", suspended));
+
+        var result = adminUserManagementService.suspend(userId,
+            new AdminSuspendRequest(suspendedUntil, "HARASSMENT", "Repeated abuse"));
+
+        assertThat(result.status()).isEqualTo("SUSPENDED");
+        verify(adminActionService).record(adminId, AdminActionType.SUSPEND_ACCOUNT,
+            AdminTargetType.USER, userId.toString(), "HARASSMENT", "Repeated abuse");
+    }
+
     private AdminUserResponse user(UUID userId, String status) {
         return new AdminUserResponse(
             userId,
@@ -115,6 +137,7 @@ class AdminUserManagementServiceTest {
             status,
             true,
             Instant.now(),
+            null,
             null
         );
     }

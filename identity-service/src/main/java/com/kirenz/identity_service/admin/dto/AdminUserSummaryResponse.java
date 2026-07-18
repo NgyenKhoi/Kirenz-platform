@@ -6,6 +6,7 @@ public record AdminUserSummaryResponse(
     long newThisWeek,
     long newThisMonth,
     long bannedAccounts,
+    long suspendedAccounts,
     long deactivatedAccounts,
     long restrictedAccounts
 ) {

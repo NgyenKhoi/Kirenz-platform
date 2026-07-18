@@ -2,6 +2,9 @@ package com.example.admin_service.report;
 
 import com.example.admin_service.common.exception.BadRequestException;
 import com.example.admin_service.report.dto.CreateReportRequest;
+import com.example.admin_service.common.dto.ApiResponse;
+import com.example.admin_service.common.exception.DownstreamUnavailableException;
+import com.example.admin_service.social.SocialModerationClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,11 +28,14 @@ class ReportServiceTest {
     @Mock
     private ReportRepository reportRepository;
 
+    @Mock
+    private SocialModerationClient socialModerationClient;
+
     private ReportService reportService;
 
     @BeforeEach
     void setUp() {
-        reportService = new ReportService(reportRepository, new ReportMapper());
+        reportService = new ReportService(reportRepository, new ReportMapper(), socialModerationClient);
     }
 
     @Test
@@ -78,10 +84,39 @@ class ReportServiceTest {
             .build();
         when(reportRepository.findById(reportId)).thenReturn(Optional.of(report));
         when(reportRepository.countByTargetTypeAndTargetId(ReportTargetType.COMMENT, "comment-1")).thenReturn(3L);
+        when(socialModerationClient.getContent("COMMENT", "comment-1"))
+            .thenReturn(ApiResponse.success("found", null));
 
         var detail = reportService.getAdminDetail(reportId);
 
         assertThat(detail.report().id()).isEqualTo(reportId);
         assertThat(detail.aggregateReportCount()).isEqualTo(3);
+        assertThat(detail.partialData()).isFalse();
+    }
+
+    @Test
+    void returnsPartialAdminDetailWhenSocialServiceIsUnavailable() {
+        UUID reportId = UUID.randomUUID();
+        Report report = Report.builder()
+            .id(reportId)
+            .reporterId(UUID.randomUUID())
+            .targetType(ReportTargetType.POST)
+            .targetId("post-1")
+            .reason(ReportReason.SPAM)
+            .status(ReportStatus.PENDING)
+            .createdAt(Instant.now())
+            .updatedAt(Instant.now())
+            .build();
+        when(reportRepository.findById(reportId)).thenReturn(Optional.of(report));
+        when(reportRepository.countByTargetTypeAndTargetId(ReportTargetType.POST, "post-1")).thenReturn(2L);
+        when(socialModerationClient.getContent("POST", "post-1"))
+            .thenThrow(new DownstreamUnavailableException("Social service", new RuntimeException()));
+
+        var detail = reportService.getAdminDetail(reportId);
+
+        assertThat(detail.report().id()).isEqualTo(reportId);
+        assertThat(detail.aggregateReportCount()).isEqualTo(2);
+        assertThat(detail.partialData()).isTrue();
+        assertThat(detail.unavailableComponents()).containsExactly("social-service");
     }
 }

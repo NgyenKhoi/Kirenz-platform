@@ -44,6 +44,7 @@ class AdminUserQueryServiceTest {
         when(userRepository.countByCreatedAtGreaterThanEqual(any(Instant.class)))
             .thenReturn(3L, 14L, 42L);
         when(userRepository.countByStatus(AccountStatus.BANNED)).thenReturn(4L);
+        when(userRepository.countByStatus(AccountStatus.SUSPENDED)).thenReturn(3L);
         when(userRepository.countByStatus(AccountStatus.DEACTIVATED)).thenReturn(2L);
 
         var result = adminUserQueryService.getSummary();
@@ -52,7 +53,8 @@ class AdminUserQueryServiceTest {
         assertThat(result.newToday()).isEqualTo(3L);
         assertThat(result.newThisWeek()).isEqualTo(14L);
         assertThat(result.newThisMonth()).isEqualTo(42L);
-        assertThat(result.restrictedAccounts()).isEqualTo(6L);
+        assertThat(result.suspendedAccounts()).isEqualTo(3L);
+        assertThat(result.restrictedAccounts()).isEqualTo(9L);
     }
 
     @Test

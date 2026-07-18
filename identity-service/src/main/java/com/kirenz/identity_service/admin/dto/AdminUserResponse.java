@@ -16,6 +16,7 @@ public record AdminUserResponse(
     AccountStatus status,
     boolean emailVerified,
     Instant createdAt,
-    Instant lastLoginAt
+    Instant lastLoginAt,
+    Instant suspendedUntil
 ) {
 }
