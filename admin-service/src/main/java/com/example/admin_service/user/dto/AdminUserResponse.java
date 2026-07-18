@@ -13,6 +13,7 @@ public record AdminUserResponse(
     String status,
     boolean emailVerified,
     Instant createdAt,
-    Instant lastLoginAt
+    Instant lastLoginAt,
+    Instant suspendedUntil
 ) {
 }

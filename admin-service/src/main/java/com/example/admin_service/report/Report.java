@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -81,4 +82,54 @@ public class Report {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Version
+    @Column(nullable = false)
+    private long version;
+
+    public void startReview(UUID adminId, String note) {
+        if (status != ReportStatus.PENDING) {
+            throw new IllegalStateException("Only pending reports can start review");
+        }
+        status = ReportStatus.REVIEWING;
+        assignedAdminId = adminId;
+        adminNote = note;
+    }
+
+    public void dismiss(UUID adminId, ModerationReason reason, String note, Instant now) {
+        requireOpen();
+        status = ReportStatus.DISMISSED;
+        resolution = ReportResolution.NO_VIOLATION;
+        moderationReason = reason.name();
+        adminNote = note;
+        assignedAdminId = assignedAdminId == null ? adminId : assignedAdminId;
+        resolvedBy = adminId;
+        resolvedAt = now;
+    }
+
+    public void resolve(
+        UUID adminId,
+        ReportResolution outcome,
+        ModerationReason reason,
+        String note,
+        Instant now
+    ) {
+        requireOpen();
+        if (outcome == null || outcome == ReportResolution.NO_VIOLATION) {
+            throw new IllegalArgumentException("A violation resolution is required");
+        }
+        status = ReportStatus.RESOLVED;
+        resolution = outcome;
+        moderationReason = reason.name();
+        adminNote = note;
+        assignedAdminId = assignedAdminId == null ? adminId : assignedAdminId;
+        resolvedBy = adminId;
+        resolvedAt = now;
+    }
+
+    private void requireOpen() {
+        if (status == ReportStatus.RESOLVED || status == ReportStatus.DISMISSED) {
+            throw new IllegalStateException("Report is already closed");
+        }
+    }
 }

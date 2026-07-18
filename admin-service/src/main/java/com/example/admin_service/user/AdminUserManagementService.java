@@ -10,6 +10,8 @@ import com.example.admin_service.notification.NotificationProducer;
 import com.example.admin_service.user.dto.AdminUserActionRequest;
 import com.example.admin_service.user.dto.AdminUserResponse;
 import com.example.admin_service.user.dto.AdminWarningRequest;
+import com.example.admin_service.user.dto.AdminSuspendRequest;
+import com.example.admin_service.user.dto.IdentitySuspendRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -79,5 +81,20 @@ public class AdminUserManagementService {
             throw exception;
         }
         return action;
+    }
+
+    public AdminUserResponse suspend(UUID userId, AdminSuspendRequest request) {
+        UUID adminId = currentAdmin.id();
+        AdminUserResponse user = identityAdminClient.suspend(userId,
+            new IdentitySuspendRequest(request.suspendedUntil(), request.moderationReason())).getData();
+        adminActionService.record(
+            adminId,
+            AdminActionType.SUSPEND_ACCOUNT,
+            AdminTargetType.USER,
+            userId.toString(),
+            request.moderationReason(),
+            request.note()
+        );
+        return user;
     }
 }

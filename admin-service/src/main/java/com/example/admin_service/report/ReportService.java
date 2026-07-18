@@ -6,6 +6,9 @@ import com.example.admin_service.report.dto.AdminReportDetailResponse;
 import com.example.admin_service.report.dto.CreateReportRequest;
 import com.example.admin_service.report.dto.ReportResponse;
 import com.example.admin_service.user.dto.PageResponse;
+import com.example.admin_service.common.exception.DownstreamUnavailableException;
+import com.example.admin_service.social.SocialModerationClient;
+import com.example.admin_service.social.dto.SocialModerationContentResponse;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,6 +30,7 @@ public class ReportService {
 
     private final ReportRepository reportRepository;
     private final ReportMapper reportMapper;
+    private final SocialModerationClient socialModerationClient;
 
     @Transactional
     public ReportResponse create(UUID reporterId, CreateReportRequest request) {
@@ -76,7 +80,19 @@ public class ReportService {
         Report report = reportRepository.findById(reportId)
             .orElseThrow(() -> new NotFoundException("Report not found"));
         long count = reportRepository.countByTargetTypeAndTargetId(report.getTargetType(), report.getTargetId());
-        return reportMapper.toAdminDetail(report, count);
+        SocialModerationContentResponse targetContent = null;
+        List<String> unavailableComponents = List.of();
+        if (report.getTargetType() == ReportTargetType.POST || report.getTargetType() == ReportTargetType.COMMENT) {
+            try {
+                targetContent = socialModerationClient
+                    .getContent(report.getTargetType().name(), report.getTargetId())
+                    .getData();
+            } catch (DownstreamUnavailableException ex) {
+                unavailableComponents = List.of("social-service");
+            }
+        }
+        return reportMapper.toAdminDetail(report, count, targetContent,
+            !unavailableComponents.isEmpty(), unavailableComponents);
     }
 
     private PageRequest pageRequest(int page, int size) {
