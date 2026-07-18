@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
 public interface CommentRepository extends MongoRepository<Comment, String> {
 
@@ -16,4 +17,8 @@ public interface CommentRepository extends MongoRepository<Comment, String> {
     Optional<Comment> findByIdAndPostIdAndStatus(String id, String postId, CommentStatus status);
 
     List<Comment> findByParentCommentIdAndStatus(String parentCommentId, CommentStatus status);
+
+    long countByStatus(CommentStatus status);
+
+    List<Comment> findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant from, Instant to);
 }

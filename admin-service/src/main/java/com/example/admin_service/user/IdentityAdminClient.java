@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
+import java.time.LocalDate;
+import java.util.List;
+import com.example.admin_service.dashboard.dto.GrowthPointResponse;
 
 @FeignClient(
     name = "identity-service",
@@ -24,6 +27,13 @@ public interface IdentityAdminClient {
 
     @GetMapping("/api/users/internal/admin/summary")
     ApiResponse<AdminUserSummaryResponse> getUserSummary();
+
+    @GetMapping("/api/users/internal/admin/growth")
+    ApiResponse<List<GrowthPointResponse>> getUserGrowth(
+        @RequestParam("from") LocalDate from,
+        @RequestParam("to") LocalDate to,
+        @RequestParam("granularity") String granularity
+    );
 
     @GetMapping("/api/users/internal/admin")
     ApiResponse<PageResponse<AdminUserResponse>> searchUsers(

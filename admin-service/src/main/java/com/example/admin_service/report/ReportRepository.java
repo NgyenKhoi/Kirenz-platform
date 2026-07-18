@@ -23,4 +23,6 @@ public interface ReportRepository extends JpaRepository<Report, UUID>, JpaSpecif
     Optional<Report> findByIdAndReporterId(UUID id, UUID reporterId);
 
     long countByTargetTypeAndTargetId(ReportTargetType targetType, String targetId);
+
+    long countByStatus(ReportStatus status);
 }

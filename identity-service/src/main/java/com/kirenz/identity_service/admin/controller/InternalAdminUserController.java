@@ -20,6 +20,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 
 import java.util.UUID;
+import java.time.LocalDate;
+import java.util.List;
+import com.kirenz.identity_service.admin.dto.GrowthPointResponse;
 
 @RestController
 @RequestMapping("/api/users/internal/admin")
@@ -33,6 +36,18 @@ public class InternalAdminUserController {
     @GetMapping("/summary")
     public ApiResponse<AdminUserSummaryResponse> getSummary() {
         return ApiResponse.success("Admin user summary retrieved successfully", adminUserQueryService.getSummary());
+    }
+
+    @GetMapping("/growth")
+    public ApiResponse<List<GrowthPointResponse>> getGrowth(
+        @RequestParam(required = false) LocalDate from,
+        @RequestParam(required = false) LocalDate to,
+        @RequestParam(defaultValue = "DAY") String granularity
+    ) {
+        return ApiResponse.success(
+            "Admin user growth retrieved successfully",
+            adminUserQueryService.getGrowth(from, to, granularity)
+        );
     }
 
     @GetMapping("/{userId}")

@@ -47,6 +47,9 @@ eureka:
 jwt:
   secret: ${JWT_SECRET}
 
+admin:
+  dashboard-cache-ttl: ${ADMIN_DASHBOARD_CACHE_TTL:PT30S}
+
 management:
   endpoints:
     web:
