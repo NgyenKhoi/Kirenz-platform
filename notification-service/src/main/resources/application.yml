@@ -35,7 +35,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   liquibase:
-    enabled: false
+    enabled: ${NOTIFICATION_LIQUIBASE_ENABLED:false}
     change-log: classpath:db/changelog/db.changelog-master.yml
 
   kafka:

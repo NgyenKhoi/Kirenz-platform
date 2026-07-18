@@ -19,7 +19,7 @@ spring:
       hibernate:
         format_sql: true
   liquibase:
-    enabled: false
+    enabled: ${ADMIN_LIQUIBASE_ENABLED:false}
     change-log: classpath:db/changelog/db.changelog-master.yml
   data:
     redis:
