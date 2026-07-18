@@ -68,11 +68,11 @@ Legend: `[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked.
 
 ## Phase 6 - Admin web application
 
-- [ ] Complete shared admin shell navigation for Users, Reports, Monitoring, and Audit.
-- [ ] Build user list, search, filters, detail, ban/unban, and warning UI.
-- [ ] Build report queue, report detail, and moderation action UI.
-- [ ] Build system-monitoring UI.
-- [ ] Add TanStack Query hooks, loading/error states, and frontend tests.
+- [x] Complete shared admin shell navigation for Users, Reports, Monitoring, and Audit.
+- [x] Build user list, search, filters, detail, ban/unban, and warning UI.
+- [x] Build report queue, report detail, and moderation action UI.
+- [x] Build system-monitoring UI.
+- [x] Add TanStack Query hooks, loading/error states, and frontend tests.
 
 ## End-to-end integration track
 
@@ -110,8 +110,12 @@ Run from repository root unless a working directory is stated.
 | 2026-07-18 | `npm run build` in `frontend/` after dashboard integration | Passed with existing bundle-size warnings |
 | 2026-07-19 | `mvn -Dtest=MonitoringServiceTest test` in `admin-service/` | Passed: 3 tests covering UP, DOWN, and UNKNOWN |
 | 2026-07-19 | `mvn test` in `admin-service/` after system monitoring | Passed: 36 tests |
-| 2026-07-19 | module compile after adding Actuator | Identity, Social, Chat, and Notification passed; User Service remains blocked by pre-existing Lombok annotation-processing failures |
+| 2026-07-19 | module compile after adding Actuator | Identity, User, Social, Chat, and Notification passed after declaring the User Service Lombok processor |
+| 2026-07-19 | `npm test` in `frontend/` after Admin web integration | Passed: 3 route-guard tests |
+| 2026-07-19 | `npm run lint` in `frontend/` after Admin web integration | Passed |
+| 2026-07-19 | `npm run build` in `frontend/` after Admin web integration | Passed with existing bundle-size warnings |
+| 2026-07-19 | `docker compose config --quiet` after local database provisioning | Passed |
 
 ## Current implementation boundary
 
-Admin user queries, bans, and temporary suspensions use protected Identity Service Feign contracts. Warning delivery uses Kafka, while user-scoped violation history reads Admin Service-owned `admin_actions`. Authenticated users can submit and query reports; admins can review, dismiss, hide/remove content, warn, suspend, or ban reported users with audited optimistic state transitions. Identity and Social expose bounded dashboard time series, while Admin Service aggregates summary and growth data through Feign with a short TTL cache and explicit partial-data metadata. Admin Service now also discovers Identity, User, Social, Chat, and Notification instances through Eureka, probes bounded Actuator health through circuit breakers, and reports sanitized Kafka, Redis, PostgreSQL, and MongoDB rollups with explicit UP, DOWN, and UNKNOWN states. No service reads another service's database directly. Phase 5 backend implementation is complete; live-stack E2E remains pending environment startup, and the Admin web application is next.
+Admin user queries, bans, suspensions, warnings, and user-scoped audit history are integrated into the role-protected Admin web application. The report queue supports detail, review, dismiss, content moderation, warnings, suspension, and ban workflows. Dashboard analytics, system monitoring, and the immutable global audit log are available through a shared `/admin` shell backed by TanStack Query with loading, empty, partial-data, error, pending, and pagination states. No service reads another service's database directly. All implementation phases are complete; the remaining acceptance work is the live-stack E2E track.
