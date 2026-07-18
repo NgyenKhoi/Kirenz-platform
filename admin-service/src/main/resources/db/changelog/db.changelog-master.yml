@@ -1,0 +1,4 @@
+databaseChangeLog:
+  - include:
+      file: 001-init-admin-schema.sql
+      relativeToChangelogFile: true
