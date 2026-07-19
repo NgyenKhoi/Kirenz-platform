@@ -162,7 +162,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         navigate(`/home?${params.toString()}`);
       }
     } else if (notif.type === 'WELCOME') {
-      navigate('/settings');
+      navigate('/profile?edit=profile');
     }
   };
 

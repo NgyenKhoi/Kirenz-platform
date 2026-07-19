@@ -3,6 +3,7 @@ package com.example.social_service.reaction.repository;
 import com.example.social_service.reaction.model.Reaction;
 import com.example.social_service.reaction.model.ReactionTargetType;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 
 import java.util.Collection;
 import java.util.List;
@@ -28,5 +29,6 @@ public interface ReactionRepository extends MongoRepository<Reaction, String> {
         Collection<String> targetIds
     );
 
+    @Query("{ 'createdAt': { $gte: ?0, $lt: ?1 } }")
     List<Reaction> findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant from, Instant to);
 }

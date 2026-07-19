@@ -3,6 +3,7 @@ package com.example.social_service.post.repository;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostStatus;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,5 +20,6 @@ public interface PostRepository extends MongoRepository<Post, String> {
 
     long countByStatus(PostStatus status);
 
+    @Query("{ 'createdAt': { $gte: ?0, $lt: ?1 } }")
     List<Post> findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant from, Instant to);
 }

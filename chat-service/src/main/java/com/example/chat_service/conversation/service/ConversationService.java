@@ -64,6 +64,8 @@ public class ConversationService {
             if (existing.isPresent()) {
                 return convertToResponse(existing.get(), createdBy);
             }
+        } else if (request.getType() == ConversationType.GROUP) {
+            ensureCanInviteGroupParticipants(createdBy, participants);
         }
 
         Conversation conversation = Conversation.builder()
@@ -113,6 +115,7 @@ public class ConversationService {
     public ConversationResponse addParticipant(String conversationId, UUID userId, UUID requesterId) {
         Conversation conversation = requireGroupAdmin(conversationId, requesterId);
         if (!conversation.getParticipantIds().contains(userId)) {
+            ensureCanInviteGroupParticipant(requesterId, userId);
             conversation.getParticipantIds().add(userId);
             touch(conversation);
             conversationRepository.save(conversation);
@@ -198,6 +201,29 @@ public class ConversationService {
         } catch (Exception e) {
             log.error("Error checking direct message permission: {}", e.getMessage(), e);
             throw new BadRequestException("Failed to verify direct message permission");
+        }
+    }
+
+    private void ensureCanInviteGroupParticipants(UUID inviterId, List<UUID> participantIds) {
+        for (UUID participantId : participantIds) {
+            if (!participantId.equals(inviterId)) {
+                ensureCanInviteGroupParticipant(inviterId, participantId);
+            }
+        }
+    }
+
+    private void ensureCanInviteGroupParticipant(UUID inviterId, UUID participantId) {
+        try {
+            boolean canInvite = userServiceClient.checkDirectMessagePermission(inviterId, participantId);
+            log.info("Group invite privacy check for inviter {} to participant {}: {}", inviterId, participantId, canInvite);
+            if (!canInvite) {
+                throw new AccessDeniedException("This user does not accept group chat invitations from people who are not friends.");
+            }
+        } catch (AccessDeniedException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error checking group invite privacy permission: {}", e.getMessage(), e);
+            throw new BadRequestException("Failed to verify group invite privacy permission");
         }
     }
 

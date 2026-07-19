@@ -82,6 +82,12 @@ export default function UserProfile() {
     setActiveTab(profileTabFromQuery(searchParams.get('tab')));
   }, [searchParams]);
 
+  useEffect(() => {
+    if (isOwnProfile && searchParams.get('edit') === 'profile') {
+      setIsEditModalOpen(true);
+    }
+  }, [isOwnProfile, searchParams]);
+
   const handleSetActiveTab = (tab: ProfileTab) => {
     setActiveTab(tab);
     setSearchParams(tab === 'POSTS' ? {} : { tab: tab.toLowerCase() });

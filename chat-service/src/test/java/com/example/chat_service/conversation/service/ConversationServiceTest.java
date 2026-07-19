@@ -4,6 +4,7 @@ import com.example.chat_service.common.client.IdentityServiceClient;
 import com.example.chat_service.common.client.UserServiceClient;
 import com.example.chat_service.common.exception.BadRequestException;
 import com.example.chat_service.conversation.dto.CreateConversationRequest;
+import com.example.chat_service.conversation.model.Conversation;
 import com.example.chat_service.conversation.model.ConversationType;
 import com.example.chat_service.conversation.repository.ConversationRepository;
 import com.example.chat_service.message.repository.MessageRepository;
@@ -15,10 +16,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -91,5 +97,49 @@ class ConversationServiceTest {
             .hasMessage("This user does not accept messages from people who are not friends.");
 
         verifyNoInteractions(conversationRepository);
+    }
+
+    @Test
+    void createGroupConversationRejectsParticipantsBlockedByPrivacy() {
+        UUID creatorId = UUID.randomUUID();
+        UUID allowedMemberId = UUID.randomUUID();
+        UUID restrictedMemberId = UUID.randomUUID();
+        CreateConversationRequest request = CreateConversationRequest.builder()
+            .name("Privacy aware group")
+            .type(ConversationType.GROUP)
+            .participantIds(List.of(allowedMemberId, restrictedMemberId))
+            .build();
+
+        when(userServiceClient.checkDirectMessagePermission(creatorId, allowedMemberId)).thenReturn(true);
+        when(userServiceClient.checkDirectMessagePermission(creatorId, restrictedMemberId)).thenReturn(false);
+
+        assertThatThrownBy(() -> conversationService.createConversation(request, creatorId))
+            .isInstanceOf(AccessDeniedException.class)
+            .hasMessage("This user does not accept group chat invitations from people who are not friends.");
+
+        verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
+    void addParticipantRejectsUserBlockedByPrivacy() {
+        UUID requesterId = UUID.randomUUID();
+        UUID existingMemberId = UUID.randomUUID();
+        UUID restrictedMemberId = UUID.randomUUID();
+        Conversation conversation = Conversation.builder()
+            .id("conversation-1")
+            .type(ConversationType.GROUP)
+            .participantIds(new ArrayList<>(List.of(requesterId, existingMemberId)))
+            .adminIds(new ArrayList<>(List.of(requesterId)))
+            .status("ACTIVE")
+            .build();
+
+        when(conversationRepository.findById("conversation-1")).thenReturn(Optional.of(conversation));
+        when(userServiceClient.checkDirectMessagePermission(requesterId, restrictedMemberId)).thenReturn(false);
+
+        assertThatThrownBy(() -> conversationService.addParticipant("conversation-1", restrictedMemberId, requesterId))
+            .isInstanceOf(AccessDeniedException.class)
+            .hasMessage("This user does not accept group chat invitations from people who are not friends.");
+
+        verify(conversationRepository, never()).save(any());
     }
 }
