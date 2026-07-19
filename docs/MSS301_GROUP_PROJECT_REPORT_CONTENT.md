@@ -125,15 +125,20 @@ A registered user is the primary actor. The user is expected to access the platf
 
 ### System Administrator / Operator
 
-The current application stores `USER`, `MODERATOR`, and `ADMIN` roles and account states (`ACTIVE`, `BANNED`, and `DEACTIVATED`). The submitted web client does not yet expose a full administration dashboard. The operational user deploys and monitors the system through infrastructure tools and may manage configuration or account data through controlled backend procedures.
+The system now includes an Admin Service to support moderation, governance, and operational monitoring. Administrators are authorized users who can review analytics, manage user accounts, process reports of inappropriate content or behavior, moderate posts and comments, and monitor the health of the microservices and infrastructure. The administration functions are protected by the `ADMIN` role and are routed through the Admin Service as the single entry point for administrative operations.
 
 | No. | Function Name | Function Description |
 |---:|---|---|
-| 1 | Monitor service registration | Use the Eureka dashboard and health endpoints to confirm that the Gateway and business services are running. |
-| 2 | Manage deployment configuration | Supply database, JWT, Redis, Kafka, email, Google, and Cloudinary environment variables without committing secrets to source control. |
-| 3 | Inspect logs and health | Review service logs and Spring Actuator health information when diagnosing a failed request or dependency. |
-| 4 | Manage account status | Use the role/status model and controlled administrative procedures to ban or deactivate an account when required. A dedicated UI is future work. |
-| 5 | Back up service data | Maintain independent backups for PostgreSQL databases and MongoDB databases according to service ownership. |
+| 1 | View admin dashboard | Review summary metrics for total registered users, user growth trends, pending reports, and current activity counts for posts, comments, and reactions. |
+| 2 | Search and filter users | Search for users by keyword and filter by role, account status, email verification status, and account activity. |
+| 3 | Manage account status | Ban, unban, suspend, or warn users and attach a structured moderation reason and optional note. |
+| 4 | Review admin action history | Inspect immutable audit records of moderation actions to verify who performed each operation and why. |
+| 5 | Manage reports | Review user-submitted reports for posts, comments, or accounts, update the report status, and resolve them with an approved moderation decision. |
+| 6 | Moderate content | Hide or remove inappropriate posts or comments, maintain a moderation trail, and preserve the integrity of the social platform. |
+| 7 | Monitor service registration | Use Eureka and service health endpoints to confirm that the Gateway and business services are running correctly. |
+| 8 | Inspect logs and infrastructure health | Review service logs, Spring Actuator health information, and overall Kafka, Redis, PostgreSQL, and MongoDB status. |
+| 9 | Manage deployment configuration | Supply environment variables for databases, JWT, Redis, Kafka, email, Google, and Cloudinary without exposing secrets. |
+| 10 | Back up and maintain service data | Coordinate backup and recovery procedures for service-owned databases according to the microservice boundary. |
 
 ## Business Rules
 

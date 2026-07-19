@@ -3,6 +3,7 @@ package com.example.social_service.comment.repository;
 import com.example.social_service.comment.model.Comment;
 import com.example.social_service.comment.model.CommentStatus;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,5 +21,6 @@ public interface CommentRepository extends MongoRepository<Comment, String> {
 
     long countByStatus(CommentStatus status);
 
+    @Query("{ 'createdAt': { $gte: ?0, $lt: ?1 } }")
     List<Comment> findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant from, Instant to);
 }
