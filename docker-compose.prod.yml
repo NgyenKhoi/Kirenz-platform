@@ -1,0 +1,74 @@
+services:
+  kafka:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+
+  redis:
+    ports: !reset []
+    restart: unless-stopped
+    mem_limit: 256m
+
+  discovery-service:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8761
+      JAVA_TOOL_OPTIONS: "-Xms96m -Xmx256m -XX:MaxMetaspaceSize=160m"
+    mem_limit: 450m
+
+  identity-service:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=192m"
+    mem_limit: 750m
+
+  user-service:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=192m"
+    mem_limit: 750m
+
+  social-service:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=192m"
+    mem_limit: 750m
+
+  chat-service:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=192m"
+    mem_limit: 750m
+
+  notification-service:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx448m -XX:MaxMetaspaceSize=192m"
+    mem_limit: 700m
+
+  admin-service:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx448m -XX:MaxMetaspaceSize=192m"
+    mem_limit: 700m
+
+  api-gateway:
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m"
+    mem_limit: 600m
+    ports:
+      - "8080:8080"
+
+  frontend:
+    restart: unless-stopped
+    ports:
+      - "3000:80"
