@@ -11,5 +11,9 @@ public enum NotificationType {
     BIRTHDAY,
     WELCOME,
     ADMIN_WARNING,
+    ADMIN_SUSPENSION,
+    ADMIN_BAN,
+    REPORT_UPDATE,
+    CONTENT_MODERATION,
     MESSAGE
 }

@@ -4,6 +4,7 @@ import { useAdminUsers } from './hooks/useAdminUsers';
 import { useAuthStore } from './store/authStore';
 import { useEscapeKey } from './hooks/useEscapeKey';
 import type { AdminUser } from './types/admin.types';
+import { postService } from './services/post.service';
 
 type Action = 'warn' | 'suspend' | 'ban' | 'unban';
 const reasons = ['SPAM', 'HARASSMENT', 'HATE_SPEECH', 'VIOLENCE', 'NUDITY', 'FALSE_INFORMATION', 'IMPERSONATION', 'OTHER'];
@@ -22,6 +23,8 @@ export default function UserManagement() {
   const [note, setNote] = useState('');
   const [message, setMessage] = useState('Your account activity violated our community guidelines.');
   const [until, setUntil] = useState('');
+  const [evidence, setEvidence] = useState<File>();
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -46,6 +49,7 @@ export default function UserManagement() {
     setSelected(undefined);
     setNote('');
     setUntil('');
+    setEvidence(undefined);
   };
   const closeHistory = () => setHistoryUser(undefined);
   useEscapeKey(Boolean(action), closeAction);
@@ -59,11 +63,14 @@ export default function UserManagement() {
 
   const submit = async () => {
     if (!selected || !action || !reason || selected.id === currentAdmin?.id) return;
-    if (action === 'warn') await admin.warn.mutateAsync({ id: selected.id, reason, message, note: note || undefined });
-    else if (action === 'suspend') await admin.suspend.mutateAsync({ id: selected.id, moderationReason: reason, suspendedUntil: new Date(until).toISOString(), note: note || undefined });
-    else if (action === 'ban') await admin.ban.mutateAsync({ id: selected.id, reason, note: note || undefined });
+    const completedAction = action;
+    const evidenceUrl = evidence ? (await postService.uploadImages([evidence]))[0]?.url : undefined;
+    if (action === 'warn') await admin.warn.mutateAsync({ id: selected.id, reason, message, note: note || undefined, evidenceUrl });
+    else if (action === 'suspend') await admin.suspend.mutateAsync({ id: selected.id, moderationReason: reason, suspendedUntil: new Date(until).toISOString(), note: note || undefined, evidenceUrl });
+    else if (action === 'ban') await admin.ban.mutateAsync({ id: selected.id, reason, note: note || undefined, evidenceUrl });
     else await admin.unban.mutateAsync({ id: selected.id, reason, note: note || undefined });
     closeAction();
+    setSuccess(`${completedAction.charAt(0).toUpperCase() + completedAction.slice(1)} action completed successfully.`);
   };
 
   return (
@@ -74,6 +81,8 @@ export default function UserManagement() {
           <h2 className="mt-2 text-4xl font-semibold">User Management</h2>
           <p className="mt-2 text-on-surface-variant">Search accounts and apply audited moderation actions.</p>
         </header>
+
+        {success && <div role="status" className="rounded-2xl bg-green-100 p-4 font-bold text-green-800">{success}</div>}
 
         <section className="grid gap-3 rounded-3xl bg-surface-container-lowest p-5 md:grid-cols-3">
           <label className="relative">
@@ -170,6 +179,7 @@ export default function UserManagement() {
             {action === 'warn' && <label className="mt-4 block text-sm font-bold">User message<textarea required value={message} onChange={(event) => setMessage(event.target.value)} className="mt-2 w-full rounded-xl border border-outline-variant bg-surface-container p-3" /></label>}
             {action === 'suspend' && <label className="mt-4 block text-sm font-bold">Suspended until<input required type="datetime-local" value={until} onChange={(event) => setUntil(event.target.value)} className="mt-2 w-full rounded-xl border border-outline-variant bg-surface-container p-3" /></label>}
             <label className="mt-4 block text-sm font-bold">Private note<textarea value={note} onChange={(event) => setNote(event.target.value)} className="mt-2 w-full rounded-xl border border-outline-variant bg-surface-container p-3" /></label>
+            {action !== 'unban' && <label className="mt-4 block text-sm font-bold">Evidence image (optional)<input type="file" accept="image/*" onChange={(event) => setEvidence(event.target.files?.[0])} className="mt-2 block w-full rounded-xl border border-outline-variant bg-surface-container p-3" /></label>}
             <button disabled={mutation.isPending || !reason || (action === 'suspend' && !until)} className="mt-6 w-full rounded-full bg-primary py-3 font-bold text-white disabled:opacity-50">{mutation.isPending ? 'Applying…' : 'Confirm action'}</button>
           </form>
         </div>

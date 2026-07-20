@@ -14,6 +14,11 @@ public record AdminActionResponse(
     String targetId,
     String reason,
     String note,
+    String evidenceUrl,
     Instant createdAt
 ) {
+    public AdminActionResponse(UUID id, UUID adminId, AdminActionType actionType, AdminTargetType targetType,
+                               String targetId, String reason, String note, Instant createdAt) {
+        this(id, adminId, actionType, targetType, targetId, reason, note, null, createdAt);
+    }
 }

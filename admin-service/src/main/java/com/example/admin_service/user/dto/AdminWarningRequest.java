@@ -13,6 +13,12 @@ public record AdminWarningRequest(
     String message,
 
     @Size(max = 2000, message = "note must not exceed 2000 characters")
-    String note
+    String note,
+
+    @Size(max = 1000, message = "evidenceUrl must not exceed 1000 characters")
+    String evidenceUrl
 ) {
+    public AdminWarningRequest(String reason, String message, String note) {
+        this(reason, message, note, null);
+    }
 }

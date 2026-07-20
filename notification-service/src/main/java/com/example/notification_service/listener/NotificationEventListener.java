@@ -24,7 +24,7 @@ public class NotificationEventListener {
         log.info("Received notification event of type: {}", event.getType());
         try {
             NotificationType type = NotificationType.valueOf(event.getType());
-            if (type == NotificationType.ADMIN_WARNING
+            if ((type == NotificationType.ADMIN_WARNING || type == NotificationType.ADMIN_SUSPENSION || type == NotificationType.ADMIN_BAN)
                 && event.getTargetId() != null
                 && notificationService.notificationExists(event.getReceiverId(), type, event.getTargetId())) {
                 log.info("Ignoring duplicate admin warning event: {}", event.getTargetId());

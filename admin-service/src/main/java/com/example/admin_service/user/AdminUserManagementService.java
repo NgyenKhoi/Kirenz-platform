@@ -32,14 +32,15 @@ public class AdminUserManagementService {
         UUID adminId = currentAdmin.id();
         ensureNotCurrentAdmin(userId, adminId);
         AdminUserResponse user = identityAdminClient.ban(userId).getData();
-        adminActionService.record(
+        AdminActionResponse action = recordModeration(
             adminId,
             AdminActionType.BAN_ACCOUNT,
             AdminTargetType.USER,
             userId.toString(),
             request.reason(),
-            request.note()
+            request.note(), request.evidenceUrl()
         );
+        if (action != null) publishModeration("ADMIN_BAN", userId, adminId, action.id(), "Your account has been banned for " + request.reason() + ".");
         return user;
     }
 
@@ -62,13 +63,13 @@ public class AdminUserManagementService {
         UUID adminId = currentAdmin.id();
         ensureNotCurrentAdmin(userId, adminId);
         identityAdminClient.getUser(userId);
-        AdminActionResponse action = adminActionService.record(
+        AdminActionResponse action = recordModeration(
             adminId,
             AdminActionType.SEND_WARNING,
             AdminTargetType.USER,
             userId.toString(),
             request.reason(),
-            request.note()
+            request.note(), request.evidenceUrl()
         );
 
         try {
@@ -92,15 +93,30 @@ public class AdminUserManagementService {
         ensureNotCurrentAdmin(userId, adminId);
         AdminUserResponse user = identityAdminClient.suspend(userId,
             new IdentitySuspendRequest(request.suspendedUntil(), request.moderationReason())).getData();
-        adminActionService.record(
+        AdminActionResponse action = recordModeration(
             adminId,
             AdminActionType.SUSPEND_ACCOUNT,
             AdminTargetType.USER,
             userId.toString(),
             request.moderationReason(),
-            request.note()
+            request.note(), request.evidenceUrl()
         );
+        if (action != null) publishModeration("ADMIN_SUSPENSION", userId, adminId, action.id(),
+            "Your account has been suspended until " + request.suspendedUntil() + ".");
         return user;
+    }
+
+    private void publishModeration(String type, UUID userId, UUID adminId, UUID actionId, String message) {
+        notificationProducer.sendModeration(NotificationEvent.builder()
+            .type(type).actorId(adminId).receiverId(userId).targetId(actionId.toString())
+            .message(message).createdAt(Instant.now()).build());
+    }
+
+    private AdminActionResponse recordModeration(UUID adminId, AdminActionType actionType, AdminTargetType targetType,
+                                                  String targetId, String reason, String note, String evidenceUrl) {
+        return evidenceUrl == null || evidenceUrl.isBlank()
+            ? adminActionService.record(adminId, actionType, targetType, targetId, reason, note)
+            : adminActionService.record(adminId, actionType, targetType, targetId, reason, note, evidenceUrl);
     }
 
     private void ensureNotCurrentAdmin(UUID userId, UUID adminId) {

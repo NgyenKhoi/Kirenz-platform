@@ -257,15 +257,17 @@ export default function Friends() {
                         {result.bio && <p className="text-xs text-on-surface-variant line-clamp-1 mt-1">{result.bio}</p>}
                       </div>
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleSendRequestToUser(result.id)}
-                      disabled={!canSendRequest || actionId === result.id}
-                      className="inline-flex items-center justify-center gap-2 rounded-full bg-primary text-on-primary px-4 py-2 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
-                    >
-                      {actionId === result.id ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                      {canSendRequest ? 'Send request' : result.relationshipStatus.replaceAll('_', ' ')}
-                    </button>
+                    {result.relationshipStatus !== 'BLOCKED_BY_TARGET' && (
+                      <button
+                        type="button"
+                        onClick={() => handleSendRequestToUser(result.id)}
+                        disabled={!canSendRequest || actionId === result.id}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-primary text-on-primary px-4 py-2 text-sm font-bold hover:brightness-95 active:scale-95 disabled:opacity-60 transition-all"
+                      >
+                        {actionId === result.id ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                        {canSendRequest ? 'Send request' : result.relationshipStatus.replaceAll('_', ' ')}
+                      </button>
+                    )}
                   </div>
                 );
               })}

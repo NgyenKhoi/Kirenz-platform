@@ -8,6 +8,8 @@ import com.example.admin_service.common.exception.NotFoundException;
 import com.example.admin_service.report.dto.ReportDecisionRequest;
 import com.example.admin_service.report.dto.ReportResponse;
 import com.example.admin_service.report.dto.ReviewReportRequest;
+import com.example.admin_service.notification.NotificationEvent;
+import com.example.admin_service.notification.NotificationProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ public class ReportWorkflowService {
     private final ReportMapper reportMapper;
     private final AdminActionService adminActionService;
     private final Clock clock;
+    private final NotificationProducer notificationProducer;
 
     @Transactional
     public ReportResponse startReview(UUID adminId, UUID reportId, ReviewReportRequest request) {
@@ -44,6 +47,7 @@ public class ReportWorkflowService {
         Report saved = save(report);
         adminActionService.record(adminId, AdminActionType.REPORT_DISMISSED, AdminTargetType.REPORT,
             reportId.toString(), request.moderationReason().name(), note);
+        publish(report.getReporterId(), adminId, reportId, "REPORT_UPDATE", "Your report was reviewed and no violation was found.");
         return reportMapper.toResponse(saved);
     }
 
@@ -60,7 +64,18 @@ public class ReportWorkflowService {
         Report saved = save(report);
         adminActionService.record(adminId, AdminActionType.REPORT_RESOLVED, AdminTargetType.REPORT,
             reportId.toString(), request.moderationReason().name(), note);
+        publish(report.getReporterId(), adminId, reportId, "REPORT_UPDATE", "Your report was reviewed and action was taken.");
+        if ((report.getTargetType() == ReportTargetType.POST || report.getTargetType() == ReportTargetType.COMMENT)
+            && report.getTargetOwnerId() != null && !report.getTargetOwnerId().equals(report.getReporterId())) {
+            publish(report.getTargetOwnerId(), adminId, reportId, "CONTENT_MODERATION",
+                "Moderation action was taken following a community report.");
+        }
         return reportMapper.toResponse(saved);
+    }
+
+    private void publish(UUID receiverId, UUID adminId, UUID reportId, String type, String message) {
+        notificationProducer.sendModeration(NotificationEvent.builder().type(type).actorId(adminId)
+            .receiverId(receiverId).targetId(reportId.toString()).message(message).createdAt(Instant.now(clock)).build());
     }
 
     private Report load(UUID reportId) {

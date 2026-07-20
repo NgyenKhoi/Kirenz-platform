@@ -163,6 +163,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       }
     } else if (notif.type === 'WELCOME') {
       navigate('/profile?edit=profile');
+    } else if ((notif.type === 'ADMIN_WARNING' || notif.type === 'ADMIN_SUSPENSION' || notif.type === 'ADMIN_BAN') && notif.targetId) {
+      navigate(`/moderation/${notif.targetId}?notificationId=${notif.id}`);
     }
   };
 

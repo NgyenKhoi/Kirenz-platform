@@ -20,6 +20,7 @@ import { ReactionSummaryResponse } from './types/reaction.types';
 import { UserProfile as UserProfileType } from './types/auth.types';
 import { FriendRequestResponse, FriendResponse, RelationshipStatus } from './types/friend.types';
 import { useEscapeKey } from './hooks/useEscapeKey';
+import { ReportDialog } from './components/common/ReportDialog';
 
 type ProfileTab = 'ABOUT' | 'POSTS' | 'FRIENDS' | 'PHOTOS';
 
@@ -47,7 +48,9 @@ export default function UserProfile() {
   const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('NONE');
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
   const [profileRestricted, setProfileRestricted] = useState(false);
+  const [profileNotFound, setProfileNotFound] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>(() => profileTabFromQuery(searchParams.get('tab')));
 
   const [posts, setPosts] = useState<PostResponse[]>([]);
@@ -155,6 +158,7 @@ export default function UserProfile() {
     if (isOwnProfile) {
       setTargetUser(null);
       setProfileRestricted(false);
+      setProfileNotFound(false);
       setRelationshipStatus('SELF');
       return;
     }
@@ -163,11 +167,22 @@ export default function UserProfile() {
     const fetchTargetUserDetails = async () => {
       setIsFetchingProfile(true);
       setProfileRestricted(false);
+      setProfileNotFound(false);
       try {
-        const [statusData, privacyData] = await Promise.all([
-          friendService.getStatus(userId!),
-          privacyService.getUserPrivacySettings(userId!),
-        ]);
+        const statusData = await friendService.getStatus(userId!);
+
+        // Do not reveal that the target blocked the viewer. From the viewer's
+        // perspective this profile should behave exactly like a missing user.
+        if (statusData.status === 'BLOCKED_BY_TARGET') {
+          if (isMounted) {
+            setRelationshipStatus(statusData.status);
+            setTargetUser(null);
+            setProfileNotFound(true);
+          }
+          return;
+        }
+
+        const privacyData = await privacyService.getUserPrivacySettings(userId!);
         const canViewProfile =
           statusData.status === 'SELF' ||
           privacyData.profileVisibility === 'PUBLIC' ||
@@ -187,6 +202,7 @@ export default function UserProfile() {
           setTargetUser(profileData);
           setRelationshipStatus(statusData.status);
           setProfileRestricted(false);
+          setProfileNotFound(false);
         }
       } catch (err) {
         console.error('Error fetching target user details:', err);
@@ -205,13 +221,18 @@ export default function UserProfile() {
     return () => {
       isMounted = false;
     };
-  }, [userId, isOwnProfile, profileRestricted]);
+  }, [userId, isOwnProfile]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchFriends = async () => {
       setIsLoadingFriends(true);
       setFriendError(null);
+      if (profileRestricted || profileNotFound) {
+        setFriends([]);
+        setIsLoadingFriends(false);
+        return;
+      }
       try {
         const id = isOwnProfile ? user?.id : userId;
         if (!id) {
@@ -240,7 +261,7 @@ export default function UserProfile() {
     return () => {
       isMounted = false;
     };
-  }, [userId, isOwnProfile, user?.id, relationshipStatus, profileRestricted]);
+  }, [userId, isOwnProfile, user?.id, relationshipStatus, profileRestricted, profileNotFound]);
 
   useEffect(() => {
     if (!isOwnProfile) {
@@ -273,7 +294,7 @@ export default function UserProfile() {
     let isMounted = true;
 
     const loadPosts = async () => {
-      if (profileRestricted) {
+      if (profileRestricted || profileNotFound) {
         setPosts([]);
         setIsLoadingPosts(false);
         return;
@@ -302,13 +323,13 @@ export default function UserProfile() {
     return () => {
       isMounted = false;
     };
-  }, [userId, isOwnProfile, profileRestricted]);
+  }, [userId, isOwnProfile, profileRestricted, profileNotFound]);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadPhotos = async () => {
-      if (profileRestricted) {
+      if (profileRestricted || profileNotFound) {
         setPhotos([]);
         setIsLoadingPhotos(false);
         return;
@@ -340,7 +361,7 @@ export default function UserProfile() {
     return () => {
       isMounted = false;
     };
-  }, [userId, isOwnProfile, user?.id, profileRestricted]);
+  }, [userId, isOwnProfile, user?.id, profileRestricted, profileNotFound]);
 
   const handleSendRequest = async () => {
     if (!userId) return;
@@ -519,7 +540,7 @@ export default function UserProfile() {
     );
   }
 
-  if (!isOwnProfile && !targetUser && !isFetchingProfile) {
+  if (!isOwnProfile && (profileNotFound || (!targetUser && !isFetchingProfile))) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-screen">
@@ -667,6 +688,11 @@ export default function UserProfile() {
                         <span className="px-6 py-3 text-sm font-bold text-on-surface-variant bg-surface-container-high rounded-full">
                           Unavailable
                         </span>
+                      )}
+                      {relationshipStatus !== 'BLOCKED_BY_TARGET' && (
+                        <button type="button" onClick={() => setIsReportOpen(true)} className="px-5 py-3 text-sm font-bold text-error bg-error-container/30 rounded-full hover:bg-error-container transition-colors">
+                          Report profile
+                        </button>
                       )}
                     </>
                   )}
@@ -1177,6 +1203,7 @@ export default function UserProfile() {
           </div>
         </main>
       </div>
+      {userId && <ReportDialog open={isReportOpen} targetType="USER" targetId={userId} onClose={() => setIsReportOpen(false)} />}
       {selectedPhotoIndex !== null && (
         <MediaViewerModal
           media={photos.map((photo) => ({
