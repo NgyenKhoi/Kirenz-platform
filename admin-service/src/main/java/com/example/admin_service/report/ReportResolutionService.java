@@ -82,7 +82,7 @@ public class ReportResolutionService {
         return switch (request.action()) {
             case SEND_WARNING -> {
                 adminUserManagementService.sendWarning(userId, new AdminWarningRequest(
-                    reason, "Your account received a moderation warning.", note));
+                    reason, "Your account received a moderation warning.", note, request.evidenceUrl()));
                 yield ReportResolution.USER_WARNED;
             }
             case SUSPEND_USER -> {
@@ -90,11 +90,11 @@ public class ReportResolutionService {
                     throw new BadRequestException("Suspension end time is required");
                 }
                 adminUserManagementService.suspend(userId,
-                    new AdminSuspendRequest(request.suspendedUntil(), reason, note));
+                    new AdminSuspendRequest(request.suspendedUntil(), reason, note, request.evidenceUrl()));
                 yield ReportResolution.USER_SUSPENDED;
             }
             case BAN_USER -> {
-                adminUserManagementService.ban(userId, new AdminUserActionRequest(reason, note));
+                adminUserManagementService.ban(userId, new AdminUserActionRequest(reason, note, request.evidenceUrl()));
                 yield ReportResolution.USER_BANNED;
             }
             default -> throw new BadRequestException("Unsupported user moderation action");

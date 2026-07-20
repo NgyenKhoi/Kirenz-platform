@@ -43,7 +43,7 @@ class ReportWorkflowServiceTest {
     @BeforeEach
     void setUp() {
         workflowService = new ReportWorkflowService(reportRepository, new ReportMapper(), adminActionService,
-            Clock.fixed(NOW, ZoneOffset.UTC));
+            Clock.fixed(NOW, ZoneOffset.UTC), org.mockito.Mockito.mock(com.example.admin_service.notification.NotificationProducer.class));
     }
 
     @Test

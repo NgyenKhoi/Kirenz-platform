@@ -44,6 +44,7 @@ public class ReportService {
             .reporterId(reporterId)
             .targetType(request.targetType())
             .targetId(targetId)
+            .targetOwnerId(resolveTargetOwner(request.targetType(), targetId))
             .reason(request.reason())
             .description(normalize(request.description()))
             .build();
@@ -52,6 +53,18 @@ public class ReportService {
         } catch (DataIntegrityViolationException ex) {
             throw duplicateReport();
         }
+    }
+
+    private UUID resolveTargetOwner(ReportTargetType targetType, String targetId) {
+        if (targetType == ReportTargetType.USER) {
+            try { return UUID.fromString(targetId); }
+            catch (IllegalArgumentException ex) { throw new BadRequestException("Reported user ID is invalid"); }
+        }
+        if (targetType == ReportTargetType.POST || targetType == ReportTargetType.COMMENT) {
+            var response = socialModerationClient.getContent(targetType.name(), targetId);
+            return response == null || response.getData() == null ? null : response.getData().authorId();
+        }
+        return null;
     }
 
     @Transactional(readOnly = true)

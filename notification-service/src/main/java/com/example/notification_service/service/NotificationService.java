@@ -40,6 +40,12 @@ public class NotificationService {
         return notificationRepository.countByReceiverIdAndIsReadFalseAndTypeNot(userId, NotificationType.MESSAGE);
     }
 
+    @Transactional(readOnly = true)
+    public NotificationResponse getNotification(UUID id, UUID userId) {
+        return notificationRepository.findByIdAndReceiverId(id, userId).map(this::toResponse)
+            .orElseThrow(() -> new IllegalArgumentException("Notification not found or unauthorized"));
+    }
+
     @Transactional
     public NotificationResponse markAsRead(UUID id, UUID userId) {
         Notification notification = notificationRepository.findByIdAndReceiverId(id, userId)

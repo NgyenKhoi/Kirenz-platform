@@ -7,7 +7,7 @@ export interface NotificationResponse {
   actorId?: string | null;
   actorName?: string | null;
   actorAvatar?: string | null;
-  type: 'FRIEND_REQUEST' | 'FRIEND_ACCEPT' | 'POST_COMMENT' | 'POST_LIKE' | 'COMMENT_REPLY' | 'POST_MENTION' | 'COMMENT_MENTION' | 'BIRTHDAY' | 'WELCOME';
+  type: 'FRIEND_REQUEST' | 'FRIEND_ACCEPT' | 'POST_COMMENT' | 'POST_LIKE' | 'COMMENT_REPLY' | 'POST_MENTION' | 'COMMENT_MENTION' | 'BIRTHDAY' | 'WELCOME' | 'ADMIN_WARNING' | 'ADMIN_SUSPENSION' | 'ADMIN_BAN' | 'REPORT_UPDATE' | 'CONTENT_MODERATION';
   targetId?: string | null;
   message: string;
   isRead: boolean;
@@ -22,6 +22,11 @@ export const notificationService = {
 
   getUnreadCount: async (): Promise<number> => {
     const response = await notificationServiceClient.get<ApiResponse<number>>('/notifications/unread-count');
+    return response.data.data;
+  },
+
+  getNotification: async (id: string): Promise<NotificationResponse> => {
+    const response = await notificationServiceClient.get<ApiResponse<NotificationResponse>>(`/notifications/${id}`);
     return response.data.data;
   },
 

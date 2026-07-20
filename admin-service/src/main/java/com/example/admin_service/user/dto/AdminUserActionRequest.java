@@ -9,6 +9,9 @@ public record AdminUserActionRequest(
     String reason,
 
     @Size(max = 2000, message = "note must not exceed 2000 characters")
-    String note
+    String note,
+
+    @Size(max = 1000) String evidenceUrl
 ) {
+    public AdminUserActionRequest(String reason, String note) { this(reason, note, null); }
 }

@@ -329,15 +329,17 @@ export default function Explore() {
                             >
                               View profile
                             </Link>
-                            <button
-                              type="button"
-                              onClick={() => handleSendRequest(result.id)}
-                              disabled={!canSendRequest || actionId === result.id}
-                              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-on-primary transition-all hover:brightness-95 active:scale-95 disabled:opacity-60"
-                            >
-                              {actionId === result.id ? <Loader2 size={16} className="animate-spin" /> : canSendRequest ? <Send size={16} /> : <UserPlus size={16} />}
-                              {canSendRequest ? 'Add' : result.relationshipStatus.replaceAll('_', ' ')}
-                            </button>
+                            {result.relationshipStatus !== 'BLOCKED_BY_TARGET' && (
+                              <button
+                                type="button"
+                                onClick={() => handleSendRequest(result.id)}
+                                disabled={!canSendRequest || actionId === result.id}
+                                className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-on-primary transition-all hover:brightness-95 active:scale-95 disabled:opacity-60"
+                              >
+                                {actionId === result.id ? <Loader2 size={16} className="animate-spin" /> : canSendRequest ? <Send size={16} /> : <UserPlus size={16} />}
+                                {canSendRequest ? 'Add' : result.relationshipStatus.replaceAll('_', ' ')}
+                              </button>
+                            )}
                           </div>
                         </article>
                       );

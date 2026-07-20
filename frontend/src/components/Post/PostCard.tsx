@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { MoreHorizontal, Edit2, Trash2, X, Save, MessageSquare, Share2, ThumbsUp, Send, Image as ImageIcon, Loader2, Link2 } from "lucide-react";
+import { MoreHorizontal, Edit2, Trash2, X, Save, MessageSquare, Share2, ThumbsUp, Send, Image as ImageIcon, Loader2, Link2, Flag } from "lucide-react";
 import { PostResponse } from "../../types/post.types";
 import { CommentResponse } from "../../types/comment.types";
 import { ReactionSummaryResponse, ReactionType, ReactionUserResponse } from "../../types/reaction.types";
@@ -26,6 +26,7 @@ import { PostMediaGallery } from "./PostMediaGallery";
 import { ReactionPicker } from "./ReactionPicker";
 import { CommentItem } from "./CommentItem";
 import { useEscapeKey } from "../../hooks/useEscapeKey";
+import { ReportDialog } from "../common/ReportDialog";
 
 interface PostCardProps {
   post: PostResponse;
@@ -60,6 +61,7 @@ export function PostCard({
 }: PostCardProps) {
   const isOwner = post.author.id === currentUserId;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draftContent, setDraftContent] = useState(post.content);
   const [draftPrivacy, setDraftPrivacy] = useState(post.privacy);
@@ -545,7 +547,7 @@ useEffect(() => {
               </div>
             </div>
 
-            {isOwner && (
+            {currentUserId && (
               <div className="relative shrink-0">
                 <button
                   type="button"
@@ -557,7 +559,7 @@ useEffect(() => {
                 </button>
                 {isMenuOpen && (
                   <div className="absolute right-0 top-11 z-20 w-40 rounded-2xl bg-surface-container-lowest shadow-xl border border-outline-variant/30 p-2">
-                    <button
+                    {isOwner && <button
                       type="button"
                       onClick={() => {
                         setIsEditing(true);
@@ -566,14 +568,17 @@ useEffect(() => {
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container-low"
                     >
                       <Edit2 size={16} /> Edit
-                    </button>
-                    <button
+                    </button>}
+                    {isOwner && <button
                       type="button"
                       onClick={handleDelete}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-on-error-container hover:bg-error-container"
                     >
                       <Trash2 size={16} /> Delete
-                    </button>
+                    </button>}
+                    {!isOwner && <button type="button" onClick={() => { setIsMenuOpen(false); setIsReportOpen(true); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold text-error hover:bg-error-container">
+                      <Flag size={16} /> Report post
+                    </button>}
                   </div>
                 )}
               </div>
@@ -682,6 +687,7 @@ useEffect(() => {
               />
             )
           )}
+          <ReportDialog open={isReportOpen} targetType="POST" targetId={post.id} onClose={() => setIsReportOpen(false)} />
         </div>
 
         <PostMediaGallery media={post.media} />

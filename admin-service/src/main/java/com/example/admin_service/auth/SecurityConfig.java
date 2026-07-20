@@ -28,6 +28,7 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/reports/**").authenticated()
+                .requestMatchers("/api/moderation/**").authenticated()
                 .anyRequest().denyAll()
             )
             .exceptionHandling(exceptions -> exceptions

@@ -16,10 +16,14 @@ public class NotificationProducer {
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     public void sendWarning(NotificationEvent event) {
+        sendModeration(event);
+    }
+
+    public void sendModeration(NotificationEvent event) {
         try {
             kafkaTemplate.send(TOPIC, event.getReceiverId().toString(), event).get(5, TimeUnit.SECONDS);
         } catch (Exception exception) {
-            throw new KafkaException("Failed to publish warning notification", exception);
+            throw new KafkaException("Failed to publish moderation notification", exception);
         }
     }
 }

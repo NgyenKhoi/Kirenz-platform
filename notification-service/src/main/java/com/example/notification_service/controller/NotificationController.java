@@ -33,6 +33,12 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("Unread count retrieved successfully", count));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<NotificationResponse>> getNotification(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success("Notification retrieved successfully",
+            notificationService.getNotification(id, currentUser.id())));
+    }
+
     @PatchMapping("/{id}/read")
     public ResponseEntity<ApiResponse<NotificationResponse>> markAsRead(@PathVariable UUID id) {
         UUID userId = currentUser.id();

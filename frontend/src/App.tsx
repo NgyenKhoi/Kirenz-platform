@@ -24,6 +24,7 @@ import UserManagement from './UserManagement';
 import Reports from './Reports';
 import Monitoring from './Monitoring';
 import Audit from './Audit';
+import ModerationDetailPage from './ModerationDetail';
 import { initTheme } from './utils/theme';
 
 export default function App() {
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/settings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
           <Route path="/privacy" element={<Navigate to="/settings" replace />} />
           <Route path="/blocked" element={<ProtectedRoute><BlockedUsers /></ProtectedRoute>} />
+          <Route path="/moderation/:actionId" element={<ProtectedRoute><ModerationDetailPage /></ProtectedRoute>} />
           <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="users" element={<UserManagement />} />

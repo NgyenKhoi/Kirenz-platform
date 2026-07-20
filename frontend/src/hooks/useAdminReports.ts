@@ -8,6 +8,6 @@ export function useAdminReports(params: Record<string, unknown>, selectedId?: st
   const invalidate = async () => { await client.invalidateQueries({ queryKey: ['admin', 'reports'] }); };
   const review = useMutation({ mutationFn: ({ id, adminNote }: { id: string; adminNote?: string }) => adminService.reviewReport(id, { adminNote }), onSuccess: invalidate });
   const dismiss = useMutation({ mutationFn: ({ id, ...body }: { id: string; moderationReason: string; adminNote?: string }) => adminService.dismissReport(id, body), onSuccess: invalidate });
-  const resolve = useMutation({ mutationFn: ({ id, ...body }: { id: string; action: string; moderationReason: string; adminNote?: string; suspendedUntil?: string }) => adminService.resolveReport(id, body), onSuccess: invalidate });
+  const resolve = useMutation({ mutationFn: ({ id, ...body }: { id: string; action: string; moderationReason: string; adminNote?: string; suspendedUntil?: string; evidenceUrl?: string }) => adminService.resolveReport(id, body), onSuccess: invalidate });
   return { reports, detail, review, dismiss, resolve };
 }

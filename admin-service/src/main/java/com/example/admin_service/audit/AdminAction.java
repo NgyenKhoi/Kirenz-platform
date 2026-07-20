@@ -49,6 +49,9 @@ public class AdminAction {
     @Column(length = 2000)
     private String note;
 
+    @Column(name = "evidence_url", length = 1000)
+    private String evidenceUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

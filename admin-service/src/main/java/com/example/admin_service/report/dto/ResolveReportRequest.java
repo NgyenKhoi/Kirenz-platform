@@ -12,6 +12,11 @@ public record ResolveReportRequest(
     @NotNull ReportResolutionAction action,
     @NotNull ModerationReason moderationReason,
     @Size(max = 2000) String adminNote,
-    @Future Instant suspendedUntil
+    @Future Instant suspendedUntil,
+    @Size(max = 1000) String evidenceUrl
 ) {
+    public ResolveReportRequest(ReportResolutionAction action, ModerationReason moderationReason,
+                                String adminNote, Instant suspendedUntil) {
+        this(action, moderationReason, adminNote, suspendedUntil, null);
+    }
 }
