@@ -47,6 +47,11 @@ public class AdminUserController {
         return identityAdminClient.searchUsers(query, status, emailVerified, page, size);
     }
 
+    @GetMapping("/{userId}")
+    public ApiResponse<AdminUserResponse> getUser(@PathVariable UUID userId) {
+        return identityAdminClient.getUser(userId);
+    }
+
     @PostMapping("/{userId}/ban")
     public ApiResponse<AdminUserResponse> ban(
         @PathVariable UUID userId,

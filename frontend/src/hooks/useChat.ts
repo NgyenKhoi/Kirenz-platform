@@ -22,9 +22,9 @@ export const useChat = (userId: string | undefined) => {
       const allParticipants = new Set<string>();
       conversations.forEach(c => c.participants.forEach(p => allParticipants.add(p.userId)));
       
-      chatService.getPresence(Array.from(allParticipants)).then((presence) => {
-        setOnlineUsers(prev => ({ ...prev, ...presence }));
-      });
+      chatService.getPresence(Array.from(allParticipants))
+        .then((presence) => setOnlineUsers(prev => ({ ...prev, ...presence })))
+        .catch((error) => console.error('Presence fetch error', error));
     }
   }, [conversations]);
 
@@ -39,13 +39,6 @@ export const useChat = (userId: string | undefined) => {
       try {
         await websocketService.connect(token, userId);
 
-        if (conversations && conversations.length > 0) {
-          const participantIds = Array.from(new Set(conversations.flatMap(c => c.participants.map(p => p.userId))));
-          chatService.getPresence(participantIds).then((presence) => {
-            setOnlineUsers(prev => ({ ...prev, ...presence }));
-          });
-        }
-        
         // Subscribe to presence updates
         presenceSub = websocketService.subscribeToPresence((data) => {
           setOnlineUsers(prev => ({ 
@@ -90,7 +83,7 @@ export const useChat = (userId: string | undefined) => {
       presenceSub?.unsubscribe();
       userQueueSub?.unsubscribe();
     };
-  }, [userId, token, queryClient, conversations]);
+  }, [userId, token, queryClient]);
 
   return {
     conversations,

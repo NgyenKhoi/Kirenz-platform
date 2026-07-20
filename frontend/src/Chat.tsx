@@ -237,11 +237,6 @@ export default function Chat() {
     }
   }, [lastMessageId, selectedConversationId, user?.id, queryClient]);
 
-  const totalUnreadMessages = useMemo(() => 
-    conversations?.reduce((sum, c) => sum + (c.unreadCount || 0), 0) || 0,
-    [conversations]
-  );
-
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typingUsers]);
@@ -423,7 +418,23 @@ export default function Chat() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [directChatNotice, setDirectChatNotice] = useState('');
+  const [directChatNoticeSeconds, setDirectChatNoticeSeconds] = useState(0);
   const [directMessageAllowed, setDirectMessageAllowed] = useState(true);
+
+  useEffect(() => {
+    if (!directChatNotice) return;
+    const timer = window.setInterval(() => {
+      setDirectChatNoticeSeconds((seconds) => {
+        if (seconds <= 1) {
+          window.clearInterval(timer);
+          setDirectChatNotice('');
+          return 0;
+        }
+        return seconds - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [directChatNotice]);
 
   useEffect(() => {
     if (!selectedConversation || selectedConversation.type !== 'DIRECT' || !user?.id) {
@@ -717,6 +728,7 @@ export default function Chat() {
     } catch (err: any) {
       const message = err.response?.data?.message || 'Could not start conversation';
       setDirectChatNotice(message);
+      setDirectChatNoticeSeconds(5);
     }
   };
 
@@ -737,14 +749,6 @@ export default function Chat() {
             <button className="p-2 text-on-surface-variant hover:bg-primary-container/20 rounded-full transition-colors active:scale-95">
               <Bell size={24} />
             </button>
-             <button className="p-2 text-primary font-bold bg-primary-container/20 rounded-full transition-colors active:scale-95 relative">
-              <MessageSquare size={24} className="fill-current" />
-              {totalUnreadMessages > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[9px] font-black rounded-full h-4 w-4 flex items-center justify-center animate-pulse">
-                  {totalUnreadMessages}
-                </span>
-              )}
-            </button>
           </div>
         </header>
 
@@ -756,12 +760,6 @@ export default function Chat() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-             <button className="p-2.5 text-primary font-bold bg-primary-container/20 hover:bg-surface-container-high transition-colors duration-200 rounded-full active:scale-95 relative">
-              <MessageSquare size={22} className="fill-current" />
-              {totalUnreadMessages > 0 && (
-                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-error rounded-full animate-pulse"></span>
-              )}
-            </button>
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container shrink-0 ml-2">
               <img 
                 alt="User Profile" 
@@ -805,10 +803,6 @@ export default function Chat() {
                   <div className="absolute top-full left-0 right-0 mt-2 bg-surface-container-highest rounded-2xl shadow-xl z-50 overflow-hidden border border-outline-variant/20">
                     {isSearching ? (
                       <div className="p-4 flex justify-center"><Loader2 className="animate-spin text-primary" size={20} /></div>
-                    ) : directChatNotice ? (
-                      <div role="status" className="p-4 text-sm font-bold text-error bg-error-container">
-                        {directChatNotice}
-                      </div>
                     ) : searchResults.length > 0 ? (
                       searchResults.map(res => (
                         <div 
@@ -1564,6 +1558,37 @@ export default function Chat() {
         onConfirm={() => setBlockWarningDialog({ isOpen: false, names: [] })}
         onCancel={() => setBlockWarningDialog({ isOpen: false, names: [] })}
       />
+      {directChatNotice && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed bottom-24 left-4 right-4 z-[100] overflow-hidden rounded-2xl border border-error/20 bg-error-container text-on-error-container shadow-xl sm:bottom-auto sm:left-auto sm:right-6 sm:top-6 sm:w-full sm:max-w-md"
+        >
+          <div className="flex items-start gap-3 px-4 py-3.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold">Unable to start conversation</p>
+              <p className="mt-0.5 text-sm">{directChatNotice}</p>
+            </div>
+            <span className="mt-0.5 shrink-0 text-xs font-bold tabular-nums" aria-label={`Closing in ${directChatNoticeSeconds} seconds`}>
+              {directChatNoticeSeconds}s
+            </span>
+            <button
+              type="button"
+              onClick={() => setDirectChatNotice('')}
+              className="shrink-0 rounded-full p-1 hover:bg-error/10"
+              aria-label="Dismiss notification"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="h-1 bg-error/15">
+            <div
+              className="h-full bg-error transition-[width] duration-1000 ease-linear"
+              style={{ width: `${(directChatNoticeSeconds / 5) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
       <ConfirmDialog
         isOpen={errorDialog.isOpen}
         title="Attention"

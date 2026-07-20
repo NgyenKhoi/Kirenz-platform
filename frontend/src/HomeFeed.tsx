@@ -1,14 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import {
-  Search,
-  Bell,
-  Bookmark,
-  Calendar,
-  Gift,
-  Video,
-  Edit2,
-} from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { UserPlus } from "lucide-react";
 import Layout from "./components/Layout";
 import { postService } from "./services/post.service";
 import { PostResponse } from "./types/post.types";
@@ -17,6 +9,8 @@ import { useAuthStore } from "./store/authStore";
 import { getErrorMessage } from "./utils/post.utils";
 import { PostCard } from "./components/Post/PostCard";
 import { CreatePost } from "./components/Post/CreatePost";
+import { friendService } from "./services/friend.service";
+import { FriendSuggestionResponse } from "./types/friend.types";
 
 export default function HomeFeed() {
   const { user } = useAuthStore();
@@ -32,6 +26,9 @@ export default function HomeFeed() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<FriendSuggestionResponse[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [requestingUserId, setRequestingUserId] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const profileName = useMemo(
@@ -99,6 +96,28 @@ export default function HomeFeed() {
   useEffect(() => {
     void loadPosts(targetPostId);
   }, [targetPostId]);
+
+  useEffect(() => {
+    let active = true;
+    friendService.getSuggestions(6)
+      .then((items) => { if (active) setSuggestions(items); })
+      .catch(() => { if (active) setSuggestions([]); })
+      .finally(() => { if (active) setSuggestionsLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const sendSuggestionRequest = async (suggestion: FriendSuggestionResponse) => {
+    setRequestingUserId(suggestion.id);
+    try {
+      await friendService.sendRequest({ receiverId: suggestion.id });
+      setSuggestions((current) => current.filter((item) => item.id !== suggestion.id));
+      setMessage(`Friend request sent to ${suggestion.displayName || suggestion.username || 'this user'}.`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setRequestingUserId(null);
+    }
+  };
 
   useEffect(() => {
     if (!targetPostId || isLoading) return;
@@ -191,16 +210,10 @@ export default function HomeFeed() {
   return (
     <Layout>
       <main className="px-6 md:px-8 py-8 min-h-screen xl:mr-[320px]">
-        <header className="md:hidden flex justify-between items-center mb-6 mt-4">
+        <header className="md:hidden flex items-center mb-6 mt-4">
           <h1 className="text-xl font-bold text-primary-container tracking-tight">
             MOMENTS
           </h1>
-          <button
-            className="text-on-surface-variant hover:text-primary"
-            aria-label="Search"
-          >
-            <Search size={24} />
-          </button>
         </header>
 
         <div className="flex flex-col gap-6 pb-20 lg:pb-6 max-w-[600px] mx-auto md:max-w-none xl:max-w-[800px]">
@@ -261,37 +274,31 @@ export default function HomeFeed() {
       </main>
 
       <aside className="fixed right-0 top-0 h-screen w-[320px] p-8 hidden xl:flex flex-col gap-6 bg-surface z-40 overflow-y-auto">
-        <div className="relative w-full mb-2">
-          <Search
-            size={20}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-outline"
-          />
-          <input
-            type="text"
-            placeholder="Search for joy..."
-            className="w-full bg-surface-container-lowest border-none rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-primary-container text-base font-medium transition-all shadow-[0_4px_12px_rgba(139,78,62,0.05)]"
-          />
-        </div>
-
         <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)]">
-          <div className="flex items-center gap-3 mb-4">
-            <Gift className="text-primary-container shrink-0" size={28} />
-            <h2 className="text-xl font-bold text-on-surface">Birthdays</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-on-surface">People you may know</h2>
+            <Link to="/friends" className="text-xs font-bold text-primary hover:underline">See all</Link>
           </div>
-          <p className="text-base font-medium text-on-surface-variant leading-snug">
-            <span className="font-bold text-on-surface">Elena Vance</span> and{" "}
-            <span className="font-bold text-on-surface">2 others</span> have
-            birthdays today.
-          </p>
-          <button className="mt-4 w-full py-2 bg-secondary-container text-on-secondary-container rounded-full text-sm font-bold active:scale-95 hover:bg-secondary-fixed transition-colors">
-            View Birthdays
-          </button>
+          {suggestionsLoading ? (
+            <div className="space-y-3">{[0, 1, 2].map((item) => <div key={item} className="h-14 animate-pulse rounded-2xl bg-surface-container" />)}</div>
+          ) : suggestions.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">No friend-of-friend suggestions yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {suggestions.map((suggestion) => {
+                const name = suggestion.displayName || suggestion.username || 'Kirenz User';
+                return <div key={suggestion.id} className="flex items-center gap-3">
+                  <Link to={`/profile/${suggestion.id}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 hover:bg-surface-container">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-primary-container font-bold text-on-primary-container">{suggestion.avatarUrl ? <img src={suggestion.avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : name.slice(0, 1).toUpperCase()}</span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-bold text-on-surface">{name}</span><span className="block text-xs text-on-surface-variant">{suggestion.mutualFriendCount} mutual friend{suggestion.mutualFriendCount === 1 ? '' : 's'}</span></span>
+                  </Link>
+                  <button type="button" disabled={requestingUserId === suggestion.id} onClick={() => void sendSuggestionRequest(suggestion)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-container text-on-primary-container disabled:opacity-50" aria-label={`Add ${name} as friend`}><UserPlus size={17} /></button>
+                </div>;
+              })}
+            </div>
+          )}
         </div>
       </aside>
-
-      <button className="lg:hidden fixed bottom-20 right-6 w-14 h-14 bg-primary-container text-on-primary-container rounded-full shadow-[0_8px_16px_rgba(255,176,156,0.4)] flex items-center justify-center active:scale-95 transition-transform z-40">
-        <Edit2 size={24} />
-      </button>
     </Layout>
   );
 }

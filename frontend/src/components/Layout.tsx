@@ -291,9 +291,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <LogOut size={20} />
             Logout
           </button>
-          <button className="w-full py-4 bg-primary text-on-primary font-bold rounded-full shadow-[0_4px_12px_rgba(139,78,62,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all">
-            Share a Moment
-          </button>
         </div>
       </aside>
 

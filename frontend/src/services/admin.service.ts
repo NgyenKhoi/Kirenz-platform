@@ -40,6 +40,7 @@ export const adminService = {
     return response.data.data;
   },
   getUsers: async (params: Record<string, unknown>): Promise<PageResponse<AdminUser>> => (await apiClient.get<ApiResponse<PageResponse<AdminUser>>>('/admin/users', { params })).data.data,
+  getUser: async (id: string): Promise<AdminUser> => (await apiClient.get<ApiResponse<AdminUser>>(`/admin/users/${id}`)).data.data,
   banUser: async (id: string, body: { reason: string; note?: string; evidenceUrl?: string }) => (await apiClient.post<ApiResponse<AdminUser>>(`/admin/users/${id}/ban`, body)).data.data,
   unbanUser: async (id: string, body: { reason: string; note?: string }) => (await apiClient.post<ApiResponse<AdminUser>>(`/admin/users/${id}/unban`, body)).data.data,
   suspendUser: async (id: string, body: { suspendedUntil: string; moderationReason: string; note?: string; evidenceUrl?: string }) => (await apiClient.post<ApiResponse<AdminUser>>(`/admin/users/${id}/suspend`, body)).data.data,

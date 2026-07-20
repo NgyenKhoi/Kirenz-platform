@@ -102,11 +102,16 @@ export const chatService = {
   },
 
   getPresence: async (userIds: string[]): Promise<Record<string, { isOnline: boolean, lastSeen?: number }>> => {
+    if (userIds.length === 0) return {};
     const response = await axios.get(`${API_BASE_URL}/presence/status`, {
       params: { userIds: userIds.join(',') },
       headers: getAuthHeaders(),
     });
-    return response.data.data;
+    const raw = response.data.data as Record<string, { isOnline?: boolean; online?: boolean; lastSeen?: number }>;
+    return Object.fromEntries(Object.entries(raw).map(([userId, presence]) => [userId, {
+      isOnline: presence.isOnline ?? presence.online ?? false,
+      lastSeen: presence.lastSeen,
+    }]));
   },
 
   uploadMedia: async (files: File[]): Promise<MediaUploadResponse[]> => {

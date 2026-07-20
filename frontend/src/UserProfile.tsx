@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { 
-  Search, Bell, Heart, Mail, User, Users, UsersRound, Sparkles, 
-  PlusCircle, Camera, Plus, Edit2, MapPin, Calendar, Link as LinkIcon, 
+import {
+  Search, Bell, Heart, Mail, User, Users, UsersRound, Sparkles,
+  PlusCircle, Camera, Plus, Edit2, MapPin, Calendar, Link as LinkIcon,
   Image as ImageIcon, Smile, MoreHorizontal, MessageSquare, Share2, ThumbsUp,
   UserPlus, UserMinus, Check, X, Loader2
 } from 'lucide-react';
@@ -18,7 +18,7 @@ import { MediaViewerModal } from './components/common/MediaViewerModal';
 import { PostImageResponse, PostPrivacy, PostResponse } from './types/post.types';
 import { ReactionSummaryResponse } from './types/reaction.types';
 import { UserProfile as UserProfileType } from './types/auth.types';
-import { FriendRequestResponse, FriendResponse, RelationshipStatus } from './types/friend.types';
+import { FriendRequestResponse, FriendResponse, MutualFriendResponse, RelationshipStatus } from './types/friend.types';
 import { useEscapeKey } from './hooks/useEscapeKey';
 import { ReportDialog } from './components/common/ReportDialog';
 
@@ -33,12 +33,12 @@ const profileTabFromQuery = (value: string | null): ProfileTab => {
 };
 
 export default function UserProfile() {
-  const { 
-    user, 
-    uploadAvatarAsync, 
-    isUploadingAvatar, 
-    updateProfileAsync, 
-    isUpdatingProfile 
+  const {
+    user,
+    uploadAvatarAsync,
+    isUploadingAvatar,
+    updateProfileAsync,
+    isUpdatingProfile
   } = useAuth();
   const { userId } = useParams<{ userId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -64,6 +64,8 @@ export default function UserProfile() {
   const [friends, setFriends] = useState<FriendResponse[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(true);
   const [friendError, setFriendError] = useState<string | null>(null);
+  const [mutualFriends, setMutualFriends] = useState<MutualFriendResponse[]>([]);
+  const [isLoadingMutualFriends, setIsLoadingMutualFriends] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestResponse[]>([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
@@ -239,7 +241,7 @@ export default function UserProfile() {
           if (isMounted) setFriends([]);
           return;
         }
-        const friendsList = isOwnProfile 
+        const friendsList = isOwnProfile
           ? await friendService.getFriends()
           : await friendService.getUserFriends(id);
         if (isMounted) {
@@ -262,6 +264,20 @@ export default function UserProfile() {
       isMounted = false;
     };
   }, [userId, isOwnProfile, user?.id, relationshipStatus, profileRestricted, profileNotFound]);
+
+  useEffect(() => {
+    if (isOwnProfile || !userId || profileRestricted || profileNotFound || !targetUser) {
+      setMutualFriends([]);
+      return;
+    }
+    let active = true;
+    setIsLoadingMutualFriends(true);
+    friendService.getMutualFriends(userId)
+      .then((items) => { if (active) setMutualFriends(items); })
+      .catch(() => { if (active) setMutualFriends([]); })
+      .finally(() => { if (active) setIsLoadingMutualFriends(false); });
+    return () => { active = false; };
+  }, [isOwnProfile, userId, profileRestricted, profileNotFound, targetUser]);
 
   useEffect(() => {
     if (!isOwnProfile) {
@@ -529,8 +545,10 @@ export default function UserProfile() {
         <main className="flex min-h-screen items-center justify-center bg-surface px-6 text-center text-on-surface">
           <div className="max-w-md rounded-[2rem] bg-surface-container-lowest p-8 shadow-xl">
             <UsersRound size={48} className="mx-auto mb-4 text-primary" />
-            <h2 className="text-2xl font-bold">User này đã ẩn profile của mình</h2>
-            <p className="mt-3 text-sm font-medium text-on-surface-variant">Hãy kết bạn để xem profile, bài viết, bạn bè và ảnh của người dùng này.</p>
+            <h2 className="text-2xl font-bold">This profile is private</h2>
+            <p className="mt-3 text-sm font-medium text-on-surface-variant">
+              Send a friend request to view this user's profile, posts, friends, and photos.
+            </p>
             <Link to="/explore" className="mt-5 inline-flex rounded-full bg-primary px-6 py-2 text-sm font-bold text-on-primary">
               Back to Explore
             </Link>
@@ -557,17 +575,17 @@ export default function UserProfile() {
   return (
     <Layout>
       <div className="bg-surface text-on-surface min-h-screen pb-20 md:pb-0">
-        
+
         {/* Mobile Header (Optional) */}
         <header className="md:hidden flex justify-between items-center mb-0 mt-4 px-6 z-50 absolute w-full top-0">
-           <div className="flex gap-2 ml-auto">
+          <div className="flex gap-2 ml-auto">
             <button className="bg-surface/50 backdrop-blur p-2 rounded-full text-on-surface hover:text-primary">
               <Search size={20} />
             </button>
             <button className="bg-surface/50 backdrop-blur p-2 rounded-full text-on-surface hover:text-primary">
               <Bell size={20} />
             </button>
-           </div>
+          </div>
         </header>
 
         {/* Main Content */}
@@ -576,17 +594,17 @@ export default function UserProfile() {
           <div className="relative">
             {/* Cover Photo */}
             <div className="h-64 md:h-80 w-full overflow-hidden relative group">
-              <img 
-                alt="Cover" 
+              <img
+                alt="Cover"
                 src={coverPhotoUrl}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
-              
+
               {isOwnProfile && (
-                <Link 
-                  to="/edit-cover" 
+                <Link
+                  to="/edit-cover"
                   className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/20 hover:bg-white/40 backdrop-blur-md px-4 py-2 rounded-full text-white font-bold flex items-center gap-2 transition-all border border-white/30 hover:scale-105 active:scale-95"
                 >
                   <Camera size={18} />
@@ -594,20 +612,20 @@ export default function UserProfile() {
                 </Link>
               )}
             </div>
-            
+
             {/* Profile Info Container */}
             <div className="max-w-[1000px] mx-auto px-4 -mt-16 md:-mt-24 relative z-10">
               <div className="flex flex-col md:flex-row md:items-end gap-6 md:justify-between bg-surface/80 backdrop-blur-md p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
                 <div className="flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
                   <div className="relative">
-                    <img 
-                      alt={displayName} 
+                    <img
+                      alt={displayName}
                       src={avatarUrl}
                       className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface ring-4 ring-primary-container object-cover"
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  
+
                   <div className="pb-2">
                     <h1 className="text-3xl font-bold text-on-surface">{displayName}</h1>
                     <div className="flex gap-4 mt-2 justify-center md:justify-start text-on-surface-variant font-medium">
@@ -615,11 +633,11 @@ export default function UserProfile() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex gap-3 justify-center mb-2 md:mb-0">
                   {isOwnProfile ? (
                     <>
-                      <button 
+                      <button
                         onClick={() => setIsEditModalOpen(true)}
                         className="bg-surface-container-high text-on-surface-variant px-6 py-3 rounded-full font-bold flex items-center gap-2 active:scale-95 border-2 border-outline-variant hover:bg-surface-container-highest transition-all"
                       >
@@ -698,7 +716,7 @@ export default function UserProfile() {
                   )}
                 </div>
               </div>
-              
+
               {/* Tabs */}
               <div className="flex border-b border-surface-variant mt-6 px-2 overflow-x-auto gap-8 hide-scrollbar">
                 {([
@@ -722,10 +740,28 @@ export default function UserProfile() {
 
           {/* Profile Content Grid */}
           <div className="max-w-[1000px] mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
+
             {/* Left Column: Intro & Photos Preview */}
             <div className="lg:col-span-5 flex flex-col gap-6">
-              
+
+              {!isOwnProfile && (isLoadingMutualFriends || mutualFriends.length > 0) && (
+                <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
+                  <div className="mb-4 flex items-center gap-3">
+                    <UsersRound size={24} className="text-primary" />
+                    <div><h3 className="text-xl font-bold text-on-surface">Mutual friends</h3>{!isLoadingMutualFriends && <p className="text-sm text-on-surface-variant">{mutualFriends.length} mutual friend{mutualFriends.length === 1 ? '' : 's'}</p>}</div>
+                  </div>
+                  {isLoadingMutualFriends ? <div className="h-14 animate-pulse rounded-2xl bg-surface-container" /> : (
+                    <div className="space-y-2">{mutualFriends.slice(0, 5).map((mutualFriend) => {
+                      const mutualName = mutualFriend.displayName || mutualFriend.username;
+                      return <Link key={mutualFriend.id} to={`/profile/${mutualFriend.id}`} className="flex items-center gap-3 rounded-2xl p-2 hover:bg-surface-container">
+                        <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-primary-container font-bold text-on-primary-container">{mutualFriend.avatarUrl ? <img src={mutualFriend.avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : mutualName.slice(0, 1).toUpperCase()}</span>
+                        <span className="min-w-0"><span className="block truncate text-sm font-bold text-on-surface">{mutualName}</span><span className="block truncate text-xs text-on-surface-variant">@{mutualFriend.username}</span></span>
+                      </Link>;
+                    })}</div>
+                  )}
+                </div>
+              )}
+
               {/* Intro Card */}
               <div className="bg-surface-container-lowest p-6 rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] border border-surface-container">
                 <h3 className="text-xl font-bold text-on-surface mb-4">Intro</h3>
@@ -747,14 +783,14 @@ export default function UserProfile() {
                     <span className="text-base font-medium">{bio}</span>
                   </div>
                 </div>
-                 {isOwnProfile && (
-                   <button 
-                     onClick={() => setIsEditModalOpen(true)}
-                     className="w-full mt-6 py-3 bg-surface-container-high rounded-full font-bold text-on-surface-variant active:scale-95 hover:bg-surface-container-highest transition-all text-center flex items-center justify-center"
-                   >
-                     Edit Bio
-                   </button>
-                 )}
+                {isOwnProfile && (
+                  <button
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="w-full mt-6 py-3 bg-surface-container-high rounded-full font-bold text-on-surface-variant active:scale-95 hover:bg-surface-container-highest transition-all text-center flex items-center justify-center"
+                  >
+                    Edit Bio
+                  </button>
+                )}
               </div>
 
               {/* Photos Preview Card */}
@@ -796,7 +832,7 @@ export default function UserProfile() {
                   </div>
                 )}
               </div>
-              
+
             </div>
 
             {/* Right Column: Posts Feed */}
@@ -1007,74 +1043,74 @@ export default function UserProfile() {
 
               {activeTab === 'POSTS' && (
                 <>
-              
-              {/* Create Post (Mini) */}
-              {isOwnProfile && (
-                <CreatePost
-                  user={user}
-                  className="border border-surface-container"
-                  onCreated={(created) => {
-                    setPosts((current) => [created, ...current]);
-                    const createdImages = created.media
-                      .filter((media) => media.type === 'IMAGE')
-                      .map((media) => ({
-                        postId: created.id,
-                        url: media.url,
-                        publicId: media.publicId,
-                        createdAt: created.createdAt,
-                      }));
-                    if (createdImages.length > 0) {
-                      setPhotos((current) => [...createdImages, ...current]);
-                    }
-                    setPostError(null);
-                  }}
-                  onError={(message) => {
-                    setPostMessage(null);
-                    setPostError(message || null);
-                  }}
-                  onSuccess={(message) => {
-                    setPostError(null);
-                    setPostMessage(message || null);
-                  }}
-                />
-              )}
 
-              {postMessage && (
-                <div className="rounded-[2rem] bg-primary-container px-5 py-4 text-sm font-bold text-on-primary-container">
-                  {postMessage}
-                </div>
-              )}
-
-              {postError && (
-                <div className="rounded-[2rem] bg-error-container px-5 py-4 text-sm font-bold text-on-error-container">
-                  {postError}
-                </div>
-              )}
-
-              {isLoadingPosts ? (
-                <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold border border-surface-container">
-                  Loading your posts...
-                </div>
-              ) : posts.length === 0 ? (
-                <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold border border-surface-container">
-                  You have not posted anything yet.
-                </div>
-              ) : (
-                posts.map((post) => (
-                  <React.Fragment key={post.id}>
-                    <PostCard
-                      post={post}
-                      currentUserId={user?.id}
-                      currentUserAvatarUrl={user?.avatarUrl}
-                      onUpdate={handleUpdatePost}
-                      onDelete={handleDeletePost}
-                      onShare={handleSharePost}
-                      onCommentCountChange={handleCommentCountChange}
-                      onReactionSummaryChange={handleReactionSummaryChange}
+                  {/* Create Post (Mini) */}
+                  {isOwnProfile && (
+                    <CreatePost
+                      user={user}
+                      className="border border-surface-container"
+                      onCreated={(created) => {
+                        setPosts((current) => [created, ...current]);
+                        const createdImages = created.media
+                          .filter((media) => media.type === 'IMAGE')
+                          .map((media) => ({
+                            postId: created.id,
+                            url: media.url,
+                            publicId: media.publicId,
+                            createdAt: created.createdAt,
+                          }));
+                        if (createdImages.length > 0) {
+                          setPhotos((current) => [...createdImages, ...current]);
+                        }
+                        setPostError(null);
+                      }}
+                      onError={(message) => {
+                        setPostMessage(null);
+                        setPostError(message || null);
+                      }}
+                      onSuccess={(message) => {
+                        setPostError(null);
+                        setPostMessage(message || null);
+                      }}
                     />
-                  </React.Fragment>
-                ))
-              )}
+                  )}
+
+                  {postMessage && (
+                    <div className="rounded-[2rem] bg-primary-container px-5 py-4 text-sm font-bold text-on-primary-container">
+                      {postMessage}
+                    </div>
+                  )}
+
+                  {postError && (
+                    <div className="rounded-[2rem] bg-error-container px-5 py-4 text-sm font-bold text-on-error-container">
+                      {postError}
+                    </div>
+                  )}
+
+                  {isLoadingPosts ? (
+                    <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold border border-surface-container">
+                      Loading your posts...
+                    </div>
+                  ) : posts.length === 0 ? (
+                    <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold border border-surface-container">
+                      You have not posted anything yet.
+                    </div>
+                  ) : (
+                    posts.map((post) => (
+                      <React.Fragment key={post.id}>
+                        <PostCard
+                          post={post}
+                          currentUserId={user?.id}
+                          currentUserAvatarUrl={user?.avatarUrl}
+                          onUpdate={handleUpdatePost}
+                          onDelete={handleDeletePost}
+                          onShare={handleSharePost}
+                          onCommentCountChange={handleCommentCountChange}
+                          onReactionSummaryChange={handleReactionSummaryChange}
+                        />
+                      </React.Fragment>
+                    ))
+                  )}
                 </>
               )}
 
@@ -1082,7 +1118,7 @@ export default function UserProfile() {
               <article className="hidden bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] p-6 border border-surface-container hover:shadow-[0_0_20px_rgba(255,176,156,0.3)] transition-all">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <img 
+                    <img
                       src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgclLBJo25expsXmBpa58xNNqpANNZ2zeZtY8MMp531ZRhcyuOYZDP1AK4Z6Rwfc20jjCOnnWeMpvEy8MdKPxqM7kwntSskyKFu51DwcDxsu_4h3RkdpbHWIwZIu9SnV7NtYOkArsMNfQEf2LV-35YJhVK5XsD1QyqEe0GjIUe2sIrUHFHX0vSFugV56hOCVfNTFutJ1WI-LcHsqw7Me9ro9u8bow6KcispK8I9p6lFJFv05L0uwwmCSQ6XPuA5diiWrjfpZ3OhD4"
                       alt="Alex Rivera"
                       className="w-12 h-12 rounded-full object-cover"
@@ -1097,20 +1133,20 @@ export default function UserProfile() {
                     <MoreHorizontal size={24} />
                   </button>
                 </div>
-                
+
                 <p className="text-base font-medium text-on-surface mb-4">
                   Found this beautiful corner in the park today. Nature always knows how to reset the soul. ðŸŒ¿âœ¨
                 </p>
-                
+
                 <div className="rounded-[1.5rem] overflow-hidden mb-4">
-                  <img 
+                  <img
                     src="https://lh3.googleusercontent.com/aida-public/AB6AXuC94qfhd1h4zL-iFK9nO1KMnSUFeU7fFF7OKPOD1TH8B0sZrObPo4AdKEi17Ix5lzonDmnwsEGAraX9Qsk1ERPMlCrJE229LHm0mRobNVSE6TYhuKmXnPp8ytVobk5bu4gUftw7DANYQhwwdLpcJR6EBhEEMax940LvI8_lujsIctQ4owqbXgjrUH2olEkoMRKaSM-Z38PaQcgxw3g2bsG5hcuvjElOcoxxX6dpksPDo3kUvQAO8wngHovxUcSGdJ-Bwsh-fP4cap0"
                     alt="Park trail"
                     className="w-full h-64 sm:h-80 object-cover"
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                
+
                 <div className="flex items-center justify-between py-3 border-y border-outline-variant/30">
                   <div className="flex items-center -space-x-2">
                     <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center border-2 border-surface-container-lowest z-20">
@@ -1123,7 +1159,7 @@ export default function UserProfile() {
                   </div>
                   <span className="text-xs font-bold text-on-surface-variant">12 comments</span>
                 </div>
-                
+
                 <div className="flex gap-2 mt-4">
                   <button className="flex-1 flex items-center justify-center gap-2 py-2 hover:bg-primary-fixed text-primary rounded-full transition-all active:scale-95 text-sm font-bold">
                     <Heart size={20} /> <span className="hidden sm:inline">Love</span>
@@ -1141,7 +1177,7 @@ export default function UserProfile() {
               <article className="hidden bg-surface-container-lowest rounded-[2rem] shadow-[0_10px_30px_-12px_rgba(255,176,156,0.15)] p-6 border border-surface-container hover:shadow-[0_0_20px_rgba(255,176,156,0.3)] transition-all">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <img 
+                    <img
                       src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0CKoxyvz8LBy35PGCZMciqnVFXfHe3e2s6UFCYPxOkDecU5m8LJiraFw7idjozOqJsQ71QYW4RuoY1ns43erMiFKfN7EUOMKsI2gcDnacSM58unWLZOIfI9CorOwW4iPcAi8ckJpcGHJkztHFnoY7SSjCIssSYhMr249jwRZbucml7vTK38vfGTKrarAAauj27ffk79pRpLAMWLKJj-nMlpZeghYE4TtJOZdzqv7U-K7IanPE-XhmNwNTfvn-80VCOd8SrLVBvQY"
                       alt="Alex Rivera"
                       className="w-12 h-12 rounded-full object-cover"
@@ -1156,26 +1192,26 @@ export default function UserProfile() {
                     <MoreHorizontal size={24} />
                   </button>
                 </div>
-                
+
                 <p className="text-base font-medium text-on-surface mb-4">
                   The sourdough experiment continues! Best loaf yet. ðŸžâ˜•ï¸
                 </p>
-                
+
                 <div className="grid grid-cols-2 gap-2 rounded-[1.5rem] overflow-hidden mb-4">
-                  <img 
+                  <img
                     src="https://lh3.googleusercontent.com/aida-public/AB6AXuDTCOHNFRsCQ882A19vhRMS5XWwfwpvUz5Twda0_JH7b1xRPF0aGeKLjMOMm56zuPvdxB6WJivjOt9Y-UtEJhAHbacDi0CHSckxoCEmauBPHxmsUP9FBjYVLOF3z3nk9PaG8VmXAl1mYrnHn3cS18D03-p0o0Y2xvFGmA3o8JOugcUgmGWBM47NbNlzObRvAOo7wcVp4AYCViQrjrS6G_geVZHDC0cSSQ-94hGJ10FHLDQJj1dEYRT5z6zm5SGNqUaDP8t6HfaeWvw"
                     alt="Sourdough loaf"
                     className="h-48 sm:h-60 w-full object-cover"
                     referrerPolicy="no-referrer"
                   />
-                  <img 
+                  <img
                     src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVFtzglZwWA9Tk5pS848L5nj-Yz8vuMjhQfS7gJ3l-9h48CwBFeBKvS7uS_lOQg3l4tLpERx_6TCxldtyhlZESGFUQp2XpbvruvENm0uSEYHJGappKxbtxH0uBMlyKPW2YJ6KxFE4x9m8lVs5czYMTFg_E8wx5O66KcTcvr8xjaQqL0YJoINEiD1TkOntPvQX0tr-cWMCYDyPo3IJq5pRniw8G_7V2kh1zg3yyS6OeINNDqv9y8cGcwkSQOyeaRWTj0mw_s6bIC6s"
                     alt="Coffee and bread"
                     className="h-48 sm:h-60 w-full object-cover"
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                
+
                 <div className="flex items-center justify-between py-3 border-b border-outline-variant/30">
                   <div className="flex items-center -space-x-2">
                     <div className="w-8 h-8 rounded-full bg-tertiary flex items-center justify-center border-2 border-surface-container-lowest z-10">
@@ -1185,7 +1221,7 @@ export default function UserProfile() {
                   </div>
                   <span className="text-xs font-bold text-on-surface-variant">24 comments</span>
                 </div>
-                
+
                 <div className="flex gap-2 mt-4">
                   <button className="flex-1 flex items-center justify-center gap-2 py-2 hover:bg-primary-fixed text-primary rounded-full transition-all active:scale-95 text-sm font-bold">
                     <Heart size={20} /> <span className="hidden sm:inline">Love</span>
@@ -1224,7 +1260,7 @@ export default function UserProfile() {
                 <Edit2 size={24} className="text-primary" />
                 Edit Profile
               </h3>
-              <button 
+              <button
                 onClick={() => setIsEditModalOpen(false)}
                 className="text-on-surface-variant hover:text-on-surface p-2 hover:bg-surface-container rounded-full transition-colors"
               >
@@ -1244,13 +1280,13 @@ export default function UserProfile() {
                     onChange={handleAvatarChange}
                     className="hidden"
                   />
-                  <img 
-                    alt={displayName} 
+                  <img
+                    alt={displayName}
                     src={avatarUrl}
                     className="w-24 h-24 rounded-full border-4 border-surface ring-4 ring-primary-container object-cover"
                     referrerPolicy="no-referrer"
                   />
-                  <button 
+                  <button
                     type="button"
                     onClick={() => avatarInputRef.current?.click()}
                     disabled={isUploadingAvatar}
@@ -1269,63 +1305,63 @@ export default function UserProfile() {
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-on-surface-variant ml-2">Full Name</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   name="displayName"
                   value={editFormData.displayName}
                   onChange={(e) => setEditFormData(prev => ({ ...prev, displayName: e.target.value }))}
                   required
                   placeholder="Your full display name"
-                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
+                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-on-surface-variant ml-2">Bio</label>
-                <textarea 
+                <textarea
                   rows={3}
                   name="bio"
                   value={editFormData.bio}
                   onChange={(e) => setEditFormData(prev => ({ ...prev, bio: e.target.value }))}
                   placeholder="Tell us about yourself"
-                  className="bg-surface p-4 rounded-2xl border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none resize-none" 
+                  className="bg-surface p-4 rounded-2xl border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none resize-none"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-on-surface-variant ml-2">Location</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   name="location"
                   value={editFormData.location}
                   onChange={(e) => setEditFormData(prev => ({ ...prev, location: e.target.value }))}
                   placeholder="e.g. Portland, Oregon"
-                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
+                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-on-surface-variant ml-2">Website</label>
-                <input 
-                  type="url" 
+                <input
+                  type="url"
                   name="website"
                   value={editFormData.website}
                   onChange={(e) => setEditFormData(prev => ({ ...prev, website: e.target.value }))}
                   placeholder="https://example.com"
-                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none" 
+                  className="bg-surface p-4 rounded-full border-2 border-outline-variant/30 focus:border-primary focus:ring-0 transition-colors text-base font-medium text-on-surface outline-none"
                 />
               </div>
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-4 pt-4 border-t border-outline-variant/30">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
                   className="px-6 py-3 rounded-full text-sm font-bold text-on-surface-variant hover:bg-surface-variant transition-colors active:scale-95"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={isUpdatingProfile}
                   className="px-8 py-3 rounded-full text-sm font-bold bg-primary text-on-primary shadow-lg hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 min-w-[140px]"
