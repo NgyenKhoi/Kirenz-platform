@@ -9,6 +9,7 @@ import com.example.social_service.event.NotificationEvent;
 import com.example.social_service.event.NotificationProducer;
 import com.example.social_service.post.dto.AuthorResponse;
 import com.example.social_service.post.dto.CreatePostRequest;
+import com.example.social_service.post.dto.CursorPage;
 import com.example.social_service.post.dto.PostImageResponse;
 import com.example.social_service.post.dto.PostMediaRequest;
 import com.example.social_service.post.dto.PostMediaResponse;
@@ -16,6 +17,7 @@ import com.example.social_service.post.dto.PostResponse;
 import com.example.social_service.post.dto.SharePostRequest;
 import com.example.social_service.post.dto.SharedPostResponse;
 import com.example.social_service.post.dto.UpdatePostRequest;
+import com.example.social_service.post.dto.TrendingHashtagResponse;
 import com.example.social_service.post.model.MediaType;
 import com.example.social_service.post.model.Post;
 import com.example.social_service.post.model.PostMedia;
@@ -27,14 +29,29 @@ import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.service.ReactionService;
 import com.example.social_service.user.FriendStatusResponse;
 import com.example.social_service.user.UserServiceClient;
+import com.example.social_service.user.BlockStatusResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -47,6 +64,12 @@ public class PostService {
     private final UserServiceClient userServiceClient;
     private final ReactionService reactionService;
     private final NotificationProducer notificationProducer;
+    private final MongoTemplate mongoTemplate;
+
+    private static final int MAX_PAGE_SIZE = 50;
+    private static final int SCAN_BATCH_SIZE = 100;
+    private static final int EXPLORE_WINDOW_SIZE = 500;
+    private static final Pattern HASHTAG_PATTERN = Pattern.compile("#[\\p{L}\\p{N}_-]+");
 
     public PostResponse createPost(UUID userId, CreatePostRequest request) {
         List<PostMedia> media = toMedia(request.media());
@@ -114,6 +137,138 @@ public class PostService {
     public List<PostResponse> listFeed(UUID userId) {
         List<Post> posts = postRepository.findByStatusOrderByCreatedAtDesc(PostStatus.ACTIVE);
         return toResponses(userId, posts);
+    }
+
+    public CursorPage<PostResponse> listFeedPage(UUID viewerId, int limit, String cursor) {
+        return scanVisiblePage(viewerId, validateLimit(limit), decodeCursor(cursor), post -> true, Integer.MAX_VALUE);
+    }
+
+    public CursorPage<PostResponse> explore(UUID viewerId, String rawQuery, int limit, String cursor) {
+        String query = normalizeExploreQuery(rawQuery);
+        return scanVisiblePage(
+            viewerId,
+            validateLimit(limit),
+            decodeCursor(cursor),
+            post -> matchesExplore(post, query),
+            EXPLORE_WINDOW_SIZE
+        );
+    }
+
+    public List<TrendingHashtagResponse> trendingHashtags(UUID viewerId, int limit) {
+        if (limit < 1 || limit > 50) {
+            throw new BadRequestException("limit must be between 1 and 50");
+        }
+        List<Post> recent = fetchBatch(null, EXPLORE_WINDOW_SIZE);
+        Map<String, Long> counts = new HashMap<>();
+        recent.stream().filter(post -> canView(viewerId, post)).forEach(post -> {
+            Set<String> unique = new HashSet<>();
+            Matcher matcher = HASHTAG_PATTERN.matcher(post.getContent() == null ? "" : post.getContent());
+            while (matcher.find()) {
+                unique.add(matcher.group().substring(1).toLowerCase(Locale.ROOT));
+            }
+            unique.forEach(tag -> counts.merge(tag, 1L, Long::sum));
+        });
+        return counts.entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry::getKey))
+            .limit(limit)
+            .map(entry -> new TrendingHashtagResponse(entry.getKey(), entry.getValue(), EXPLORE_WINDOW_SIZE))
+            .toList();
+    }
+
+    private CursorPage<PostResponse> scanVisiblePage(
+        UUID viewerId,
+        int limit,
+        CursorPosition initialCursor,
+        java.util.function.Predicate<Post> contentFilter,
+        int scanLimit
+    ) {
+        List<Post> visible = new ArrayList<>();
+        CursorPosition scanCursor = initialCursor;
+        int scanned = 0;
+        boolean exhausted = false;
+
+        while (visible.size() < limit + 1 && scanned < scanLimit && !exhausted) {
+            int batchSize = Math.min(SCAN_BATCH_SIZE, scanLimit - scanned);
+            List<Post> batch = fetchBatch(scanCursor, batchSize);
+            if (batch.isEmpty()) break;
+            scanned += batch.size();
+            for (Post post : batch) {
+                if (contentFilter.test(post) && canView(viewerId, post)) visible.add(post);
+                if (visible.size() == limit + 1) break;
+            }
+            Post last = batch.get(batch.size() - 1);
+            scanCursor = new CursorPosition(last.getCreatedAt(), last.getId());
+            exhausted = batch.size() < batchSize;
+        }
+
+        boolean hasMore = visible.size() > limit;
+        List<Post> pagePosts = visible.stream().limit(limit).toList();
+        String nextCursor = hasMore && !pagePosts.isEmpty()
+            ? encodeCursor(pagePosts.get(pagePosts.size() - 1))
+            : null;
+        return new CursorPage<>(toResponses(viewerId, pagePosts), nextCursor, hasMore);
+    }
+
+    private List<Post> fetchBatch(CursorPosition cursor, int size) {
+        Criteria criteria = Criteria.where("status").is(PostStatus.ACTIVE);
+        if (cursor != null) {
+            criteria = criteria.andOperator(new Criteria().orOperator(
+                Criteria.where("createdAt").lt(cursor.createdAt()),
+                new Criteria().andOperator(
+                    Criteria.where("createdAt").is(cursor.createdAt()),
+                    Criteria.where("_id").lt(cursor.postId())
+                )
+            ));
+        }
+        Query query = Query.query(criteria)
+            .with(Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("_id")))
+            .limit(size);
+        return mongoTemplate.find(query, Post.class);
+    }
+
+    private int validateLimit(int limit) {
+        if (limit < 1 || limit > MAX_PAGE_SIZE) {
+            throw new BadRequestException("limit must be between 1 and 50");
+        }
+        return limit;
+    }
+
+    private String normalizeExploreQuery(String rawQuery) {
+        String value = rawQuery == null ? "" : rawQuery.trim();
+        if (value.startsWith("#")) value = value.substring(1);
+        value = value.trim().toLowerCase(Locale.ROOT);
+        if (value.length() < 2) throw new BadRequestException("q must contain at least 2 characters");
+        return value;
+    }
+
+    private boolean matchesExplore(Post post, String query) {
+        String content = post.getContent() == null ? "" : post.getContent().toLowerCase(Locale.ROOT);
+        if (content.contains(query)) return true;
+        Matcher matcher = HASHTAG_PATTERN.matcher(content);
+        while (matcher.find()) {
+            if (matcher.group().substring(1).contains(query)) return true;
+        }
+        return false;
+    }
+
+    private String encodeCursor(Post post) {
+        String value = "v1|" + post.getCreatedAt() + "|" + post.getId();
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private CursorPosition decodeCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) return null;
+        try {
+            String decoded = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            String[] parts = decoded.split("\\|", 3);
+            if (parts.length != 3 || !"v1".equals(parts[0]) || parts[2].isBlank()) throw new IllegalArgumentException();
+            return new CursorPosition(Instant.parse(parts[1]), parts[2]);
+        } catch (RuntimeException ex) {
+            throw new BadRequestException("Invalid or unsupported cursor");
+        }
+    }
+
+    private record CursorPosition(Instant createdAt, String postId) {
     }
 
     public List<PostResponse> listPublicPosts() {
@@ -406,6 +561,10 @@ public class PostService {
             return true;
         }
 
+        if (viewerId != null && isBlocked(viewerId, post.getUserId())) {
+            return false;
+        }
+
         PostPrivacy privacy = privacyOrDefault(post);
         if (privacy == PostPrivacy.PUBLIC) {
             return true;
@@ -415,6 +574,15 @@ public class PostService {
         }
 
         return isFriend(viewerId, post.getUserId());
+    }
+
+    private boolean isBlocked(UUID viewerId, UUID authorId) {
+        try {
+            BlockStatusResponse status = userServiceClient.getBlockStatus(authorId).getData();
+            return status != null && (status.blockedByViewer() || status.blockedViewer());
+        } catch (RuntimeException ex) {
+            return true;
+        }
     }
 
     private boolean isFriend(UUID viewerId, UUID authorId) {

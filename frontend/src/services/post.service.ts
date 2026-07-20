@@ -1,6 +1,6 @@
 import { API_ENDPOINTS, publicSocialServiceClient, socialServiceClient } from '../config/api.config';
 import { ApiResponse } from '../types/auth.types';
-import { CreatePostRequest, MediaUploadResponse, PostImageResponse, PostResponse, SharePostRequest, UpdatePostRequest } from '../types/post.types';
+import { CreatePostRequest, CursorPage, MediaUploadResponse, PostImageResponse, PostResponse, SharePostRequest, TrendingHashtagResponse, UpdatePostRequest } from '../types/post.types';
 
 export const postService = {
   uploadImages: async (files: File[]): Promise<MediaUploadResponse[]> => {
@@ -29,6 +29,30 @@ export const postService = {
   listFeed: async (): Promise<PostResponse[]> => {
     const response = await socialServiceClient.get<ApiResponse<PostResponse[]>>(
       API_ENDPOINTS.POSTS.BASE
+    );
+    return response.data.data;
+  },
+
+  listFeedPage: async (cursor?: string | null, limit = 20): Promise<CursorPage<PostResponse>> => {
+    const response = await socialServiceClient.get<ApiResponse<CursorPage<PostResponse>>>(
+      API_ENDPOINTS.POSTS.FEED,
+      { params: { limit, ...(cursor ? { cursor } : {}) } }
+    );
+    return response.data.data;
+  },
+
+  explore: async (q: string, cursor?: string | null, limit = 20): Promise<CursorPage<PostResponse>> => {
+    const response = await socialServiceClient.get<ApiResponse<CursorPage<PostResponse>>>(
+      API_ENDPOINTS.POSTS.EXPLORE,
+      { params: { q, limit, ...(cursor ? { cursor } : {}) } }
+    );
+    return response.data.data;
+  },
+
+  trending: async (limit = 10): Promise<TrendingHashtagResponse[]> => {
+    const response = await socialServiceClient.get<ApiResponse<TrendingHashtagResponse[]>>(
+      API_ENDPOINTS.POSTS.TRENDING,
+      { params: { limit } }
     );
     return response.data.data;
   },

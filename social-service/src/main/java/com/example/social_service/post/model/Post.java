@@ -15,7 +15,8 @@ import java.util.List;
 import java.util.UUID;
 
 @Document(collection = "posts")
-@CompoundIndex(name = "status_created_at_idx", def = "{'status': 1, 'createdAt': -1}")
+@CompoundIndex(name = "status_created_at_id_idx", def = "{'status': 1, 'createdAt': -1, '_id': -1}")
+@CompoundIndex(name = "user_status_created_at_id_idx", def = "{'userId': 1, 'status': 1, 'createdAt': -1, '_id': -1}")
 @Data
 @Builder
 @NoArgsConstructor

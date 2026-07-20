@@ -50,6 +50,9 @@ export const API_ENDPOINTS = {
   },
   POSTS: {
     BASE: '/posts',
+    FEED: '/posts/feed',
+    EXPLORE: '/posts/explore',
+    TRENDING: '/posts/explore/trending',
     PUBLIC: '/posts/public',
     PUBLIC_DETAIL: (postId: string) => `/posts/public/${postId}`,
     ME: '/posts/me',

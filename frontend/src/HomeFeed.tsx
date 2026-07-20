@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Search,
@@ -28,6 +28,11 @@ export default function HomeFeed() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const profileName = useMemo(
     () => user?.displayName || user?.username || "there",
@@ -38,7 +43,10 @@ export default function HomeFeed() {
     setIsLoading(true);
     setError(null);
     try {
-      const feedPosts = await postService.listFeed();
+      const page = await postService.listFeedPage();
+      const feedPosts = page.items;
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
       if (!focusedPostId || feedPosts.some((post) => post.id === focusedPostId)) {
         setPosts(feedPosts);
         return;
@@ -57,6 +65,36 @@ export default function HomeFeed() {
       setIsLoading(false);
     }
   };
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || !nextCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    setLoadMoreError(null);
+    try {
+      const page = await postService.listFeedPage(nextCursor);
+      setPosts((current) => {
+        const known = new Set(current.map((post) => post.id));
+        return [...current, ...page.items.filter((post) => !known.has(post.id))];
+      });
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } catch (err) {
+      setLoadMoreError(getErrorMessage(err));
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [hasMore, isLoadingMore, nextCursor]);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) void loadMore(); },
+      { rootMargin: "300px" }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   useEffect(() => {
     void loadPosts(targetPostId);
@@ -191,7 +229,8 @@ export default function HomeFeed() {
               No posts yet.
             </div>
           ) : (
-            posts.map((post) => (
+            <>
+            {posts.map((post) => (
               <div
                 id={`post-${post.id}`}
                 key={post.id}
@@ -208,7 +247,15 @@ export default function HomeFeed() {
                   onReactionSummaryChange={handleReactionSummaryChange}
                 />
               </div>
-            ))
+            ))}
+            <div ref={loadMoreRef} className="py-3 text-center text-sm font-bold text-on-surface-variant">
+              {loadMoreError ? (
+                <button type="button" onClick={() => void loadMore()} className="rounded-full bg-error-container px-4 py-2 text-on-error-container">
+                  Could not load more. Retry
+                </button>
+              ) : isLoadingMore ? "Loading more posts..." : null}
+            </div>
+            </>
           )}
         </div>
       </main>
