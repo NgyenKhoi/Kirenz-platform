@@ -85,3 +85,15 @@ export interface PostImageResponse {
   publicId?: string | null;
   createdAt: string;
 }
+
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface TrendingHashtagResponse {
+  tag: string;
+  postCount: number;
+  windowSize: number;
+}

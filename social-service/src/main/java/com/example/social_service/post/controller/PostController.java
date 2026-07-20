@@ -3,10 +3,12 @@ package com.example.social_service.post.controller;
 import com.example.social_service.auth.CurrentUser;
 import com.example.social_service.common.dto.ApiResponse;
 import com.example.social_service.post.dto.CreatePostRequest;
+import com.example.social_service.post.dto.CursorPage;
 import com.example.social_service.post.dto.PostImageResponse;
 import com.example.social_service.post.dto.PostResponse;
 import com.example.social_service.post.dto.SharePostRequest;
 import com.example.social_service.post.dto.UpdatePostRequest;
+import com.example.social_service.post.dto.TrendingHashtagResponse;
 import com.example.social_service.post.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 import java.util.UUID;
@@ -63,6 +66,39 @@ public class PostController {
         return ResponseEntity.ok(ApiResponse.success(
             "Posts retrieved successfully",
             postService.listFeed(currentUser.id())
+        ));
+    }
+
+    @GetMapping("/feed")
+    public ResponseEntity<ApiResponse<CursorPage<PostResponse>>> feedPage(
+        @RequestParam(defaultValue = "20") int limit,
+        @RequestParam(required = false) String cursor
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Posts retrieved successfully",
+            postService.listFeedPage(currentUser.id(), limit, cursor)
+        ));
+    }
+
+    @GetMapping("/explore")
+    public ResponseEntity<ApiResponse<CursorPage<PostResponse>>> explore(
+        @RequestParam String q,
+        @RequestParam(defaultValue = "20") int limit,
+        @RequestParam(required = false) String cursor
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Posts retrieved successfully",
+            postService.explore(currentUser.id(), q, limit, cursor)
+        ));
+    }
+
+    @GetMapping("/explore/trending")
+    public ResponseEntity<ApiResponse<List<TrendingHashtagResponse>>> trending(
+        @RequestParam(defaultValue = "10") int limit
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Trending hashtags retrieved successfully",
+            postService.trendingHashtags(currentUser.id(), limit)
         ));
     }
 

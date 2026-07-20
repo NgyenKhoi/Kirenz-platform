@@ -12,4 +12,7 @@ public interface UserServiceClient {
 
     @GetMapping("/api/friends/status/{targetUserId}")
     ApiResponse<FriendStatusResponse> getFriendStatus(@PathVariable("targetUserId") UUID targetUserId);
+
+    @GetMapping("/api/blocks/status/{targetUserId}")
+    ApiResponse<BlockStatusResponse> getBlockStatus(@PathVariable("targetUserId") UUID targetUserId);
 }

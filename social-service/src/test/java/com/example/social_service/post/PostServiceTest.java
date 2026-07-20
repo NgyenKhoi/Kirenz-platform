@@ -18,11 +18,13 @@ import com.example.social_service.reaction.dto.ReactionSummaryResponse;
 import com.example.social_service.reaction.model.ReactionTargetType;
 import com.example.social_service.reaction.service.ReactionService;
 import com.example.social_service.user.UserServiceClient;
+import com.example.social_service.user.BlockStatusResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -55,16 +57,23 @@ class PostServiceTest {
     @Mock
     private com.example.social_service.event.NotificationProducer notificationProducer;
 
+    @Mock
+    private MongoTemplate mongoTemplate;
+
     private PostService postService;
 
     @BeforeEach
     void setUp() {
-        postService = new PostService(postRepository, identityServiceClient, userServiceClient, reactionService, notificationProducer);
+        postService = new PostService(postRepository, identityServiceClient, userServiceClient, reactionService, notificationProducer, mongoTemplate);
         lenient().when(identityServiceClient.getProfilesByIds(any())).thenReturn(ApiResponse.success("ok", List.of()));
         lenient().when(reactionService.getSummary(any(), any(), any()))
             .thenReturn(new ReactionSummaryResponse(0, null, Map.of()));
         lenient().when(reactionService.getSummaries(any(), any(), any()))
             .thenReturn(Map.of());
+        lenient().when(userServiceClient.getBlockStatus(any())).thenAnswer(invocation -> {
+            UUID targetId = invocation.getArgument(0);
+            return ApiResponse.success("ok", new BlockStatusResponse(UUID.randomUUID(), targetId, false, false));
+        });
     }
 
     @Test
@@ -103,6 +112,20 @@ class PostServiceTest {
 
         assertThat(feed).extracting(PostResponse::id).containsExactly("newest", "older");
         verify(reactionService).getSummaries(any(), org.mockito.ArgumentMatchers.eq(ReactionTargetType.POST), any());
+    }
+
+    @Test
+    void rejectsMalformedCursorInsteadOfFallingBackToFirstPage() {
+        assertThatThrownBy(() -> postService.listFeedPage(UUID.randomUUID(), 20, "not-a-cursor"))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessage("Invalid or unsupported cursor");
+    }
+
+    @Test
+    void rejectsPageLimitOutsideContract() {
+        assertThatThrownBy(() -> postService.listFeedPage(UUID.randomUUID(), 51, null))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessage("limit must be between 1 and 50");
     }
 
     @Test

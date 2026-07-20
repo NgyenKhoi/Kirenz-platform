@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useCallback, useRef } from 'react';
 import { Compass, FileText, Hash, Loader2, Search, Send, TrendingUp, UserPlus, Users } from 'lucide-react';
 import Layout from './components/Layout';
 import { PostCard } from './components/Post/PostCard';
@@ -7,31 +8,9 @@ import { friendService } from './services/friend.service';
 import { postService } from './services/post.service';
 import { useAuthStore } from './store/authStore';
 import { UserSearchResponse } from './types/friend.types';
-import { PostResponse } from './types/post.types';
+import { PostResponse, TrendingHashtagResponse } from './types/post.types';
 import { ReactionSummaryResponse } from './types/reaction.types';
 import { getErrorMessage } from './utils/post.utils';
-
-interface TrendingHashtag {
-  tag: string;
-  postCount: number;
-}
-
-const hashtagPattern = /#[\p{L}\p{N}_-]+/gu;
-const normalize = (value: string) => value.trim().toLowerCase();
-
-const hashtagsFromContent = (content: string): string[] => {
-  const matches = content.match(hashtagPattern) || [];
-  return matches.map((tag) => tag.slice(1).toLowerCase());
-};
-
-const matchesPostQuery = (post: PostResponse, rawQuery: string) => {
-  const query = normalize(rawQuery).replace(/^#/, '');
-  if (!query) return false;
-
-  const content = normalize(post.content || '');
-  const tags = hashtagsFromContent(post.content || '');
-  return content.includes(query) || tags.some((tag) => tag.includes(query));
-};
 
 export default function Explore() {
   const { user } = useAuthStore();
@@ -44,13 +23,19 @@ export default function Explore() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [trendingHashtags, setTrendingHashtags] = useState<TrendingHashtagResponse[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
     setIsLoadingPosts(true);
-    postService.listFeed()
+    postService.trending()
       .then((data) => {
-        if (active) setPosts(data || []);
+        if (active) setTrendingHashtags(data || []);
       })
       .catch((err) => {
         if (active) setError(getErrorMessage(err));
@@ -63,6 +48,29 @@ export default function Explore() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const value = submittedQuery.trim().replace(/^#/, '');
+    if (value.length < 2) {
+      setPosts([]);
+      setHasMore(false);
+      setNextCursor(null);
+      return;
+    }
+    let active = true;
+    setIsLoadingPosts(true);
+    setLoadMoreError(null);
+    postService.explore(submittedQuery)
+      .then((page) => {
+        if (!active) return;
+        setPosts(page.items);
+        setNextCursor(page.nextCursor);
+        setHasMore(page.hasMore);
+      })
+      .catch((err) => { if (active) setError(getErrorMessage(err)); })
+      .finally(() => { if (active) setIsLoadingPosts(false); });
+    return () => { active = false; };
+  }, [submittedQuery]);
 
   useEffect(() => {
     const value = submittedQuery.trim();
@@ -96,33 +104,41 @@ export default function Explore() {
     };
   }, [submittedQuery]);
 
-  const trendingHashtags = useMemo<TrendingHashtag[]>(() => {
-    const counts = new Map<string, number>();
-
-    posts.forEach((post) => {
-      const uniqueTagsInPost = new Set(hashtagsFromContent(post.content || ''));
-      uniqueTagsInPost.forEach((tag) => {
-        counts.set(tag, (counts.get(tag) || 0) + 1);
+  const loadMore = useCallback(async () => {
+    if (!hasMore || !nextCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    setLoadMoreError(null);
+    try {
+      const page = await postService.explore(submittedQuery, nextCursor);
+      setPosts((current) => {
+        const known = new Set(current.map((post) => post.id));
+        return [...current, ...page.items.filter((post) => !known.has(post.id))];
       });
-    });
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } catch (err) {
+      setLoadMoreError(getErrorMessage(err));
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [hasMore, isLoadingMore, nextCursor, submittedQuery]);
 
-    return Array.from(counts.entries())
-      .map(([tag, postCount]) => ({ tag, postCount }))
-      .sort((a, b) => b.postCount - a.postCount || a.tag.localeCompare(b.tag))
-      .slice(0, 10);
-  }, [posts]);
-
-  const filteredPosts = useMemo(
-    () => posts.filter((post) => matchesPostQuery(post, submittedQuery)),
-    [posts, submittedQuery]
-  );
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) void loadMore();
+    }, { rootMargin: '300px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   const hasSearched = submittedQuery.trim().length > 0;
-  const canSearch = query.trim().length >= 2;
+  const canSearch = query.trim().replace(/^#/, '').length >= 2;
 
   const submitSearchValue = (value: string) => {
     const nextQuery = value.trim();
-    if (nextQuery.length < 2) return;
+    if (nextQuery.replace(/^#/, '').length < 2) return;
     setQuery(nextQuery);
     setSubmittedQuery(nextQuery);
     setMessage(null);
@@ -272,7 +288,7 @@ export default function Explore() {
 
           {!hasSearched ? (
             <EmptyState text="Type a search and press Enter to see people first, then related posts." />
-          ) : submittedQuery.trim().length < 2 ? (
+          ) : submittedQuery.trim().replace(/^#/, '').length < 2 ? (
             <EmptyState text="Type at least 2 characters to search." />
           ) : (
             <>
@@ -333,15 +349,15 @@ export default function Explore() {
               <ResultSection
                 icon={<FileText size={22} />}
                 title="Related Posts"
-                count={filteredPosts.length}
+                count={posts.length}
               >
                 {isLoadingPosts ? (
                   <LoadingState text="Loading posts..." />
-                ) : filteredPosts.length === 0 ? (
+                ) : posts.length === 0 ? (
                   <EmptyState text="No posts matched that search." />
                 ) : (
                   <div className="flex flex-col gap-6">
-                    {filteredPosts.map((post) => (
+                    {posts.map((post) => (
                       <React.Fragment key={post.id}>
                         <PostCard
                           post={post}
@@ -355,6 +371,13 @@ export default function Explore() {
                         />
                       </React.Fragment>
                     ))}
+                    <div ref={loadMoreRef} className="py-3 text-center text-sm font-bold text-on-surface-variant">
+                      {loadMoreError ? (
+                        <button type="button" onClick={() => void loadMore()} className="rounded-full bg-error-container px-4 py-2 text-on-error-container">
+                          Could not load more. Retry
+                        </button>
+                      ) : isLoadingMore ? 'Loading more posts...' : null}
+                    </div>
                   </div>
                 )}
               </ResultSection>
