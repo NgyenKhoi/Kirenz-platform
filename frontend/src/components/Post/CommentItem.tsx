@@ -14,6 +14,7 @@ import {
 import { fallbackAvatar } from "../../constants/post.constants";
 import { ReactionPicker } from "./ReactionPicker";
 import { CountPopover } from "../common/CountPopover";
+import { UserHoverCard } from "../common/UserHoverCard";
 import { ReactionBreakdown } from "./ReactionBreakdown";
 
 interface CommentItemProps {
@@ -117,8 +118,11 @@ export function CommentItem({
 
   return (
     <div className="flex min-w-0 max-w-full gap-3">
-      <div
-        className={`${isNested ? "h-8 w-8" : "h-9 w-9"} rounded-full overflow-hidden shrink-0 ring-2 ring-surface-container-lowest shadow-sm`}
+      <UserHoverCard
+        userId={comment.author.id}
+        name={authorName}
+        avatarUrl={comment.author.avatarUrl}
+        className={`block ${isNested ? "h-8 w-8" : "h-9 w-9"} rounded-full overflow-hidden shrink-0 ring-2 ring-surface-container-lowest shadow-sm`}
       >
         <img
           alt={authorName}
@@ -126,7 +130,7 @@ export function CommentItem({
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
         />
-      </div>
+      </UserHoverCard>
       <div className="min-w-0 flex-1">
         <div
           className={`${isNested ? "rounded-2xl bg-surface-container-lowest border border-outline-variant/20" : "rounded-2xl bg-surface-container-low"} ${isDeepNested ? "px-3" : "px-4"} py-3 shadow-sm transition-colors hover:bg-surface-container-high`}
@@ -134,7 +138,9 @@ export function CommentItem({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-on-surface">
-                {authorName}
+                <UserHoverCard userId={comment.author.id} name={authorName} avatarUrl={comment.author.avatarUrl} className="hover:underline">
+                  {authorName}
+                </UserHoverCard>
               </p>
               {isEditing ? (
                 <textarea

@@ -27,6 +27,7 @@ import { ReactionPicker } from "./ReactionPicker";
 import { CommentItem } from "./CommentItem";
 import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { ReportDialog } from "../common/ReportDialog";
+import { UserHoverCard } from "../common/UserHoverCard";
 
 interface PostCardProps {
   post: PostResponse;
@@ -505,24 +506,38 @@ useEffect(() => {
         <div className="p-6 pb-0">
           <div className="flex items-start justify-between mb-4 gap-4">
             <div className="flex items-center gap-4 min-w-0">
-              <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 ring-2 ring-surface-container-low shadow-sm">
+              <UserHoverCard
+                userId={post.author.id}
+                name={authorName}
+                avatarUrl={post.author.avatarUrl}
+                className="block w-11 h-11 rounded-full overflow-hidden shrink-0 ring-2 ring-surface-container-low shadow-sm"
+              >
                 <img
                   alt={authorName}
                   src={post.author.avatarUrl || fallbackAvatar}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
-              </div>
+              </UserHoverCard>
               <div className="min-w-0">
                 <h3 className="text-xl font-bold text-on-surface leading-tight">
-                  {authorName}
+                  <UserHoverCard userId={post.author.id} name={authorName} avatarUrl={post.author.avatarUrl} className="hover:underline">
+                    {authorName}
+                  </UserHoverCard>
                   {post.taggedUsers && post.taggedUsers.length > 0 && (
                     <span className="text-sm font-medium text-on-surface-variant">
                       {" "}is with{" "}
                       {post.taggedUsers.map((u, i) => (
                         <span key={u.id}>
                           {i > 0 && (i === post.taggedUsers!.length - 1 ? " and " : ", ")}
-                          <span className="font-bold text-on-surface">{u.displayName || u.username || "Kirenz User"}</span>
+                          <UserHoverCard
+                            userId={u.id}
+                            name={u.displayName || u.username || "Kirenz User"}
+                            avatarUrl={u.avatarUrl}
+                            className="font-bold text-on-surface hover:underline"
+                          >
+                            {u.displayName || u.username || "Kirenz User"}
+                          </UserHoverCard>
                         </span>
                       ))}
                     </span>
@@ -709,21 +724,35 @@ useEffect(() => {
               >
                 <div className="p-4">
                   <div className="mb-3 flex items-center gap-3">
-                    <img
-                      alt={
-                        sharedPost.author?.displayName ||
-                        sharedPost.author?.username ||
-                        "Kirenz User"
-                      }
-                      src={sharedPost.author?.avatarUrl || fallbackAvatar}
-                      className="h-9 w-9 rounded-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
+                    <UserHoverCard
+                      userId={sharedPost.author?.id}
+                      name={sharedPost.author?.displayName || sharedPost.author?.username || "Kirenz User"}
+                      avatarUrl={sharedPost.author?.avatarUrl}
+                      className="shrink-0"
+                    >
+                      <img
+                        alt={
+                          sharedPost.author?.displayName ||
+                          sharedPost.author?.username ||
+                          "Kirenz User"
+                        }
+                        src={sharedPost.author?.avatarUrl || fallbackAvatar}
+                        className="h-9 w-9 rounded-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </UserHoverCard>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-on-surface">
-                        {sharedPost.author?.displayName ||
-                          sharedPost.author?.username ||
-                          "Kirenz User"}
+                        <UserHoverCard
+                          userId={sharedPost.author?.id}
+                          name={sharedPost.author?.displayName || sharedPost.author?.username || "Kirenz User"}
+                          avatarUrl={sharedPost.author?.avatarUrl}
+                          className="hover:underline"
+                        >
+                          {sharedPost.author?.displayName ||
+                            sharedPost.author?.username ||
+                            "Kirenz User"}
+                        </UserHoverCard>
                       </p>
                       <p className="text-[11px] font-bold text-on-surface-variant">
                         {sharedPost.createdAt
@@ -925,14 +954,20 @@ useEffect(() => {
 
             <div className="max-h-[calc(100vh-9rem)] overflow-y-auto px-5 py-4">
               <div className="mb-4 flex items-center gap-3">
-                <img
-                  alt={authorName}
-                  src={post.author.avatarUrl || fallbackAvatar}
-                  className="h-11 w-11 rounded-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+                <UserHoverCard userId={post.author.id} name={authorName} avatarUrl={post.author.avatarUrl} className="shrink-0">
+                  <img
+                    alt={authorName}
+                    src={post.author.avatarUrl || fallbackAvatar}
+                    className="h-11 w-11 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </UserHoverCard>
                 <div className="min-w-0">
-                  <p className="truncate font-bold text-on-surface">{authorName}</p>
+                  <p className="truncate font-bold text-on-surface">
+                    <UserHoverCard userId={post.author.id} name={authorName} avatarUrl={post.author.avatarUrl} className="hover:underline">
+                      {authorName}
+                    </UserHoverCard>
+                  </p>
                   <p className="text-xs font-bold text-on-surface-variant">{formatPostTime(post.createdAt)}</p>
                 </div>
               </div>

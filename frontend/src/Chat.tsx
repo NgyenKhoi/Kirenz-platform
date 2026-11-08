@@ -5,6 +5,7 @@ import {
   Users, UserPlus, Check, Image as ImageIcon, Download, FileText, Shield, UserMinus, LogOut, Trash2
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import { useAuthStore } from './store/authStore';
 import { useChat, useConversationMessages } from './hooks/useChat';
@@ -93,6 +94,7 @@ const downloadOriginalFile = async (url: string, fileName: string) => {
 export default function Chat() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { conversations, loadingConversations, onlineUsers } = useChat(user?.id);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
@@ -731,6 +733,15 @@ export default function Chat() {
       setDirectChatNoticeSeconds(5);
     }
   };
+
+  // Deep link from elsewhere (e.g. profile hover card): /chat?userId=<id>
+  const targetUserId = searchParams.get('userId');
+  useEffect(() => {
+    if (!targetUserId || !user?.id) return;
+    setSearchParams({}, { replace: true });
+    handleStartConversation({ id: targetUserId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetUserId, user?.id]);
 
   return (
     <Layout>

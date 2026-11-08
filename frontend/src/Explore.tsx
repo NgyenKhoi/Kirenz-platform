@@ -4,6 +4,8 @@ import { useCallback, useRef } from 'react';
 import { Compass, FileText, Hash, Loader2, Search, Send, TrendingUp, UserPlus, Users } from 'lucide-react';
 import Layout from './components/Layout';
 import { PostCard } from './components/Post/PostCard';
+import { FlashMessage, LoadMoreStatus, PostListSkeleton, UserRowSkeleton } from './components/common/Feedback';
+import { UserHoverCard } from './components/common/UserHoverCard';
 import { friendService } from './services/friend.service';
 import { postService } from './services/post.service';
 import { useAuthStore } from './store/authStore';
@@ -242,11 +244,14 @@ export default function Explore() {
             </form>
           </section>
 
-          {(message || error) && (
-            <div className={`rounded-2xl px-5 py-4 text-sm font-bold ${error ? 'bg-error-container text-on-error-container' : 'bg-primary-container text-on-primary-container'}`}>
-              {error || message}
-            </div>
-          )}
+          <FlashMessage
+            message={message}
+            error={error}
+            onDismiss={() => {
+              setMessage(null);
+              setError(null);
+            }}
+          />
 
           <ResultSection
             icon={<TrendingUp size={22} />}
@@ -298,7 +303,7 @@ export default function Explore() {
                 count={users.length}
               >
                 {isSearchingUsers ? (
-                  <LoadingState text="Searching people..." />
+                  <UserRowSkeleton label="Searching people" />
                 ) : users.length === 0 ? (
                   <EmptyState text="No people matched that search." />
                 ) : (
@@ -307,8 +312,8 @@ export default function Explore() {
                       const displayName = result.displayName || result.username || 'Kirenz User';
                       const canSendRequest = result.relationshipStatus === 'NONE';
                       return (
-                        <article key={result.id} className="flex flex-col gap-4 rounded-2xl border border-outline-variant bg-surface-container-low p-4 sm:flex-row sm:items-center">
-                          <Link to={`/profile/${result.id}`} className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-80">
+                        <article key={result.id} className="flex animate-fade-in-up flex-col gap-4 rounded-2xl border border-outline-variant bg-surface-container-low p-4 transition-colors hover:border-primary/30 sm:flex-row sm:items-center">
+                          <UserHoverCard userId={result.id} name={displayName} avatarUrl={result.avatarUrl} className="flex min-w-0 flex-1 items-center gap-3 transition-opacity hover:opacity-80">
                             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-container text-on-primary-container font-bold">
                               {result.avatarUrl ? (
                                 <img src={result.avatarUrl} alt={displayName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
@@ -321,7 +326,7 @@ export default function Explore() {
                               <p className="truncate text-xs font-bold text-primary">@{result.username}</p>
                               {result.bio && <p className="mt-1 line-clamp-1 text-xs text-on-surface-variant">{result.bio}</p>}
                             </div>
-                          </Link>
+                          </UserHoverCard>
                           <div className="flex gap-2 sm:shrink-0">
                             <Link
                               to={`/profile/${result.id}`}
@@ -354,13 +359,13 @@ export default function Explore() {
                 count={posts.length}
               >
                 {isLoadingPosts ? (
-                  <LoadingState text="Loading posts..." />
+                  <PostListSkeleton count={2} />
                 ) : posts.length === 0 ? (
                   <EmptyState text="No posts matched that search." />
                 ) : (
                   <div className="flex flex-col gap-6">
                     {posts.map((post) => (
-                      <React.Fragment key={post.id}>
+                      <div key={post.id} className="animate-fade-in-up">
                         <PostCard
                           post={post}
                           currentUserId={user?.id}
@@ -371,14 +376,15 @@ export default function Explore() {
                           onCommentCountChange={handleCommentCountChange}
                           onReactionSummaryChange={handleReactionSummaryChange}
                         />
-                      </React.Fragment>
+                      </div>
                     ))}
                     <div ref={loadMoreRef} className="py-3 text-center text-sm font-bold text-on-surface-variant">
-                      {loadMoreError ? (
-                        <button type="button" onClick={() => void loadMore()} className="rounded-full bg-error-container px-4 py-2 text-on-error-container">
-                          Could not load more. Retry
-                        </button>
-                      ) : isLoadingMore ? 'Loading more posts...' : null}
+                      <LoadMoreStatus
+                        isLoading={isLoadingMore}
+                        error={!!loadMoreError}
+                        hasMore={hasMore}
+                        onRetry={() => void loadMore()}
+                      />
                     </div>
                   </div>
                 )}

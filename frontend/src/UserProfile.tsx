@@ -21,6 +21,8 @@ import { UserProfile as UserProfileType } from './types/auth.types';
 import { FriendRequestResponse, FriendResponse, MutualFriendResponse, RelationshipStatus } from './types/friend.types';
 import { useEscapeKey } from './hooks/useEscapeKey';
 import { ReportDialog } from './components/common/ReportDialog';
+import { EmptyState, FlashMessage, PostListSkeleton, UserRowSkeleton } from './components/common/Feedback';
+import { UserHoverCard } from './components/common/UserHoverCard';
 
 type ProfileTab = 'ABOUT' | 'POSTS' | 'FRIENDS' | 'PHOTOS';
 
@@ -800,8 +802,10 @@ export default function UserProfile() {
                   <span className="text-primary font-bold text-sm">{photos.length}</span>
                 </div>
                 {isLoadingPhotos ? (
-                  <div className="rounded-xl bg-surface-container-low p-4 text-center text-sm font-bold text-on-surface-variant">
-                    Loading photos...
+                  <div role="status" aria-label="Loading photos" className="grid grid-cols-3 gap-2">
+                    {Array.from({ length: 6 }, (_, index) => (
+                      <div key={index} className="aspect-square animate-pulse rounded-xl bg-surface-container-high" />
+                    ))}
                   </div>
                 ) : photoError ? (
                   <div className="rounded-xl bg-error-container p-4 text-center text-sm font-bold text-on-error-container">
@@ -960,9 +964,7 @@ export default function UserProfile() {
                     <span className="text-sm font-bold text-on-surface-variant">{friendCount} friend{friendCount === 1 ? '' : 's'}</span>
                   </div>
                   {isLoadingFriends ? (
-                    <div className="rounded-xl bg-surface-container-low p-8 text-center text-sm font-bold text-on-surface-variant">
-                      Loading friends...
-                    </div>
+                    <UserRowSkeleton count={4} label="Loading friends" />
                   ) : friendError ? (
                     <div className="rounded-xl bg-error-container p-8 text-center text-sm font-bold text-on-error-container">
                       {friendError}
@@ -976,10 +978,12 @@ export default function UserProfile() {
                       {friends.map((friend) => {
                         const friendName = friend.displayName || friend.username || 'Kirenz User';
                         return (
-                          <Link
-                            key={friend.friendshipId || friend.friendId}
-                            to={`/profile/${friend.friendId}`}
-                            className="flex min-w-0 items-center gap-3 rounded-2xl border border-outline-variant bg-surface-container-low p-4 transition-all hover:border-primary/40 hover:bg-surface-container"
+                          <React.Fragment key={friend.friendshipId || friend.friendId}>
+                          <UserHoverCard
+                            userId={friend.friendId}
+                            name={friendName}
+                            avatarUrl={friend.avatarUrl}
+                            className="flex min-w-0 animate-fade-in-up items-center gap-3 rounded-2xl border border-outline-variant bg-surface-container-low p-4 transition-all hover:border-primary/40 hover:bg-surface-container"
                           >
                             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-container text-on-primary-container font-bold">
                               {friend.avatarUrl ? (
@@ -993,7 +997,8 @@ export default function UserProfile() {
                               {friend.username && <p className="truncate text-xs font-bold text-primary">@{friend.username}</p>}
                               {friend.bio && <p className="mt-1 line-clamp-1 text-xs text-on-surface-variant">{friend.bio}</p>}
                             </div>
-                          </Link>
+                          </UserHoverCard>
+                          </React.Fragment>
                         );
                       })}
                     </div>
@@ -1075,29 +1080,26 @@ export default function UserProfile() {
                     />
                   )}
 
-                  {postMessage && (
-                    <div className="rounded-[2rem] bg-primary-container px-5 py-4 text-sm font-bold text-on-primary-container">
-                      {postMessage}
-                    </div>
-                  )}
-
-                  {postError && (
-                    <div className="rounded-[2rem] bg-error-container px-5 py-4 text-sm font-bold text-on-error-container">
-                      {postError}
-                    </div>
-                  )}
+                  <FlashMessage
+                    message={postMessage}
+                    error={postError}
+                    onDismiss={() => {
+                      setPostMessage(null);
+                      setPostError(null);
+                    }}
+                  />
 
                   {isLoadingPosts ? (
-                    <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold border border-surface-container">
-                      Loading your posts...
-                    </div>
+                    <PostListSkeleton count={2} />
                   ) : posts.length === 0 ? (
-                    <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold border border-surface-container">
-                      You have not posted anything yet.
-                    </div>
+                    <EmptyState
+                      icon={<Camera size={26} />}
+                      title={isOwnProfile ? "You haven't posted anything yet" : 'No posts yet'}
+                      text={isOwnProfile ? 'Share a photo or a thought — it will show up here.' : 'When they share something, it will show up here.'}
+                    />
                   ) : (
                     posts.map((post) => (
-                      <React.Fragment key={post.id}>
+                      <div key={post.id} className="animate-fade-in-up">
                         <PostCard
                           post={post}
                           currentUserId={user?.id}
@@ -1108,7 +1110,7 @@ export default function UserProfile() {
                           onCommentCountChange={handleCommentCountChange}
                           onReactionSummaryChange={handleReactionSummaryChange}
                         />
-                      </React.Fragment>
+                      </div>
                     ))
                   )}
                 </>

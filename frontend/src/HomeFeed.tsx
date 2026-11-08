@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { UserPlus } from "lucide-react";
+import { Compass, Loader2, Newspaper, UserPlus } from "lucide-react";
+import { EmptyState, FlashMessage, LoadMoreStatus, PostListSkeleton, UserRowSkeleton } from "./components/common/Feedback";
+import { UserHoverCard } from "./components/common/UserHoverCard";
 import Layout from "./components/Layout";
 import { postService } from "./services/post.service";
 import { PostResponse } from "./types/post.types";
@@ -217,13 +219,14 @@ export default function HomeFeed() {
         </header>
 
         <div className="flex flex-col gap-6 pb-20 lg:pb-6 max-w-[600px] mx-auto md:max-w-none xl:max-w-[800px]">
-          {(message || error) && (
-            <div
-              className={`rounded-2xl px-5 py-4 text-sm font-bold ${error ? "bg-error-container text-on-error-container" : "bg-primary-container text-on-primary-container"}`}
-            >
-              {error || message}
-            </div>
-          )}
+          <FlashMessage
+            message={message}
+            error={error}
+            onDismiss={() => {
+              setMessage(null);
+              setError(null);
+            }}
+          />
 
           <CreatePost
             user={user}
@@ -234,20 +237,28 @@ export default function HomeFeed() {
           />
 
           {isLoading ? (
-            <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold">
-              Loading posts...
-            </div>
+            <PostListSkeleton />
           ) : posts.length === 0 ? (
-            <div className="bg-surface-container-lowest rounded-[2rem] p-8 text-center text-on-surface-variant font-bold">
-              No posts yet.
-            </div>
+            <EmptyState
+              icon={<Newspaper size={26} />}
+              title="Your feed is quiet"
+              text="Share your first moment above, or find people and topics to follow."
+              action={
+                <Link
+                  to="/explore"
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-on-primary transition-all hover:brightness-110 active:scale-95"
+                >
+                  <Compass size={16} /> Explore Kirenz
+                </Link>
+              }
+            />
           ) : (
             <>
             {posts.map((post) => (
               <div
                 id={`post-${post.id}`}
                 key={post.id}
-                className={`scroll-mt-24 rounded-[2rem] transition-all duration-500 ${highlightedPostId === post.id ? "ring-4 ring-primary/60 shadow-[0_0_0_10px_rgba(139,78,62,0.12)]" : "ring-0 ring-transparent"}`}
+                className={`scroll-mt-24 animate-fade-in-up rounded-[2rem] transition-all duration-500 ${highlightedPostId === post.id ? "ring-4 ring-primary/60 shadow-[0_0_0_10px_rgba(139,78,62,0.12)]" : "ring-0 ring-transparent"}`}
               >
                 <PostCard
                   post={post}
@@ -262,11 +273,12 @@ export default function HomeFeed() {
               </div>
             ))}
             <div ref={loadMoreRef} className="py-3 text-center text-sm font-bold text-on-surface-variant">
-              {loadMoreError ? (
-                <button type="button" onClick={() => void loadMore()} className="rounded-full bg-error-container px-4 py-2 text-on-error-container">
-                  Could not load more. Retry
-                </button>
-              ) : isLoadingMore ? "Loading more posts..." : null}
+              <LoadMoreStatus
+                isLoading={isLoadingMore}
+                error={!!loadMoreError}
+                hasMore={hasMore}
+                onRetry={() => void loadMore()}
+              />
             </div>
             </>
           )}
@@ -280,19 +292,19 @@ export default function HomeFeed() {
             <Link to="/friends" className="text-xs font-bold text-primary hover:underline">See all</Link>
           </div>
           {suggestionsLoading ? (
-            <div className="space-y-3">{[0, 1, 2].map((item) => <div key={item} className="h-14 animate-pulse rounded-2xl bg-surface-container" />)}</div>
+            <UserRowSkeleton label="Loading suggestions" />
           ) : suggestions.length === 0 ? (
             <p className="text-sm text-on-surface-variant">No friend-of-friend suggestions yet.</p>
           ) : (
             <div className="space-y-3">
               {suggestions.map((suggestion) => {
                 const name = suggestion.displayName || suggestion.username || 'Kirenz User';
-                return <div key={suggestion.id} className="flex items-center gap-3">
-                  <Link to={`/profile/${suggestion.id}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 hover:bg-surface-container">
+                return <div key={suggestion.id} className="flex animate-fade-in-up items-center gap-3">
+                  <UserHoverCard userId={suggestion.id} name={name} avatarUrl={suggestion.avatarUrl} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 transition-colors hover:bg-surface-container">
                     <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-primary-container font-bold text-on-primary-container">{suggestion.avatarUrl ? <img src={suggestion.avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : name.slice(0, 1).toUpperCase()}</span>
                     <span className="min-w-0"><span className="block truncate text-sm font-bold text-on-surface">{name}</span><span className="block text-xs text-on-surface-variant">{suggestion.mutualFriendCount} mutual friend{suggestion.mutualFriendCount === 1 ? '' : 's'}</span></span>
-                  </Link>
-                  <button type="button" disabled={requestingUserId === suggestion.id} onClick={() => void sendSuggestionRequest(suggestion)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-container text-on-primary-container disabled:opacity-50" aria-label={`Add ${name} as friend`}><UserPlus size={17} /></button>
+                  </UserHoverCard>
+                  <button type="button" disabled={requestingUserId === suggestion.id} onClick={() => void sendSuggestionRequest(suggestion)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-container text-on-primary-container transition-all hover:brightness-95 active:scale-90 disabled:opacity-60" aria-label={`Add ${name} as friend`}>{requestingUserId === suggestion.id ? <Loader2 size={17} className="animate-spin" /> : <UserPlus size={17} />}</button>
                 </div>;
               })}
             </div>
